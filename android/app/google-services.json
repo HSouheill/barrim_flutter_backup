@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "307776183600",
+    "project_id": "barrim-3b45a",
+    "storage_bucket": "barrim-3b45a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:307776183600:android:1664503f45a706b1b5fcf5",
+        "android_client_info": {
+          "package_name": "com.barrim.barrim"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.barrim.barrim",
+            "certificate_hash": "764c1cf48f476fbef32d43baf8a5d5778625cbd0"
+          }
+        },
+        {
+          "client_id": "307776183600-d8bs7uhqt4g5dar0u48hnmrpbc4ke8ft.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDG54P5AZ3i3uj1l_A1SCIi-vutN0nVAK8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "307776183600-d8bs7uhqt4g5dar0u48hnmrpbc4ke8ft.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
