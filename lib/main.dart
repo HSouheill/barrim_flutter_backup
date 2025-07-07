@@ -6,21 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // await Firebase.initializeApp();
 
-  try {
-    await Firebase.initializeApp();
-    print("Firebase initialized successfully");
-  } catch (e) {
-    print("Firebase initialization error: $e");
-  }
+  // Firebase initialization removed to avoid Apple sign-in conflicts
+  print("Firebase Core not initialized - using native Apple sign-in");
 
   // Initialize notification service
   final notificationService = NotificationService();

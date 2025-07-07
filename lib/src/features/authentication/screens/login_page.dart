@@ -14,8 +14,6 @@ import 'package:provider/provider.dart';
 import 'package:barrim/src/features/authentication/screens/company_dashboard/company_dashboard.dart';
 import 'package:barrim/src/services/user_provider.dart'; // Import UserProvider
 import 'package:barrim/src/features/authentication/screens/apple_signin.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'dart:io';
 import './countrycode_dropdown.dart';
 
 class LoginPage extends StatefulWidget {
@@ -231,7 +229,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context){
-    final applesignin = AppleSignin();
     return LayoutBuilder(
       builder: (context, constraints) {
         // Screen size breakpoints
@@ -655,43 +652,33 @@ class _LoginPageState extends State<LoginPage> {
                                 constraints.maxWidth * 0.11,
                                 onPressed: () async {
                                   try {
-                                    final credential = await SignInWithApple.getAppleIDCredential(
-                                      scopes: [
-                                        AppleIDAuthorizationScopes.email,
-                                        AppleIDAuthorizationScopes.fullName,
-                                      ],
-                                      webAuthenticationOptions: Platform.isAndroid
-                                          ? WebAuthenticationOptions(
-                                              clientId: 'YOUR_SERVICE_ID', // TODO: Replace with your Apple Service ID
-                                              redirectUri: Uri.parse('YOUR_REDIRECT_URI'), // TODO: Replace with your redirect URI
-                                            )
-                                          : null,
-                                    );
-                                    final idToken = credential.identityToken;
-                                    if (idToken == null) {
-                                      setState(() {
-                                        _hasLoginError = true;
-                                        _errorMessage = 'Apple sign-in failed: No ID token received.';
-                                      });
-                                      return;
-                                    }
-                                    // Send the idToken to your backend
-                                    final backendResponse = await AppleAuthService.appleLogin(idToken);
-                                    if (backendResponse != null && backendResponse['status'] == 200) {
-                                      final data = backendResponse['data'];
-                                      final userProvider = Provider.of<UserProvider>(context, listen: false);
-                                      userProvider.setUser(data['user']);
-                                      userProvider.setToken(data['token']);
-                                      final userType = data['user']['userType'] ?? 'user';
-                                      _navigateAfterLogin(userType, data);
+                                    final appleSignin = AppleSignin();
+                                    final credential = await appleSignin.getAppleCredential();
+                                    
+                                    if (credential != null && credential['identityToken'] != null) {
+                                      // Send the idToken to your backend
+                                      final backendResponse = await AppleAuthService.appleLogin(credential['identityToken']!);
+                                      if (backendResponse != null && backendResponse['status'] == 200) {
+                                        final data = backendResponse['data'];
+                                        final userProvider = Provider.of<UserProvider>(context, listen: false);
+                                        userProvider.setUser(data['user']);
+                                        userProvider.setToken(data['token']);
+                                        final userType = data['user']['userType'] ?? 'user';
+                                        _navigateAfterLogin(userType, data);
+                                      } else {
+                                        setState(() {
+                                          _hasLoginError = true;
+                                          if (backendResponse?['message']?.contains('Invalid or expired token') == true) {
+                                            _errorMessage = 'Unable to sign in with Apple';
+                                          } else {
+                                            _errorMessage = backendResponse?['message'] ?? 'Apple login failed';
+                                          }
+                                        });
+                                      }
                                     } else {
                                       setState(() {
                                         _hasLoginError = true;
-                                        if (backendResponse?['message']?.contains('Invalid or expired token') == true) {
-                                          _errorMessage = 'Unable to sign in with Apple';
-                                        } else {
-                                          _errorMessage = backendResponse?['message'] ?? 'Apple login failed';
-                                        }
+                                        _errorMessage = 'Apple sign-in failed: No ID token received.';
                                       });
                                     }
                                   } catch (e) {

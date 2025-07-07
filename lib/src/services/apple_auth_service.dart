@@ -7,7 +7,7 @@ import 'api_service.dart';
 
 class AppleAuthService {
   /// Apple Sign-In request
-  static Future<Map<String, dynamic>> appleLogin(String idToken) async {
+  static Future<Map<String, dynamic>> appleLogin(String identityToken) async {
     try {
       // Replicate _getHeaders logic
       final prefs = await SharedPreferences.getInstance();
@@ -23,7 +23,7 @@ class AppleAuthService {
       final response = await client.post(
         uri,
         headers: headers,
-        body: jsonEncode({'idToken': idToken}),
+        body: jsonEncode({'identityToken': identityToken}),
       );
       final responseData = jsonDecode(response.body);
       if (response.statusCode == 200) {

@@ -2,7 +2,7 @@ name: barrim
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.6+2
+version: 1.0.7+2
 
 environment:
   sdk: ^3.7.0
@@ -13,7 +13,6 @@ dependencies:
 
   # Updated Firebase dependencies
   firebase_core: ^3.14.0
-  firebase_auth: ^5.6.0
   firebase_messaging: ^15.2.7
   
   # Other dependencies

@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../../services/google_auth_service.dart';
 import '../apple_signin.dart';
 import '../../../../services/user_provider.dart';
+import '../../../../services/apple_auth_service.dart';
 import '../user_dashboard/home.dart';
 import '../company_dashboard/company_dashboard.dart';
 import '../serviceProvider_dashboard/serviceprovider_dashboard.dart';
@@ -136,52 +137,46 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
       _isAppleLoading = true;
     });
     try {
-      final result = await _appleSignin.signInWithApple();
+      final credential = await _appleSignin.getAppleCredential();
       setState(() {
         _isAppleLoading = false;
       });
-      if (result != null) {
-        final firebaseUser = result.user;
-        final idToken = await firebaseUser?.getIdToken();
-        if (firebaseUser != null && idToken != null) {
+      if (credential != null && credential['identityToken'] != null) {
+        // Send the idToken to your backend
+        final backendResponse = await AppleAuthService.appleLogin(credential['identityToken']!);
+        if (backendResponse != null && backendResponse['status'] == 200) {
+          final data = backendResponse['data'];
           final userProvider = Provider.of<UserProvider>(context, listen: false);
-          userProvider.setUser({
-            'id': firebaseUser.uid ?? '',
-            'email': firebaseUser.email ?? '',
-            'fullName': firebaseUser.displayName ?? 'Apple User',
-            'userType': 'user',
-            'profilePic': firebaseUser.photoURL,
-            'points': 0,
-            'createdAt': DateTime.now().toIso8601String(),
-            'updatedAt': DateTime.now().toIso8601String(),
-          });
-          userProvider.setToken(idToken);
-          final userType = 'user';
-          final userData = {
-            'user': {
-              'id': firebaseUser.uid,
-              'email': firebaseUser.email,
-              'fullName': firebaseUser.displayName ?? 'Apple User',
-              'userType': 'user',
-            },
-            'token': idToken,
-          };
-          print('Navigating after Apple sign-in with userData: ' + userData.toString());
-          _navigateAfterLogin(userType, userData);
+          userProvider.setUser(data['user']);
+          userProvider.setToken(data['token']);
+          final userType = data['user']['userType'] ?? 'user';
+          _navigateAfterLogin(userType, data);
         } else {
-          // Show error if token is missing
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Apple sign-in failed: No user or token'),
+            SnackBar(
+              content: Text(backendResponse?['message'] ?? 'Apple sign-in failed'),
               backgroundColor: Colors.red,
             ),
           );
         }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Apple sign-in failed: No ID token received'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       setState(() {
         _isAppleLoading = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Apple sign-in error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

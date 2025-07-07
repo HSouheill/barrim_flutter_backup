@@ -37,6 +37,14 @@
             {
               "client_id": "307776183600-d8bs7uhqt4g5dar0u48hnmrpbc4ke8ft.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.barrim.barrim",
+                "app_store_id": "22375160039"
+              }
             }
           ]
         }
