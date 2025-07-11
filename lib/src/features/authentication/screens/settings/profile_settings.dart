@@ -33,7 +33,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   String profileImagePath = ''; // Default image
   bool _isUsingNetworkImage = false;
   File? _selectedImage;
-  bool _isLoading = true; // Start with loading state
+
   bool _passwordChangeMode = false;
   bool _passwordObscured = true;
   String? _errorMessage;
@@ -209,7 +209,6 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       print('ProfileSettingsPage: Error loading user data: $error');
       setState(() {
         _errorMessage = 'Failed to load profile data';
-        _isLoading = false;
       });
     });
   }
@@ -266,11 +265,6 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       print('ProfileSettingsPage: Error in _loadUserData: $e');
       setState(() {
         _errorMessage = 'Failed to load profile data: ${e.toString()}';
-        _isLoading = false;
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
       });
     }
   }
@@ -363,9 +357,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         _errorMessage = e.toString();
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      // Removed loading state
     }
   }
 
@@ -411,9 +403,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         _errorMessage = 'Failed to change password: ${e.toString()}';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      // Removed loading state
     }
   }
 
@@ -477,468 +467,472 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                Column(
-                  children: [
-                    // Use the AppHeader component
-                    AppHeader(
-                      profileImagePath: _isUsingNetworkImage ? profileImagePath : null,
-                      onNotificationTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => notification.NotificationsPage(),
-                          ),
-                        );
-                      },
-                      onMenuTap: _toggleSidebar,
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // Use the AppHeader component
+              AppHeader(
+                profileImagePath: _isUsingNetworkImage ? profileImagePath : null,
+                onNotificationTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => notification.NotificationsPage(),
                     ),
-
-                    // Back button
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16.0, top: 16.0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: InkWell(
-                          onTap: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Icon(
-                            Icons.arrow_back,
-                            color: Color(0xFF2079C2),
-                            size: 28,
-                          ),
-                        ),
-                      ),
+                  );
+                },
+                onProfileTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SettingsPage(),
                     ),
+                  );
+                },
+                onMenuTap: _toggleSidebar,
+              ),
 
-                    // Profile settings content
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+              // Back button
+              Padding(
+                padding: const EdgeInsets.only(left: 16.0, top: 16.0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Color(0xFF2079C2),
+                      size: 28,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Profile settings content
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 24),
+
+                        // Profile picture
+                        GestureDetector(
+                          onTap: _selectProfileImage,
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
-                              const SizedBox(height: 24),
-
-                              // Profile picture
-                              GestureDetector(
-                                onTap: _selectProfileImage,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    _buildProfileImage(),
-                                    Positioned(
-                                      bottom: 0,
-                                      right: 0,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              spreadRadius: 1,
-                                              blurRadius: 3,
-                                              offset: const Offset(0, 1),
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.camera_alt,
-                                          color: Color(0xFF2079C2),
-                                          size: 20,
-                                        ),
+                              _buildProfileImage(),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.1),
+                                        spreadRadius: 1,
+                                        blurRadius: 3,
+                                        offset: const Offset(0, 1),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              const SizedBox(height: 12),
-                              // Change profile picture text
-                              GestureDetector(
-                                onTap: _selectProfileImage,
-                                child: const Text(
-                                  'Change Profile Picture',
-                                  style: TextStyle(
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt,
                                     color: Color(0xFF2079C2),
-                                    fontWeight: FontWeight.w500,
+                                    size: 20,
                                   ),
                                 ),
                               ),
-
-                              const SizedBox(height: 32),
-
-                              // Display error message if any
-                              if (_errorMessage != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 16.0),
-                                  child: Text(
-                                    _errorMessage!,
-                                    style: const TextStyle(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-
-                              // Full Name
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Full Name',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: TextField(
-                                      controller: _nameController,
-                                      decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 24),
-
-                              // Email
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Email',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: TextField(
-                                      controller: _emailController,
-                                      keyboardType: TextInputType.emailAddress,
-                                      decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 24),
-
-                              // Current Password field
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Password',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Stack(
-                                      alignment: Alignment.centerRight,
-                                      children: [
-                                        TextField(
-                                          controller: _currentPasswordController,
-                                          obscureText: true,
-                                          decoration: const InputDecoration(
-                                            hintText: '••••••••••••••••',
-                                            border: InputBorder.none,
-                                            contentPadding: EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 14,
-                                            ),
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.only(right: 8.0),
-                                          child: ElevatedButton(
-                                            onPressed: () {
-                                              setState(() {
-                                                _passwordChangeMode = true;
-                                              });
-                                            },
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFF2079C2),
-                                              minimumSize: const Size(80, 32),
-                                              padding: EdgeInsets.zero,
-                                            ),
-                                            child: const Text(
-                                              'Change',
-                                              style: TextStyle(color: Colors.white),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              if (!_passwordChangeMode)
-                                const SizedBox(height: 24),
-                              // Password change section
-                              if (_passwordChangeMode)
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 16),
-                                    const Divider(),
-                                    const SizedBox(height: 16),
-
-                                    // New password
-                                    const Text(
-                                      'New Password',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade200,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: TextField(
-                                        controller: _newPasswordController,
-                                        obscureText: _passwordObscured,
-                                        decoration: const InputDecoration(
-                                          border: InputBorder.none,
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 16),
-
-                                    // Confirm new password
-                                    const Text(
-                                      'Confirm New Password',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade200,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: TextField(
-                                        controller: _confirmPasswordController,
-                                        obscureText: _passwordObscured,
-                                        decoration: const InputDecoration(
-                                          border: InputBorder.none,
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 16),
-
-                                    // Password buttons
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            setState(() {
-                                              _passwordChangeMode = false;
-                                              _newPasswordController.clear();
-                                              _confirmPasswordController.clear();
-                                              _errorMessage = null;
-                                            });
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.grey.shade300,
-                                            minimumSize: const Size(120, 40),
-                                          ),
-                                          child: const Text('Cancel'),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        ElevatedButton(
-                                          onPressed: _changePassword,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF2079C2),
-                                            minimumSize: const Size(120, 40),
-                                          ),
-                                          child: const Text(
-                                            'Update Password',
-                                            style: TextStyle(color: Colors.white),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-
-                                    const SizedBox(height: 16),
-                                    const Divider(),
-                                  ],
-                                ),
-
-                              const SizedBox(height: 40),
-
-                              // Save button
-                              SizedBox(
-                                width: 286,
-                                height: 66,
-                                child: ElevatedButton(
-                                  onPressed: _saveProfile,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF2079C2),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Save',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 24),
-
-                              // Delete Account Button
-                              SizedBox(
-                                width: 286,
-                                height: 50,
-                                child: ElevatedButton(
-                                  onPressed: () async {
-                                    final confirmed = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Delete Account'),
-                                        content: const Text('Are you sure you want to delete your account? This action cannot be undone.'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.of(context).pop(false),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () => Navigator.of(context).pop(true),
-                                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                    if (confirmed == true) {
-                                      setState(() { _isLoading = true; _errorMessage = null; });
-                                      try {
-                                        final success = await ApiService.deleteUserAccount();
-                                        if (success) {
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Account deleted successfully.')),
-                                            );
-                                            Navigator.of(context).pushAndRemoveUntil(
-                                              MaterialPageRoute(builder: (context) => const LoginPage()),
-                                              (route) => false,
-                                            );
-                                          }
-                                        }
-                                      } catch (e) {
-                                        setState(() { _errorMessage = e.toString(); });
-                                      } finally {
-                                        setState(() { _isLoading = false; });
-                                      }
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Delete Account',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 24),
                             ],
                           ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
 
-                // Semi-transparent overlay when sidebar is open
-                if (_isSidebarOpen)
-                  Positioned.fill(
-                    child: GestureDetector(
-                      onTap: _toggleSidebar,
-                      child: Container(
-                        color: Colors.black.withOpacity(0.5),
-                      ),
+                        const SizedBox(height: 12),
+                        // Change profile picture text
+                        GestureDetector(
+                          onTap: _selectProfileImage,
+                          child: const Text(
+                            'Change Profile Picture',
+                            style: TextStyle(
+                              color: Color(0xFF2079C2),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 32),
+
+                        // Display error message if any
+                        if (_errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+
+                        // Full Name
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Full Name',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: TextField(
+                                controller: _nameController,
+                                decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Email
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Email',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: TextField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Current Password field
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Password',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Stack(
+                                alignment: Alignment.centerRight,
+                                children: [
+                                  TextField(
+                                    controller: _currentPasswordController,
+                                    obscureText: true,
+                                    decoration: const InputDecoration(
+                                      hintText: '••••••••••••••••',
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8.0),
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _passwordChangeMode = true;
+                                        });
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF2079C2),
+                                        minimumSize: const Size(80, 32),
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                      child: const Text(
+                                        'Change',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        if (!_passwordChangeMode)
+                          const SizedBox(height: 24),
+                        // Password change section
+                        if (_passwordChangeMode)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 16),
+                              const Divider(),
+                              const SizedBox(height: 16),
+
+                              // New password
+                              const Text(
+                                'New Password',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: TextField(
+                                  controller: _newPasswordController,
+                                  obscureText: _passwordObscured,
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // Confirm new password
+                              const Text(
+                                'Confirm New Password',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: TextField(
+                                  controller: _confirmPasswordController,
+                                  obscureText: _passwordObscured,
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // Password buttons
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _passwordChangeMode = false;
+                                        _newPasswordController.clear();
+                                        _confirmPasswordController.clear();
+                                        _errorMessage = null;
+                                      });
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey.shade300,
+                                      minimumSize: const Size(120, 40),
+                                    ),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  ElevatedButton(
+                                    onPressed: _changePassword,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2079C2),
+                                      minimumSize: const Size(120, 40),
+                                    ),
+                                    child: const Text(
+                                      'Update Password',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 16),
+                              const Divider(),
+                            ],
+                          ),
+
+                        const SizedBox(height: 40),
+
+                        // Save button
+                        SizedBox(
+                          width: 286,
+                          height: 66,
+                          child: ElevatedButton(
+                            onPressed: _saveProfile,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2079C2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                            ),
+                            child: const Text(
+                              'Save',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Delete Account Button
+                        SizedBox(
+                          width: 286,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Delete Account'),
+                                  content: const Text('Are you sure you want to delete your account? This action cannot be undone.'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(context).pop(false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.of(context).pop(true),
+                                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) {
+                                setState(() { _errorMessage = null; });
+                                try {
+                                  final success = await ApiService.deleteUserAccount();
+                                  if (success) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Account deleted successfully.')),
+                                      );
+                                      Navigator.of(context).pushAndRemoveUntil(
+                                        MaterialPageRoute(builder: (context) => const LoginPage()),
+                                        (route) => false,
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  setState(() { _errorMessage = e.toString(); });
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                            ),
+                            child: const Text(
+                              'Delete Account',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
                     ),
                   ),
-
-                // Sidebar
-                AnimatedPositioned(
-                  duration: Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  right: _isSidebarOpen ? 0 : -250,
-                  top: 0,
-                  bottom: 0,
-                  child: _buildSidebar(),
                 ),
-              ],
+              ),
+            ],
+          ),
+
+          // Semi-transparent overlay when sidebar is open
+          if (_isSidebarOpen)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _toggleSidebar,
+                child: Container(
+                  color: Colors.black.withOpacity(0.5),
+                ),
+              ),
             ),
+
+          // Sidebar
+          AnimatedPositioned(
+            duration: Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            right: _isSidebarOpen ? 0 : -250,
+            top: 0,
+            bottom: 0,
+            child: _buildSidebar(),
+          ),
+        ],
+      ),
     );
   }
 }

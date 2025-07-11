@@ -4,6 +4,7 @@ import '../../../../services/api_service.dart';
 import '../../headers/dashboard_headers.dart';
 import '../../headers/sidebar.dart';
 import '../responsive_utils.dart';
+import '../settings/settings.dart';
 
 class FilterPage extends StatefulWidget {
   const FilterPage({Key? key}) : super(key: key);
@@ -13,125 +14,39 @@ class FilterPage extends StatefulWidget {
 }
 
 class _FilterPageState extends State<FilterPage> {
-  String? _selectedType;
-  String? _selectedCategory;
+  String? _selectedCategory; // Now represents the industry type
+  String? _selectedSubCategory; // Now represents the subcategory
   String? _selectedDistance;
   String? _selectedSortBy = 'Most Popular'; // Default selected
   String? _profileImagePath;
+  String? _customDistanceValue;
 
-  final List<String> _typeOptions = [
+  final List<String> _categoryOptions = [
     'All',
+    'Hotels',
     'Restaurant',
-    'Hotel',
-    'Shop',
-    'Station',
-    'Wholesaler',
-    'Real Estate'
+    'Technology',
+    'Shops',
+    'Stations',
+    'Finance',
+    'Food & Beverage',
+    'Real Estate',
+    'Other',
   ];
 
   final Map<String, List<String>> _categoryOptionsMap = {
-    'Restaurant': [
-      'All',
-      'Fine Dining',
-      'Cafe',
-      'Fast Food',
-      'Buffet',
-      'Food Court',
-      'Bistro',
-      'Pub',
-      'Bar',
-      'Food Truck',
-      'Seafood',
-      'Italian',
-      'Chinese',
-      'Japanese',
-      'Indian',
-      'Mexican',
-      'Lebanese',
-      'Mediterranean'
-    ],
-    'Real Estate': [
-      'All',
-      'Apartment',
-      'House',
-      'Villa',
-      'Condo',
-      'Townhouse',
-      'Duplex',
-      'Studio',
-      'Loft',
-      'Mansion',
-      'Cottage',
-      'Bungalow',
-      'Ranch',
-      'Farmhouse',
-      'Cabin',
-      'Chalet',
-    ],
-    'Hotel': [
-      'All',
-      'Luxury',
-      'Boutique',
-      'Business',
-      'Resort',
-      'Motel',
-      'Hostel',
-      'Guest House',
-      'Apartment Hotel',
-      'Beach Hotel',
-      'Mountain Resort',
-      'City Hotel',
-      'Spa Resort'
-    ],
-    'Shop': [
-      'All',
-      'Fashion',
-      'Electronics',
-      'Grocery',
-      'Home Goods',
-      'Sports',
-      'Beauty',
-      'Books',
-      'Jewelry',
-      'Antiques',
-      'Furniture',
-      'Toys',
-      'Pet Supplies',
-      'Art Supplies',
-      'Music Store',
-      'Gift Shop'
-    ],
-    'Station': [
-      'All',
-      'Gas Station',
-      'Charging Station',
-      'Service Station',
-      'Bus Station',
-      'Train Station',
-      'Metro Station',
-      'Parking Station'
-    ],
-    'Wholesaler': [
-      'All',
-      'Food & Beverage',
-      'Electronics',
-      'Textiles & Clothing',
-      'Construction & Building',
-      'Automotive',
-      'Health & Beauty',
-      'Home & Garden',
-      'Industrial & Manufacturing',
-      'Office & Stationery',
-      'Sports & Recreation',
-      'Agricultural',
-      'Pharmaceuticals',
-      'Chemicals',
-      'Raw Materials'
-    ],
-
+    'Hotels': ['All', 'Luxury', 'Budget', 'Resort', 'Boutique', 'Business'],
+    'Restaurant': ['All', 'Fast Food', 'Fine Dining', 'Casual Dining', 'Café', 'Bistro'],
+    'Technology': ['All', 'Software', 'Hardware', 'IT Services', 'Telecommunications', 'E-commerce'],
+    'Shops': ['All', 'Retail', 'Department Store', 'Specialty', 'Convenience', 'Online'],
+    'Stations': ['All', 'Gas', 'Train', 'Bus', 'Electric Charging', 'Metro'],
+    'Finance': ['All', 'Banking', 'Insurance', 'Investment', 'Accounting', 'Fintech'],
+    'Food & Beverage': ['All', 'Bakery', 'Beverage', 'Catering', 'Grocery', 'Specialty Food'],
+    'Real Estate': ['All', 'Residential', 'Commercial', 'Industrial', 'Property Management', 'Development'],
+    'Other': ['All', 'Education', 'Healthcare', 'Entertainment', 'Transportation', 'Miscellaneous'],
   };
 
-  final List<String> _distanceOptions = ['1 km', '5 km', '10 km', '20 km'];
+  final List<String> _distanceOptions = ['1 km', '5 km', '10 km', '20 km', 'Custom...'];
   final List<String> _sortByOptions = [
     'Most Popular',
     'Most Recent',
@@ -142,7 +57,7 @@ class _FilterPageState extends State<FilterPage> {
   bool _isSidebarOpen = false;
 
   // Add new state variables
-  List<String> _currentCategoryOptions = ['All'];
+  List<String> _currentSubCategoryOptions = ['All'];
 
   void _handleNotificationTap() {
     // Implement notification tap logic
@@ -156,24 +71,24 @@ class _FilterPageState extends State<FilterPage> {
     });
   }
 
-  void _updateCategoryOptions(String? type) {
+  void _updateSubCategoryOptions(String? category) {
     setState(() {
-      if (type != null && type != 'All') {
-        _currentCategoryOptions = _categoryOptionsMap[type] ?? ['All'];
+      if (category != null && category != 'All') {
+        _currentSubCategoryOptions = _categoryOptionsMap[category] ?? ['All'];
       } else {
-        _currentCategoryOptions = ['All'];
+        _currentSubCategoryOptions = ['All'];
       }
-      _selectedCategory = null;
+      _selectedSubCategory = null;
     });
   }
 
   void _clearAllFilters() {
     setState(() {
-      _selectedType = null;
       _selectedCategory = null;
+      _selectedSubCategory = null;
       _selectedDistance = null;
       _selectedSortBy = 'Most Popular';
-      _currentCategoryOptions = ['All'];
+      _currentSubCategoryOptions = ['All'];
     });
   }
 
@@ -244,6 +159,14 @@ class _FilterPageState extends State<FilterPage> {
               AppHeader(
                 profileImagePath: _profileImagePath,
                 onNotificationTap: _handleNotificationTap,
+                onProfileTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SettingsPage(),
+                    ),
+                  );
+                },
                 // onMenuTap: _toggleSidebar,
               ),
 
@@ -368,12 +291,12 @@ class _FilterPageState extends State<FilterPage> {
                   Expanded(
                     child: _buildDropdownSection(
                       'Type',
-                      _typeOptions,
-                      _selectedType,
+                      _categoryOptions,
+                      _selectedCategory,
                       (value) {
                         setState(() {
-                          _selectedType = value;
-                          _updateCategoryOptions(value);
+                          _selectedCategory = value;
+                          _updateSubCategoryOptions(value);
                         });
                       },
                     ),
@@ -381,11 +304,11 @@ class _FilterPageState extends State<FilterPage> {
                   SizedBox(width: 24),
                   Expanded(
                     child: _buildDropdownSection(
-                      'Category',
-                      _currentCategoryOptions,
-                      _selectedCategory,
+                      'Subcategory',
+                      _currentSubCategoryOptions,
+                      _selectedSubCategory,
                       (value) {
-                        setState(() => _selectedCategory = value);
+                        setState(() => _selectedSubCategory = value);
                       },
                     ),
                   ),
@@ -461,26 +384,26 @@ class _FilterPageState extends State<FilterPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Type Dropdown
+        // Category Dropdown (was Type)
         _buildDropdownSection(
-          'Type',
-          _typeOptions,
-          _selectedType,
+          'Category',
+          _categoryOptions,
+          _selectedCategory,
           (value) {
             setState(() {
-              _selectedType = value;
-              _updateCategoryOptions(value);
+              _selectedCategory = value;
+              _updateSubCategoryOptions(value);
             });
           },
         ),
 
-        // Category Dropdown
+        // Subcategory Dropdown (was Category)
         _buildDropdownSection(
-          'Category',
-          _currentCategoryOptions,
-          _selectedCategory,
+          'Subcategory',
+          _currentSubCategoryOptions,
+          _selectedSubCategory,
           (value) {
-            setState(() => _selectedCategory = value);
+            setState(() => _selectedSubCategory = value);
           },
         ),
 
@@ -626,10 +549,14 @@ class _FilterPageState extends State<FilterPage> {
       ),
       child: ElevatedButton(
         onPressed: () {
+          String? distanceToSend = _selectedDistance;
+          if (_selectedDistance == 'Custom...' && _customDistanceValue != null && _customDistanceValue!.isNotEmpty) {
+            distanceToSend = _customDistanceValue! + ' km';
+          }
           Navigator.of(context).pop({
-            'type': _selectedType,
             'category': _selectedCategory,
-            'distance': _selectedDistance,
+            'subcategory': _selectedSubCategory,
+            'distance': distanceToSend,
             'sortBy': _selectedSortBy,
           });
         },
@@ -691,6 +618,107 @@ class _FilterPageState extends State<FilterPage> {
     String? selectedValue,
     Function(String?) onChanged,
   ) {
+    // Special handling for Distance dropdown to allow custom value
+    if (title == 'Distance') {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0094FF),
+              ),
+            ),
+            SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Color(0xFF0094FF).withOpacity(0.3)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: DropdownButtonFormField<String>(
+                value: selectedValue,
+                onChanged: (value) {
+                  if (value == 'Custom...') {
+                    setState(() {
+                      _selectedDistance = value;
+                    });
+                  } else {
+                    setState(() {
+                      _selectedDistance = value;
+                      _customDistanceValue = null;
+                    });
+                  }
+                  onChanged(value);
+                },
+                isExpanded: true,
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: ResponsiveUtils.getInputTextFontSize(context),
+                ),
+                decoration: InputDecoration(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                ),
+                icon: Icon(
+                  Icons.keyboard_arrow_down,
+                  color: Color(0xFF0094FF),
+                  size: 24,
+                ),
+                hint: Text(
+                  'Select $title',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: ResponsiveUtils.getInputTextFontSize(context),
+                  ),
+                ),
+                items: options.map((option) {
+                  return DropdownMenuItem(
+                    value: option,
+                    child: Text(
+                      option,
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: ResponsiveUtils.getInputTextFontSize(context),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            if (_selectedDistance == 'Custom...')
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: TextFormField(
+                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'Enter custom distance (km)',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _customDistanceValue = value;
+                    });
+                  },
+                ),
+              ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Column(

@@ -251,6 +251,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
               AppHeader(
                 profileImagePath: _profileImagePath,
                 onNotificationTap: () {},
+                onProfileTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SettingsPage(),
+                    ),
+                  );
+                },
                 onMenuTap: _toggleSidebar,
               ),
 

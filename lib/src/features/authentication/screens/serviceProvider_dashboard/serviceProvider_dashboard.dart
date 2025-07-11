@@ -556,30 +556,65 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
                   ),
                   child: Column(
                     children: [
-                      _buildSocialLink(
+                       _buildSocialLink(
                           icon: Icons.phone,
                           text: serviceProvider?.phone ?? 'N/A',
                           color: Colors.blue
                       ),
-                      const SizedBox(height: 12),
+                        const SizedBox(height: 6),
+
                       _buildSocialLink(
-                          icon: Icons.phone,
+                          icon: null,
+                          customIcon: Padding(
+                            padding: const EdgeInsets.all(0.0),
+                            child: Image.asset(
+                              'assets/icons/whatsapp.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                           text: serviceProvider?.phone ?? 'N/A',
                           color: Colors.blue
                       ),
+                                             const SizedBox(height: 6),
+
                       const SizedBox(height: 12),
                       _buildSocialLink(
-                          icon: Icons.camera_alt,
-                          text: socialLinks['instagram'] ?? 'N/A',
+                          icon: null,
+                          customIcon: Padding(
+                            padding: const EdgeInsets.all(0.0),
+                            child: Image.asset(
+                              'assets/icons/instagram.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),                          text: socialLinks['instagram'] ?? 'N/A',
                           color: Colors.blue
                       ),
+                                              const SizedBox(height: 6),
+
                       _buildSocialLink(
-                          icon: Icons.facebook,
+                          icon: null,
+                          customIcon: Padding(
+                            padding: const EdgeInsets.all(2.0),
+                            child: Image.asset(
+                              'assets/icons/facebook.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                           text: socialLinks['facebook'] ?? 'N/A',
                           color: Colors.blue
                       ),
+                                              const SizedBox(height: 6),
+
                       _buildSocialLink(
                           icon: Icons.language,
+                          customIcon: null,
+                          iconSize: 24,
                           text: socialLinks['website'] ?? 'N/A',
                           color: Colors.blue
                       ),
@@ -626,10 +661,10 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
       ],
     );
   }
-  Widget _buildSocialLink({required IconData icon, required String text, required Color color}) {
+  Widget _buildSocialLink({IconData? icon, Widget? customIcon, required String text, required Color color, double iconSize = 20}) {
     return Row(
       children: [
-        Icon(icon, color: color, size: 20),
+        customIcon ?? (icon != null ? Icon(icon, color: color, size: iconSize) : SizedBox(width: iconSize)),
         const SizedBox(width: 16),
         Expanded(
           child: Text(

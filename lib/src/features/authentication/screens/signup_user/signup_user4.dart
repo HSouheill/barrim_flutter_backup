@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../custom_header.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../white_headr.dart';
 import 'signup_user5.dart';
 import '../responsive_utils.dart';
 import 'package:geolocator/geolocator.dart';
@@ -272,6 +273,10 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
         final inputTextFontSize = ResponsiveUtils.getInputTextFontSize(context);
         final buttonFontSize = ResponsiveUtils.getButtonFontSize(context);
 
+        // Fixed heights for header and gap
+        final double whiteHeaderHeight = 180;
+        final double headerGap = 16;
+
         return Scaffold(
           resizeToAvoidBottomInset: true,
           body: SingleChildScrollView(
@@ -296,7 +301,7 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      height: constraints.maxHeight * 0.19,
+                      height: whiteHeaderHeight,
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.only(
@@ -318,19 +323,14 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                             ),
                           ),
                           Positioned(
-                            top: 103,
-                            left: 33,
+                            top: 0,
+                            left: 0,
                             right: 0,
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: Text(
-                                'Sign Up',
-                                style: GoogleFonts.nunito(
-                                  fontSize: ResponsiveUtils.getTitleFontSize(context),
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF05054F),
-                                  letterSpacing: 1.2,
-                                ),
+                            child: Container(
+                              height: whiteHeaderHeight,
+                              child: WhiteHeader(
+                                title: 'Sign Up',
+                                onBackPressed: () => Navigator.pop(context),
                               ),
                             ),
                           ),
@@ -339,7 +339,7 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                     ),
                   ),
                   Positioned(
-                    top: constraints.maxHeight * 0.20,
+                    top: whiteHeaderHeight + headerGap,
                     left: 0,
                     right: 0,
                     child: CustomHeader(
@@ -353,7 +353,7 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                   Positioned(
                     left: 24,
                     right: 24,
-                    top: constraints.maxHeight * 0.24, // Adjusted to avoid overlap
+                    top: whiteHeaderHeight + headerGap + 50, // 50 is an estimated height for CustomHeader, adjust if needed
                     bottom: 0,
                     child: Form(
                       key: _formKey,
@@ -380,7 +380,7 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                                   Text(
                                     'Auto-pin location',
                                     style: GoogleFonts.nunito(
-                                      fontSize: 14,
+                                      fontSize: 16,
                                       color: Colors.white,
                                       decoration: TextDecoration.underline,
                                     ),
@@ -742,7 +742,7 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                                   ),
                                 ),
                                 child: Text(
-                                  'Sign Up',
+                                  'Next',
                                   style: GoogleFonts.nunito(
                                     fontSize: ResponsiveUtils.getButtonFontSize(context),
                                     fontWeight: FontWeight.w700,

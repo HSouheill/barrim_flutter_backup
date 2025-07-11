@@ -274,6 +274,15 @@ class _ReviewsSectionState extends State<ReviewsSection> {
     }
   }
 
+  String getFullImageUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    return ApiService.baseUrl.endsWith('/')
+        ? ApiService.baseUrl + cleanPath
+        : ApiService.baseUrl + '/' + cleanPath;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -363,6 +372,10 @@ class _ReviewsSectionState extends State<ReviewsSection> {
                         ? review.userProfilePic
                         : '',
                     isVerified: review.isVerified,
+                    reply: review.reply,
+                    mediaType: review.mediaType,
+                    mediaUrl: review.mediaUrl,
+                    thumbnailUrl: review.thumbnailUrl,
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -593,34 +606,33 @@ class _ReviewsSectionState extends State<ReviewsSection> {
     required String comment,
     required String imageUrl,
     required bool isVerified,
+    ReviewReply? reply,
+    String? mediaType,
+    String? mediaUrl,
+    String? thumbnailUrl,
   }) {
-    final isNetworkImage = imageUrl.startsWith('http');
-    final imageProvider = isNetworkImage
-        ? null
-        : AssetImage(imageUrl) as ImageProvider;
+    Widget avatar;
+    if (imageUrl.isNotEmpty) {
+        avatar = CircleAvatar(
+          radius: 24,
+        backgroundImage: NetworkImage(getFullImageUrl(imageUrl)),
+          backgroundColor: Colors.grey[200],
+        );
+    } else {
+      avatar = const CircleAvatar(
+        radius: 24,
+        backgroundColor: Colors.blue,
+        child: Icon(Icons.person, color: Colors.white, size: 24),
+      );
+    }
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // User avatar
-        CircleAvatar(
-          radius: 24,
-          backgroundImage: isNetworkImage
-              ? null
-              : imageProvider,
-          child: isNetworkImage
-              ? ClipOval(
-                  child: SecureNetworkImage(
-                    imageUrl: imageUrl,
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.cover,
-                    placeholder: Icon(Icons.person, size: 20),
-                    errorWidget: (context, url, error) => Icon(Icons.person, size: 20),
-                  ),
-                )
-              : null,
-        ),
+        Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        avatar,
         const SizedBox(width: 12),
 
         // Review content
@@ -665,8 +677,23 @@ class _ReviewsSectionState extends State<ReviewsSection> {
               ),
               const SizedBox(height: 6),
 
-              // Star rating
-              Row(
+                  // Review text and stars in a row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Review text
+                      Expanded(
+                        child: Text(
+                          comment,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                      // Rating stars
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                 children: List.generate(
                   5,
                       (index) => Icon(
@@ -676,19 +703,114 @@ class _ReviewsSectionState extends State<ReviewsSection> {
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
+                    ],
+                  ),
 
-              // Review text
-              Text(
-                comment,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[800],
+                  // Show media if present (from Review object)
+                  if (mediaType == 'image' && mediaUrl != null && mediaUrl.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          getFullImageUrl(mediaUrl),
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            height: 180,
+                            color: Colors.grey[300],
+                            child: Icon(Icons.broken_image, color: Colors.grey[600]),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (mediaType == 'video' && mediaUrl != null && mediaUrl.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: GestureDetector(
+                        onTap: () {
+                          // TODO: Implement video player navigation
+                        },
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              height: 180,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        getFullImageUrl(thumbnailUrl),
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: 180,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            Icon(Icons.play_circle_fill, color: Colors.white, size: 48),
+                          ],
+                        ),
                 ),
               ),
             ],
           ),
         ),
+          ],
+        ),
+
+        // Show reply if exists
+        if (reply != null) ...[
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 56.0), // Increased indentation
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border(
+                  left: BorderSide(
+                    color: Colors.blue.shade200,
+                    width: 4,
+                  ),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 12, 12), // More left padding
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.reply, color: Colors.blue, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          reply.replyText,
+                          style: TextStyle(fontSize: 14, color: Colors.blue[900]),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Replied on: 	${reply.createdAt.month.toString().padLeft(2, '0')}/${reply.createdAt.day.toString().padLeft(2, '0')}',
+                          style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

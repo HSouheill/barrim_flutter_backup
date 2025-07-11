@@ -47,6 +47,9 @@ class _HomeState extends State<Home> {
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchDebounceTimer;
 
+  // Add profile image path variable
+  String? _profileImagePath;
+
   // OpenStreetMap related variables
   final MapController _mapController = MapController();
   final Location _locationTracker = Location();
@@ -61,7 +64,7 @@ class _HomeState extends State<Home> {
   bool _isNavigating = false;
   String _routeInstructions = '';
   bool _initialLocationSet = false;
-  bool _isLoading = false;
+
   double _primaryDistance = 0;
   double _primaryDuration = 0;
   double _alternativeDistance = 0;
@@ -86,13 +89,48 @@ class _HomeState extends State<Home> {
   // Track if location is denied
   bool _locationDenied = false;
 
+  // Add a variable to track marker size based on zoom
+  double _companyMarkerSize = 40;
+
+  // Add method to fetch user data
+  Future<void> _fetchUserData() async {
+    try {
+      final userData = await ApiService.getUserData();
+      setState(() {
+        if (userData['profilePic'] != null && userData['profilePic'].toString().isNotEmpty) {
+          String profilePic = userData['profilePic'];
+          // Construct the full URL
+          if (profilePic.startsWith('http')) {
+            // Already a full URL
+            _profileImagePath = profilePic;
+          } else {
+            // Need to add base URL
+            // Remove leading slash if present in both baseUrl and profilePic
+            if (ApiService.baseUrl.endsWith('/') && profilePic.startsWith('/')) {
+              _profileImagePath = '${ApiService.baseUrl}${profilePic.substring(1)}';
+            } else if (!ApiService.baseUrl.endsWith('/') && !profilePic.startsWith('/')) {
+              _profileImagePath = '${ApiService.baseUrl}/${profilePic}';
+            } else {
+              _profileImagePath = '${ApiService.baseUrl}${profilePic}';
+            }
+          }
+          print('Profile Image Path: $_profileImagePath');
+        } else {
+          _profileImagePath = null;
+          print('No profile picture available');
+        }
+      });
+    } catch (e) {
+      print('Error fetching user data: $e');
+      setState(() {
+        _profileImagePath = null;
+      });
+    }
+  }
+
 // Add this method to fetch branches
   Future<void> _fetchAllBranches() async {
     try {
-      setState(() {
-        _isLoading = true;
-      });
-
       final branches = await ApiService.getAllBranches();
 
       setState(() {
@@ -167,8 +205,6 @@ class _HomeState extends State<Home> {
 
         // Add branch markers to existing company markers
         _wayPointMarkers.addAll(branchMarkers);
-
-        _isLoading = false;
       });
 
       // Move camera to the first marker if exists
@@ -177,9 +213,6 @@ class _HomeState extends State<Home> {
       }
     } catch (e) {
       print('Error fetching branches: $e');
-      setState(() {
-        _isLoading = false;
-      });
       // ScaffoldMessenger.of(context).showSnackBar(
       //   SnackBar(content: Text('Failed to load branches: $e')),
       // );
@@ -188,21 +221,17 @@ class _HomeState extends State<Home> {
 
 // Add this function to filter branches by category
   void _filterBranchesByCategory(String categoryType) {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
-      // Map the UI category names to database category names
-      final Map<String, String> categoryMapping = {
-        'Stations': 'station',
-        'Restaurant': 'restaurant',
-        'Hotels': 'hotel',
-        'Shops': 'shop',
-      };
+      // Removed categoryMapping and mapping logic
+      // final Map<String, String> categoryMapping = {
+      //   'Stations': 'station',
+      //   'Restaurant': 'restaurant',
+      //   'Hotels': 'hotel',
+      //   'Shops': 'shop',
+      // };
 
-      // Get the database category name
-      final String dbCategory = categoryMapping[categoryType]?.toLowerCase() ?? categoryType.toLowerCase();
+      // Get the database category name directly from the UI category
+      final String dbCategory = categoryType.toLowerCase();
 
       // Filter branches based on the category
       final filteredBranches = _allBranches.where((branch) {
@@ -220,9 +249,6 @@ class _HomeState extends State<Home> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('No branches found in category: $categoryType')),
         );
-        setState(() {
-          _isLoading = false;
-        });
         return;
       }
 
@@ -292,8 +318,6 @@ class _HomeState extends State<Home> {
             ),
           );
         }).where((marker) => marker != null).cast<Marker>().toList();
-
-        _isLoading = false;
       });
 
       // Move camera to the first filtered marker if exists
@@ -302,9 +326,6 @@ class _HomeState extends State<Home> {
       }
     } catch (e) {
       print('Error filtering branches: $e');
-      setState(() {
-        _isLoading = false;
-      });
       // ScaffoldMessenger.of(context).showSnackBar(
       //   SnackBar(content: Text('Failed to filter branches: $e')),
       // );
@@ -355,10 +376,6 @@ class _HomeState extends State<Home> {
                       final prefs = await SharedPreferences.getInstance();
                       final token = prefs.getString('auth_token');
                       if (token != null) {
-                        setState(() {
-                          _isLoading = true;
-                        });
-
                         final branches = await ApiService.getCompanyBranches(token);
                         // Filter branches for this specific company
                         final companyBranches = branches.where((b) => b['companyId'] == company['_id']).toList();
@@ -392,7 +409,6 @@ class _HomeState extends State<Home> {
                         }).toList();
 
                         setState(() {
-                          _isLoading = false;
                           _selectedPlace = {
                             'name': companyInfo?['name'] ?? 'Unknown Company',
                             '_id': company['_id'],
@@ -412,7 +428,6 @@ class _HomeState extends State<Home> {
                     } catch (e) {
                       print('Error fetching branches: $e');
                       setState(() {
-                        _isLoading = false;
                         _selectedPlace = {
                           'name': companyInfo?['name'] ?? 'Unknown Company',
                           '_id': company['_id'],
@@ -621,8 +636,8 @@ class _HomeState extends State<Home> {
             location['lat'].toDouble(),
             location['lng'].toDouble(),
           ),
-          width: 40,
-          height: 40,
+          width: _companyMarkerSize,
+          height: _companyMarkerSize,
           // Update the marker tap handler in home.dart
           builder: (ctx) => GestureDetector(
             onTap: () async {
@@ -631,10 +646,6 @@ class _HomeState extends State<Home> {
                 final prefs = await SharedPreferences.getInstance();
                 final token = prefs.getString('auth_token');
                 if (token != null) {
-                  setState(() {
-                    _isLoading = true; // Show loading indicator
-                  });
-
                   final branches = await ApiService.getCompanyBranches(token);
                   // Filter branches for this specific company
                   final companyBranches = branches.where((b) => b['companyId'] == company['_id']).toList();
@@ -671,7 +682,6 @@ class _HomeState extends State<Home> {
                   }).toList();
 
                   setState(() {
-                    _isLoading = false;
                     _selectedPlace = {
                       'name': companyInfo?['name'] ?? 'Unknown Company',
                       '_id': company['_id'],
@@ -689,7 +699,6 @@ class _HomeState extends State<Home> {
               } catch (e) {
                 print('Error fetching branches: $e');
                 setState(() {
-                  _isLoading = false;
                   // Fallback to showing just company info if branch fetch fails
                   _selectedPlace = {
                     'name': companyInfo?['name'] ?? 'Unknown Company',
@@ -708,17 +717,17 @@ class _HomeState extends State<Home> {
             },
             child: logoUrl != null && logoUrl.isNotEmpty
                 ? ClipRRect(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(_companyMarkerSize / 2),
               child: Image.network(
                 logoUrl,
-                width: 40,
-                height: 40,
+                width: _companyMarkerSize,
+                height: _companyMarkerSize,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(
                     Icons.business,
                     color: Colors.blue,
-                    size: 40,
+                    size: _companyMarkerSize,
                   );
                 },
               ),
@@ -726,7 +735,7 @@ class _HomeState extends State<Home> {
                 : Icon(
               Icons.business,
               color: Colors.blue,
-              size: 40,
+              size: _companyMarkerSize,
             ),
           ),
         );
@@ -1008,8 +1017,14 @@ class _HomeState extends State<Home> {
   void initState() {
     super.initState();
     _initLocationOrFallback();
+    _fetchUserData(); // Add this line to fetch user data
     if (_allCompanies.isEmpty) {
-      _fetchCompanies();
+      _fetchCompanies().then((_) {
+        // After companies are fetched, show nearby companies if location is already set
+        if (_currentLocation != null || _initialLocationSet) {
+          _showNearbyCompanies();
+        }
+      });
     }
     _fetchAllBranches();
     _fetchAllWholesalers();
@@ -1023,6 +1038,28 @@ class _HomeState extends State<Home> {
     });
     // Add listener to search controller
     _searchController.addListener(_onSearchChanged);
+
+    // Listen to map zoom changes to update marker size
+    _mapController.mapEventStream.listen((event) {
+      if (event is MapEventMove || event is MapEventMoveEnd) {
+        final zoom = _mapController.zoom;
+        double newSize = 40;
+        if (zoom < 10) {
+          newSize = 20;
+        } else if (zoom < 13) {
+          newSize = 28;
+        } else if (zoom < 15) {
+          newSize = 36;
+        } else {
+          newSize = 40;
+        }
+        if (newSize != _companyMarkerSize) {
+          setState(() {
+            _companyMarkerSize = newSize;
+          });
+        }
+      }
+    });
   }
 
   void _initLocationOrFallback() async {
@@ -1101,9 +1138,6 @@ class _HomeState extends State<Home> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
 
     try {
       final List<Map<String, dynamic>> results = [];
@@ -1275,7 +1309,6 @@ class _HomeState extends State<Home> {
         setState(() {
           _searchResults = results.take(10).toList(); // Show top 10 results
           _showSearchResults = _searchResults.isNotEmpty;
-          _isLoading = false;
         });
 
         print('Search results for "${query}":');
@@ -1288,7 +1321,6 @@ class _HomeState extends State<Home> {
     } catch (e) {
       print('Error performing search: $e');
       setState(() {
-        _isLoading = false;
         _searchResults = [];
         _showSearchResults = false;
       });
@@ -1304,12 +1336,14 @@ class _HomeState extends State<Home> {
       if (mounted) {
         setState(() {
           _currentLocation = LatLng(location.latitude!, location.longitude!);
-          print('INITIAL USER LOCATION: Lat=location.latitude}, Lng=${location.longitude}');
+          print('INITIAL USER LOCATION: Lat=\u007Flocation.latitude}, Lng=${location.longitude}');
           if (!_initialLocationSet && _mapController != null) {
             _mapController.move(_currentLocation!, 15.0);
             _initialLocationSet = true;
           }
         });
+        // After getting location, show nearby companies
+        _showNearbyCompanies();
       }
     } catch (e) {
       print('Error getting location: $e');
@@ -1322,7 +1356,27 @@ class _HomeState extends State<Home> {
             _initialLocationSet = true;
           }
         });
+        // After fallback, show nearby companies from default location
+        _showNearbyCompanies();
       }
+    }
+  }
+
+  // Show companies near the user's current location (within 5km)
+  void _showNearbyCompanies() {
+    if (_allCompanies.isEmpty || _userLocation == null) return;
+    const double maxDistance = 5.0; // km
+    final List<Map<String, dynamic>> nearbyCompanies = _allCompanies.where((company) {
+      final location = company['location'];
+      if (location == null || location['lat'] == null || location['lng'] == null) return false;
+      final double lat = location['lat'].toDouble();
+      final double lng = location['lng'].toDouble();
+      final double distance = _calculateDistance(_userLocation.latitude, _userLocation.longitude, lat, lng);
+      return distance <= maxDistance;
+    }).toList();
+    _createMarkersFromCompanies(nearbyCompanies);
+    if (_wayPointMarkers.isNotEmpty && _mapController != null) {
+      _mapController.move(_wayPointMarkers[0].point, 15.0);
     }
   }
 
@@ -1418,7 +1472,6 @@ class _HomeState extends State<Home> {
     setState(() {
       _destinationLocation = point;
       _isNavigating = true;
-      _isLoading = true;
       _wayPointMarkers = [];
       _primaryRouteCoordinates = [];
       _alternativeRouteCoordinates = [];
@@ -1443,7 +1496,6 @@ class _HomeState extends State<Home> {
     }
 
     setState(() {
-      _isLoading = false;
       if (_currentLocation != null) {
         _fitBounds();
       }
@@ -1642,18 +1694,6 @@ class _HomeState extends State<Home> {
     });
   }
 
-  void _recalculateRoute() {
-    if (_currentLocation != null && _destinationLocation != null) {
-      setState(() {
-        _isLoading = true;
-      });
-      _getRouteDirections().then((_) {
-        setState(() {
-          _isLoading = false;
-        });
-      });
-    }
-  }
 
 
 
@@ -1664,7 +1704,6 @@ class _HomeState extends State<Home> {
       _wayPointMarkers.clear();
       _primaryRouteCoordinates.clear();
       _alternativeRouteCoordinates.clear();
-      _isLoading = true;
     });
 
     // if (_allBranches.isEmpty) {
@@ -1765,7 +1804,6 @@ class _HomeState extends State<Home> {
         );
       }).where((marker) => marker != null).cast<Marker>().toList();
 
-      _isLoading = false;
     });
 
     // Move camera to the first match
@@ -1883,12 +1921,18 @@ class _HomeState extends State<Home> {
             Column(
               children: [
                 AppHeader(
-                  profileImagePath: widget.userData['profilePic'] != null && widget.userData['profilePic'].toString().isNotEmpty
-                      ? ApiService.getImageUrl(widget.userData['profilePic'])
-                      : null,
+                  profileImagePath: _profileImagePath,
                   onNotificationTap: () {
                     print('User Data: ${widget.userData}');
-                    print('Profile Pic Path: ${widget.userData['profilePic']}');
+                    print('Profile Pic Path: $_profileImagePath');
+                  },
+                  onProfileTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SettingsPage(),
+                      ),
+                    );
                   },
                   onMenuTap: _toggleSidebar,
                 ),
@@ -1982,107 +2026,93 @@ class _HomeState extends State<Home> {
                         wayPointMarkers: _wayPointMarkers,
                         onMapTap: _setDestination,
                       ),
-                      if (_isLoading)
-                        Center(
-                          child: Container(
-                            padding: EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.8),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircularProgressIndicator(),
-                                SizedBox(height: 16),
-                                Text('Calculating routes...'),
-                              ],
-                            ),
-                          ),
-                        ),
+
                       Positioned(
                         bottom: 120,
                         left: 0,
                         right: 0,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            CategoryCircleButton(
-                              icon: Icons.local_gas_station,
-                              label: 'Stations',
-                              isSelected: _selectedCategory == 'Stations',
-                              onTap: () => _searchPlacesByType('Stations'),
-                            ),
-                            CategoryCircleButton(
-                              icon: Icons.restaurant,
-                              label: 'Restaurant',
-                              isSelected: _selectedCategory == 'Restaurant',
-                              onTap: () => _searchPlacesByType('Restaurant'),
-                            ),
-
-                            CategoryCircleButton(
-                              icon: Icons.hotel,
-                              label: 'Hotels',
-                              isSelected: _selectedCategory == 'Hotels',
-                              onTap: () => _searchPlacesByType('Hotels'),
-                            ),
-                            CategoryCircleButton(
-                              icon: Icons.shopping_cart,
-                              label: 'Shops',
-                              isSelected: _selectedCategory == 'Shops',
-                              onTap: () => _searchPlacesByType('Shops'),
-                            ),
-                          ],
-                        ),
+                        child: MediaQuery.of(context).viewInsets.bottom == 0
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  CategoryCircleButton(
+                                    icon: Icons.local_gas_station,
+                                    label: 'Stations',
+                                    isSelected: _selectedCategory == 'Stations',
+                                    onTap: () => _searchPlacesByType('Stations'),
+                                  ),
+                                  CategoryCircleButton(
+                                    icon: Icons.restaurant,
+                                    label: 'Restaurant',
+                                    isSelected: _selectedCategory == 'Restaurant',
+                                    onTap: () => _searchPlacesByType('Restaurant'),
+                                  ),
+                                  CategoryCircleButton(
+                                    icon: Icons.hotel,
+                                    label: 'Hotels',
+                                    isSelected: _selectedCategory == 'Hotels',
+                                    onTap: () => _searchPlacesByType('Hotels'),
+                                  ),
+                                  CategoryCircleButton(
+                                    icon: Icons.shopping_cart,
+                                    label: 'Shops',
+                                    isSelected: _selectedCategory == 'Shops',
+                                    onTap: () => _searchPlacesByType('Shops'),
+                                  ),
+                                ],
+                              )
+                            : SizedBox.shrink(),
                       ),
                       Positioned(
                         bottom: 42,
                         left: 0,
                         right: 0,
                         child: Center(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _isMapExpanded = !_isMapExpanded;
-                              });
-                            },
-                            child: Container(
-                              width: 300,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [Color(0xFF0094FF), Color(0xFF05055A), Color(0xFF0094FF)],
-                                  stops: [0.0, 0.5, 1.0],
-                                ),
-                                borderRadius: BorderRadius.circular(70),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.37),
-                                    blurRadius: 6.8,
-                                    offset: Offset(0, 7),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _isMapExpanded ? 'Collapse Map' : 'Expand Map',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18
+                          child: MediaQuery.of(context).viewInsets.bottom == 0
+                              ? GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _isMapExpanded = !_isMapExpanded;
+                                    });
+                                  },
+                                  child: Container(
+                                    width: 300,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [Color(0xFF0094FF), Color(0xFF05055A), Color(0xFF0094FF)],
+                                        stops: [0.0, 0.5, 1.0],
+                                      ),
+                                      borderRadius: BorderRadius.circular(70),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.37),
+                                          blurRadius: 6.8,
+                                          offset: Offset(0, 7),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          _isMapExpanded ? 'Collapse Map' : 'Expand Map',
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 18
+                                          ),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Icon(
+                                          _isMapExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                                          color: Colors.white,
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  SizedBox(width: 8),
-                                  Icon(
-                                    _isMapExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
-                                    color: Colors.white,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                                )
+                              : SizedBox.shrink(),
                         ),
                       ),
                     ],
@@ -2174,9 +2204,6 @@ class _HomeState extends State<Home> {
 
   Future<void> _fetchAllWholesalers() async {
     try {
-      setState(() {
-        _isLoading = true;
-      });
 
       final wholesalers = await _wholesalerService.getAllWholesalers();
       
@@ -2316,7 +2343,6 @@ class _HomeState extends State<Home> {
         setState(() {
           // Add wholesaler markers to existing markers
           _wayPointMarkers.addAll(wholesalerMarkers);
-          _isLoading = false;
         });
 
         // Move camera to the first marker if no other markers are present
@@ -2329,7 +2355,6 @@ class _HomeState extends State<Home> {
     } catch (e) {
       print('Error fetching all wholesalers: $e');
       setState(() {
-        _isLoading = false;
       });
       // ScaffoldMessenger.of(context).showSnackBar(
       //   SnackBar(content: Text('Failed to load wholesalers: $e')),

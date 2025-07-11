@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 
 import '../screens/user_dashboard/notification.dart';
+import '../screens/settings/settings.dart';
 
 class AppHeader extends StatelessWidget {
   final VoidCallback? onNotificationTap;
   final VoidCallback? onMenuTap;
+  final VoidCallback? onProfileTap;
   final String? profileImagePath;
 
   const AppHeader({
     Key? key,
     this.onNotificationTap,
     this.onMenuTap,
+    this.onProfileTap,
     this.profileImagePath,
   }) : super(key: key);
 
@@ -42,29 +45,40 @@ class AppHeader extends StatelessWidget {
 
           Spacer(),
 
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.grey.shade200,
-            child: (profileImagePath != null && profileImagePath!.isNotEmpty)
-                ? ClipOval(
-                    child: SecureNetworkImage(
-                      imageUrl: profileImagePath!,
-                      width: 44,
-                      height: 44,
-                      fit: BoxFit.cover,
-                      errorWidget: (context, url, error) {
-                        print('Error loading profile image: $error');
-                        print('Failed profile image path: $profileImagePath');
-                        return const Icon(Icons.person, color: Colors.white, size: 22);
-                      },
-                    ),
-                  )
-                : Icon(Icons.person, color: Colors.white, size: 22),
+          InkWell(
+            onTap: onProfileTap ?? () {
+              // Default navigation to SettingsPage if no callback provided
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SettingsPage(),
+                ),
+              );
+            },
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.grey.shade200,
+              child: (profileImagePath != null && profileImagePath!.isNotEmpty)
+                  ? ClipOval(
+                      child: SecureNetworkImage(
+                        imageUrl: profileImagePath!,
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) {
+                          print('Error loading profile image: $error');
+                          print('Failed profile image path: $profileImagePath');
+                          return const Icon(Icons.person, color: Colors.white, size: 22);
+                        },
+                      ),
+                    )
+                  : Icon(Icons.person, color: Colors.white, size: 22),
+            ),
           ),
           SizedBox(width: 18),
           InkWell(
-            onTap: () {
-              // Navigate to Categories page when menu icon is clicked
+            onTap: onNotificationTap ?? () {
+              // Navigate to Notifications page when notification icon is clicked
               Navigator.push(
                 context,
                 MaterialPageRoute(

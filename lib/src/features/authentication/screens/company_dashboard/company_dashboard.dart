@@ -69,8 +69,12 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           widget.userData['facebook'] = socialMedia['facebook'] ?? widget.userData['facebook'];
           widget.userData['instagram'] = socialMedia['instagram'] ?? widget.userData['instagram'];
           logoUrl = companyInfo['logo'] != null && companyInfo['logo'].isNotEmpty
-              ? '${ApiService.baseUrl}/${companyInfo['logo']}'
+              ? companyInfo['logo']
               : null;
+          if (!kReleaseMode) {
+            print('CompanyDashboard: Setting logoUrl to: $logoUrl');
+            print('CompanyDashboard: companyInfo: $companyInfo');
+          }
         });
 
         // Save to shared preferences
@@ -183,6 +187,9 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    if (!kReleaseMode) {
+      print('CompanyDashboard: Building with logoUrl: $logoUrl');
+    }
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(
@@ -734,7 +741,15 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                   decoration: InputDecoration(
                     labelText: 'WhatsApp Number',
                     hintText: '+961 1 234 567',
-                    prefixIcon: Icon(Icons.phone_android),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.all(10.0),
+                      child: Image.asset(
+                        'assets/icons/whatsapp.png',
+                        width: 24,
+                        height: 24,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                   controller: whatsappController,
                   keyboardType: TextInputType.phone,

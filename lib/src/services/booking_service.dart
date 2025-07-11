@@ -90,7 +90,7 @@ class BookingService {
   }
 
   // Create a new booking
-  Future<bool> createBooking(Booking booking, {String? mediaBase64, String? mediaFileName}) async {
+  Future<bool> createBooking(Booking booking, {String? mediaBase64, String? mediaFileName, String? mediaType}) async {
     try {
       final formattedDate = booking.bookingDate.toUtc().toIso8601String();
 
@@ -104,10 +104,10 @@ class BookingService {
       };
 
       // Add media data if exists
-      if (mediaBase64 != null && mediaFileName != null && booking.mediaType != null) {
+      if (mediaBase64 != null && mediaFileName != null) {
         requestBody['mediaFile'] = mediaBase64;
         requestBody['mediaFileName'] = mediaFileName;
-        requestBody['mediaType'] = booking.mediaType as Object;
+        requestBody['mediaType'] = mediaType ?? 'image'; // Use provided mediaType or default to image
       }
 
       final response = await _makeRequest(

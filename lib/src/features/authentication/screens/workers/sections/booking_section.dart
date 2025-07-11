@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:video_player/video_player.dart';
 import '../../../../../models/booking.dart';
 import '../../../../../models/service_provider.dart';
 import '../../../../../services/booking_service.dart';
@@ -45,14 +46,13 @@ class _BookingSectionState extends State<BookingSection> {
   BookingService? _bookingService;
 
   final ImagePicker _picker = ImagePicker();
-  File? _selectedMedia;
-  bool _isMediaUploading = false;
-  String? _mediaType; // 'image' or 'video'
-
-  // Constants for media validation
+  List<File> _selectedMedia = [];
+  List<String> _mediaTypes = []; // 'image' or 'video' for each file
+  static const int _maxMediaFiles = 5;
   static const int _maxImageSizeInMB = 5;
   static const int _maxVideoSizeInMB = 50;
   static const int _maxVideoDurationInMinutes = 2;
+  bool _isMediaUploading = false;
 
   @override
   void initState() {
@@ -233,36 +233,55 @@ class _BookingSectionState extends State<BookingSection> {
         _isMediaUploading = true;
       });
 
-      final XFile? media;
-      if (type == 'image') {
-        media = await _picker.pickImage(
-          source: source,
+      if (_selectedMedia.length >= _maxMediaFiles) {
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(content: Text('You can only upload up to $_maxMediaFiles files.')),
+        // );
+        return;
+      }
+
+      final List<XFile> mediaFiles = [];
+      if (type == 'image' && source == ImageSource.gallery) {
+        final images = await _picker.pickMultiImage(
           maxWidth: 1920,
           maxHeight: 1080,
           imageQuality: 85,
         );
+        if (images != null) mediaFiles.addAll(images);
       } else {
-        media = await _picker.pickVideo(
-          source: source,
-          maxDuration: const Duration(minutes: _maxVideoDurationInMinutes),
-        );
+        final XFile? media = type == 'image'
+            ? await _picker.pickImage(
+                source: source,
+                maxWidth: 1920,
+                maxHeight: 1080,
+                imageQuality: 85,
+              )
+            : await _picker.pickVideo(
+                source: source,
+                maxDuration: const Duration(minutes: _maxVideoDurationInMinutes),
+              );
+        if (media != null) mediaFiles.add(media);
       }
 
-      if (media != null) {
-        // Validate file size
+      for (final media in mediaFiles) {
+        if (_selectedMedia.length >= _maxMediaFiles) break;
         final file = File(media.path);
         final fileSizeInBytes = await file.length();
         final fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-
         if (type == 'image' && fileSizeInMB > _maxImageSizeInMB) {
-          throw Exception('Image size must be less than $_maxImageSizeInMB MB');
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(content: Text('Image size must be less than $_maxImageSizeInMB MB')),
+          // );
+          continue;
         } else if (type == 'video' && fileSizeInMB > _maxVideoSizeInMB) {
-          throw Exception('Video size must be less than $_maxVideoSizeInMB MB');
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(content: Text('Video size must be less than $_maxVideoSizeInMB MB')),
+          // );
+          continue;
         }
-
         setState(() {
-          _selectedMedia = file;
-          _mediaType = type;
+          _selectedMedia.add(file);
+          _mediaTypes.add(type);
         });
       }
     } catch (e) {
@@ -307,7 +326,7 @@ class _BookingSectionState extends State<BookingSection> {
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  'Add Media',
+                  'Add Media (max $_maxMediaFiles)',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -327,8 +346,8 @@ class _BookingSectionState extends State<BookingSection> {
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library),
-                title: const Text('Choose Photo'),
-                subtitle: Text('Max size: $_maxImageSizeInMB MB'),
+                title: const Text('Choose Photos'),
+                subtitle: Text('Select multiple, Max size: $_maxImageSizeInMB MB each'),
                 onTap: () {
                   Navigator.pop(context);
                   _pickMedia(ImageSource.gallery, 'image');
@@ -352,15 +371,15 @@ class _BookingSectionState extends State<BookingSection> {
                   _pickMedia(ImageSource.gallery, 'video');
                 },
               ),
-              if (_selectedMedia != null)
+              if (_selectedMedia.isNotEmpty)
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.red),
-                  title: const Text('Remove Media', style: TextStyle(color: Colors.red)),
+                  title: const Text('Remove All Media', style: TextStyle(color: Colors.red)),
                   onTap: () {
                     Navigator.pop(context);
                     setState(() {
-                      _selectedMedia = null;
-                      _mediaType = null;
+                      _selectedMedia.clear();
+                      _mediaTypes.clear();
                     });
                   },
                 ),
@@ -401,15 +420,6 @@ class _BookingSectionState extends State<BookingSection> {
         throw Exception('User ID not found');
       }
 
-      // Convert media to base64 if exists
-      String? mediaBase64;
-      String? mediaFileName;
-      if (_selectedMedia != null) {
-        final bytes = await _selectedMedia!.readAsBytes();
-        mediaBase64 = base64Encode(bytes);
-        mediaFileName = _selectedMedia!.path.split('/').last;
-      }
-
       final booking = Booking(
         userId: userId,
         serviceProviderId: widget.serviceProvider.id,
@@ -418,14 +428,25 @@ class _BookingSectionState extends State<BookingSection> {
         phoneNumber: '$_countryCode${_phoneController.text}',
         details: _detailsController.text,
         isEmergency: _isEmergency,
-        mediaType: _mediaType,
-        // Note: mediaUrl will be set by the backend after upload
       );
+
+      // TODO: Update backend and BookingService to support multiple media files
+      // For now, send only the first media if any
+      String? mediaBase64;
+      String? mediaFileName;
+      String? mediaType;
+      if (_selectedMedia.isNotEmpty) {
+        final bytes = await _selectedMedia[0].readAsBytes();
+        mediaBase64 = base64Encode(bytes);
+        mediaFileName = _selectedMedia[0].path.split('/').last;
+        mediaType = _mediaTypes[0];
+      }
 
       final success = await _bookingService!.createBooking(
         booking,
         mediaBase64: mediaBase64,
         mediaFileName: mediaFileName,
+        mediaType: mediaType,
       );
 
       if (success) {
@@ -435,8 +456,8 @@ class _BookingSectionState extends State<BookingSection> {
         setState(() {
           _selectedTimeSlot = null;
           _isEmergency = false;
-          _selectedMedia = null;
-          _mediaType = null;
+          _selectedMedia.clear();
+          _mediaTypes.clear();
         });
 
         await _loadAvailableTimeSlots();
@@ -708,87 +729,92 @@ class _BookingSectionState extends State<BookingSection> {
                 ),
                 const SizedBox(height: 12),
 
-                // Media preview
-                if (_selectedMedia != null)
+                // Media preview (multiple)
+                if (_selectedMedia.isNotEmpty)
                   Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    height: 200,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: Stack(
+                    height: 100,
+                    child: Row(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: _mediaType == 'image'
-                              ? Image.file(
-                                  _selectedMedia!,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                )
-                              : Container(
-                                  color: Colors.black,
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.play_circle_outline,
-                                        size: 50,
-                                        color: Colors.white,
-                                      ),
-                                      Positioned(
-                                        bottom: 8,
-                                        left: 8,
-                                        right: 8,
-                                        child: Text(
-                                          'Video selected',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            backgroundColor: Colors.black54,
-                                            fontSize: 12,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                        ),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: IconButton(
-                              icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                              onPressed: () {
-                                setState(() {
-                                  _selectedMedia = null;
-                                  _mediaType = null;
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                        if (_isMediaUploading)
-                          Container(
-                            color: Colors.black54,
-                            child: const Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                        Expanded(
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _selectedMedia.length,
+                            itemBuilder: (context, index) {
+                              final file = _selectedMedia[index];
+                              final type = _mediaTypes[index];
+                              return Stack(
                                 children: [
-                                  CircularProgressIndicator(color: Colors.white),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Processing media...',
-                                    style: TextStyle(color: Colors.white),
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                                    width: 100,
+                                    height: 100,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.grey[300]!),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: type == 'image'
+                                          ? Image.file(
+                                              file,
+                                              fit: BoxFit.cover,
+                                              width: 100,
+                                              height: 100,
+                                            )
+                                          : GestureDetector(
+                                              onTap: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) => Dialog(
+                                                    insetPadding: const EdgeInsets.all(16),
+                                                    child: AspectRatio(
+                                                      aspectRatio: 16 / 9,
+                                                      child: _VideoPlayerDialog(file: file),
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                              child: Container(
+                                                color: Colors.black,
+                                                child: Center(
+                                                  child: Icon(Icons.play_circle_outline, color: Colors.white, size: 40),
+                                                ),
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 2,
+                                    right: 2,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedMedia.removeAt(index);
+                                          _mediaTypes.removeAt(index);
+                                        });
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black54,
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Icon(Icons.close, color: Colors.white, size: 18),
+                                      ),
+                                    ),
                                   ),
                                 ],
-                              ),
+                              );
+                            },
+                          ),
+                        ),
+                        if (_selectedMedia.length < _maxMediaFiles)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                            child: IconButton(
+                              icon: Icon(Icons.add_photo_alternate, color: Colors.blue),
+                              onPressed: _isMediaUploading ? null : _showMediaPickerModal,
+                              tooltip: 'Add more media',
                             ),
                           ),
                       ],
@@ -802,39 +828,28 @@ class _BookingSectionState extends State<BookingSection> {
                     color: Colors.grey[200],
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Column(
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _detailsController,
-                              decoration: const InputDecoration(
-                                hintText: 'Add details about your appointment',
-                                border: InputBorder.none,
-                              ),
-                              maxLines: 3,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter booking details';
-                                }
-                                return null;
-                              },
-                            ),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _detailsController,
+                          decoration: const InputDecoration(
+                            hintText: 'Add details about your appointment',
+                            border: InputBorder.none,
                           ),
-                          IconButton(
-                            icon: Icon(
-                              _selectedMedia != null ? Icons.edit : Icons.add_photo_alternate,
-                              color: Colors.blue,
-                            ),
-                            onPressed: _isMediaUploading ? null : _showMediaPickerModal,
-                          ),
-                        ],
+                          maxLines: 3,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter booking details';
+                            }
+                            return null;
+                          },
+                        ),
                       ),
-                      if (_isMediaUploading)
-                        const Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: CircularProgressIndicator(),
+                      if (_selectedMedia.isEmpty)
+                        IconButton(
+                          icon: Icon(Icons.add_photo_alternate, color: Colors.blue),
+                          onPressed: _isMediaUploading ? null : _showMediaPickerModal,
                         ),
                     ],
                   ),
@@ -1085,5 +1100,79 @@ class _BookingSectionState extends State<BookingSection> {
         ),
       ),
     );
+  }
+}
+
+class _VideoPlayerDialog extends StatefulWidget {
+  final File file;
+  const _VideoPlayerDialog({Key? key, required this.file}) : super(key: key);
+
+  @override
+  State<_VideoPlayerDialog> createState() => _VideoPlayerDialogState();
+}
+
+class _VideoPlayerDialogState extends State<_VideoPlayerDialog> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.file(widget.file)
+      ..initialize().then((_) {
+        setState(() {
+          _isInitialized = true;
+        });
+        _controller.play();
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _isInitialized
+        ? Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              AspectRatio(
+                aspectRatio: _controller.value.aspectRatio,
+                child: VideoPlayer(_controller),
+              ),
+              VideoProgressIndicator(_controller, allowScrubbing: true),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  icon: Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+              Align(
+                alignment: Alignment.center,
+                child: IconButton(
+                  icon: Icon(
+                    _controller.value.isPlaying ? Icons.pause_circle : Icons.play_circle,
+                    color: Colors.white,
+                    size: 48,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      if (_controller.value.isPlaying) {
+                        _controller.pause();
+                      } else {
+                        _controller.play();
+                      }
+                    });
+                  },
+                ),
+              ),
+            ],
+          )
+        : const Center(child: CircularProgressIndicator());
   }
 }

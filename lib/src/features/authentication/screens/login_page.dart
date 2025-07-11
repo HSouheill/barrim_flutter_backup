@@ -27,8 +27,6 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isPasswordVisible = false;
   bool _hasLoginError = false;
-  bool _isLoading = false;
-  bool _isGoogleLoading = false; // Track Google loading state separately
   String _errorMessage = 'Incorrect credentials or password!';
   final TextEditingController _emailOrPhoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -38,7 +36,6 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        _isLoading = true;
         _hasLoginError = false;
       });
 
@@ -54,10 +51,6 @@ class _LoginPageState extends State<LoginPage> {
           loginIdentifier,
           _passwordController.text,
         );
-
-        setState(() {
-          _isLoading = false;
-        });
 
         // Debug print to see the actual response structure
         print("Login response: $response");
@@ -80,7 +73,6 @@ class _LoginPageState extends State<LoginPage> {
       } catch (e) {
         print("Login error: $e");
         setState(() {
-          _isLoading = false;
           _hasLoginError = true;
           String errorMsg = e.toString();
           if (errorMsg.contains('Exception:')) {
@@ -116,16 +108,8 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleGoogleSignIn() async {
     try {
-      setState(() {
-        _isGoogleLoading = true;
-      });
-
       final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
       final result = await provider.googleLogin();
-
-      setState(() {
-        _isGoogleLoading = false;
-      });
 
       if (result != null) {
         print("Google sign-in successful, navigating to dashboard");
@@ -159,10 +143,6 @@ class _LoginPageState extends State<LoginPage> {
         // );
       }
     } catch (e) {
-      setState(() {
-        _isGoogleLoading = false;
-      });
-
       print("Unexpected error during Google sign-in: $e");
 
       // ScaffoldMessenger.of(context).showSnackBar(
@@ -525,7 +505,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ],
                               ),
                               child: ElevatedButton(
-                                onPressed: _isLoading ? null : _login,
+                                onPressed: _login,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.transparent,
                                   shadowColor: Colors.transparent,
@@ -533,9 +513,7 @@ class _LoginPageState extends State<LoginPage> {
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                 ),
-                                child: _isLoading
-                                    ? CircularProgressIndicator(color: Colors.white)
-                                    : Text(
+                                child: Text(
                                   'Log in',
                                   style: GoogleFonts.nunito(
                                     fontSize: getButtonFontSize(),
@@ -618,27 +596,8 @@ class _LoginPageState extends State<LoginPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // Google Login Button with loading indicator
-                              _isGoogleLoading
-                                  ? Container(
-                                width: constraints.maxWidth * 0.13,
-                                height: constraints.maxWidth * 0.13,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: SizedBox(
-                                    width: constraints.maxWidth * 0.07,
-                                    height: constraints.maxWidth * 0.07,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF05055A)),
-                                    ),
-                                  ),
-                                ),
-                              )
-                                  : _buildSocialLoginButton(
+                              // Google Login Button
+                              _buildSocialLoginButton(
                                 context,
                                 'assets/icons/google.png',
                                 constraints.maxWidth * 0.11,

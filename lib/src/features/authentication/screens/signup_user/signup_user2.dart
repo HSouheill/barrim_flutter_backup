@@ -155,6 +155,10 @@ class _SignupUserPage2State extends State<SignupUserPage2> {
             final inputTextFontSize = ResponsiveUtils.getInputTextFontSize(context);
             final buttonFontSize = ResponsiveUtils.getButtonFontSize(context);
 
+            // Fixed heights for header and gap
+            final double whiteHeaderHeight = 180;
+            final double headerGap = 16;
+
             // Adjust padding based on screen size
             final horizontalPadding = constraints.maxWidth * 0.06; // 6% of screen width
             final verticalSpacing = constraints.maxHeight * 0.02; // 3% of screen height
@@ -167,69 +171,86 @@ class _SignupUserPage2State extends State<SignupUserPage2> {
                 ),
 
                 // White Header
-                WhiteHeader(
-                  title: 'Sign Up',
-                  onBackPressed: () => Navigator.pop(context),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: whiteHeaderHeight,
+                    child: WhiteHeader(
+                      title: 'Sign Up',
+                      onBackPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                ),
+
+                // Custom Header
+                Positioned(
+                  top: whiteHeaderHeight + headerGap,
+                  left: 0,
+                  right: 0,
+                  child: CustomHeader(
+                    currentPageIndex: 2,
+                    totalPages: 4,
+                    subtitle: 'User',
+                    onBackPressed: () => Navigator.pop(context),
+                  ),
                 ),
 
                 // Main Content
-                SafeArea(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-                    child: IntrinsicHeight(
-                      child: Column(
-                        children: [
-                          SizedBox(height: constraints.maxHeight * 0.15), // Responsive spacing
+                Positioned(
+                  top: whiteHeaderHeight + headerGap + 50, // 50 is an estimated height for CustomHeader, adjust if needed
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: SafeArea(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - (whiteHeaderHeight + headerGap + 50),
+                      ),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          children: [
+                            // Form
+                            Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: horizontalPadding,
+                                  vertical: verticalSpacing,
+                                ),
+                                child: Form(
+                                  key: _formKey,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Date of Birth
+                                      _buildDateField(labelFontSize, inputTextFontSize),
+                                      SizedBox(height: verticalSpacing),
 
-                          // Custom Header
-                          CustomHeader(
-                            currentPageIndex: 2,
-                            totalPages: 4,
-                            subtitle: 'User',
-                            onBackPressed: () => Navigator.pop(context),
-                          ),
+                                      // Gender
+                                      _buildGenderField(labelFontSize, inputTextFontSize),
+                                      SizedBox(height: verticalSpacing),
 
-                          // Form
-                          Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: horizontalPadding,
-                                vertical: verticalSpacing,
-                              ),
-                              child: Form(
-                                key: _formKey,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Date of Birth
-                                    _buildDateField(labelFontSize, inputTextFontSize),
-                                    SizedBox(height: verticalSpacing),
+                                      // Phone with country code in same row
+                                      _buildPhoneField(labelFontSize, inputTextFontSize*1.2),
+                                      SizedBox(height: verticalSpacing),
 
-                                    // Gender
-                                    _buildGenderField(labelFontSize, inputTextFontSize),
-                                    SizedBox(height: verticalSpacing),
+                                      // Referral Code
+                                      _buildReferralField(labelFontSize, inputTextFontSize),
 
-                                    // Phone with country code in same row
-                                    _buildPhoneField(labelFontSize, inputTextFontSize*1.2),
-                                    SizedBox(height: verticalSpacing),
+                                      // Spacer that takes remaining space
+                                      const Spacer(),
 
-                                    // Referral Code
-                                    _buildReferralField(labelFontSize, inputTextFontSize),
-
-                                    // Spacer that takes remaining space
-                                    const Spacer(),
-
-                                    // Next Button - always at bottom
-                                    _buildNextButton(constraints),
-                                    SizedBox(height: verticalSpacing),
-                                  ],
+                                      // Next Button - always at bottom
+                                      _buildNextButton(constraints),
+                                      SizedBox(height: verticalSpacing),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

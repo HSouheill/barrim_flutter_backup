@@ -7,6 +7,7 @@ import '../custom_header.dart';
 import '../../../../services/api_service.dart';
 import '../verification_code.dart';
 import '../welcome_page.dart';
+import '../white_headr.dart';
 
 class SignupUserPage5 extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -464,28 +465,13 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Screen size breakpoints
-        final isSmallScreen = constraints.maxWidth < 360;
-        final isMediumScreen = constraints.maxWidth >= 360 && constraints.maxWidth < 600;
-
-        // Responsive font sizes
-        double getTitleFontSize() {
-          if (isSmallScreen) return 28;
-          if (isMediumScreen) return 40;
-          return 38;
-        }
-
-        double getButtonFontSize() {
-          if (isSmallScreen) return 16;
-          if (isMediumScreen) return 18;
-          return 20;
-        }
-
-        return Scaffold(
-          resizeToAvoidBottomInset: true,
-          body: Stack(
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.zero,
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height,
+          child: Stack(
             children: [
               Positioned.fill(
                 child: Image.asset(
@@ -507,7 +493,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                 left: 0,
                 right: 0,
                 child: Container(
-                  height: constraints.maxHeight * 0.19,
+                  height: 180,
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.only(
@@ -524,7 +510,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                           icon: Icon(
                             Icons.arrow_back,
                             color: Colors.black,
-                            size: isSmallScreen ? 30 : 40,
+                            size: MediaQuery.of(context).size.width < 360 ? 30 : 40,
                           ),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
@@ -532,19 +518,14 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
                       // Sign Up Text
                       Positioned(
-                        top: 103,
-                        left: 33,
+                        top: 0,
+                        left: 0,
                         right: 0,
-                        child: Align(
-                          alignment: Alignment.bottomLeft,
-                          child: Text(
-                            'Sign Up',
-                            style: GoogleFonts.nunito(
-                              fontSize: getTitleFontSize(),
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF05054F),
-                              letterSpacing: 1.2,
-                            ),
+                        child: Container(
+                          height: 180,
+                          child: WhiteHeader(
+                            title: 'Sign Up',
+                            onBackPressed: () => Navigator.pop(context),
                           ),
                         ),
                       ),
@@ -555,7 +536,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
               // Custom Header with Progress Bar
               Positioned(
-                top: constraints.maxHeight * 0.20,
+                top: 180 + 16,
                 left: 0,
                 right: 0,
                 child: CustomHeader(
@@ -568,10 +549,10 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
               // Map Container (with adjusted size to match the image)
               Positioned(
-                top: constraints.maxHeight * 0.30,
+                top: 180 + 16 + 100, // 50 is an estimated height for CustomHeader, adjust if needed
                 left: 0,
                 right: 0,
-                bottom: constraints.maxHeight * 0.35, // Adjusted to make room for address display
+                bottom: MediaQuery.of(context).size.height * 0.35, // Adjusted to make room for address display
                 child: Container(
                   margin: EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
@@ -604,52 +585,57 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
               // Address Information Display
               if (selectedLocation != null)
                 Positioned(
-                  top: constraints.maxHeight * 0.65,
+                  top: 180 + 16 + 50 + (MediaQuery.of(context).size.height * 0.35),
                   left: 20,
                   right: 20,
-                  child: Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(15),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(15),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Selected Location Details:',
-                          style: GoogleFonts.nunito(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF05054F),
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Selected Location Details:',
+                              style: GoogleFonts.nunito(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF05054F),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            if (street != null)
+                              _buildAddressRow('Street', street!),
+                            if (district != null)
+                              _buildAddressRow('District', district!),
+                            if (city != null)
+                              _buildAddressRow('City', city!),
+                            if (country != null)
+                              _buildAddressRow('Country', country!),
+                            if (postalCode != null)
+                              _buildAddressRow('Postal Code', postalCode!),
+                          ],
                         ),
-                        const SizedBox(height: 10),
-                        if (street != null)
-                          _buildAddressRow('Street', street!),
-                        if (district != null)
-                          _buildAddressRow('District', district!),
-                        if (city != null)
-                          _buildAddressRow('City', city!),
-                        if (country != null)
-                          _buildAddressRow('Country', country!),
-                        if (postalCode != null)
-                          _buildAddressRow('Postal Code', postalCode!),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: 24), // Add fixed gap between address info and location buttons
+                    ],
                   ),
                 ),
 
               // My Location Button
               Positioned(
-                top: constraints.maxHeight * 0.32,
+                top: 180 + 16 + 50 + (MediaQuery.of(context).size.height * 0.35) + 20,
                 right: 30,
                 child: Container(
                   decoration: BoxDecoration(
@@ -709,7 +695,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                         label: Text(
                           isLoading ? 'Getting location...' : 'Use live location',
                           style: GoogleFonts.nunito(
-                            fontSize: getButtonFontSize(),
+                            fontSize: MediaQuery.of(context).size.width < 360 ? 16 : MediaQuery.of(context).size.width < 600 ? 18 : 20,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                           ),
@@ -749,7 +735,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                         label: Text(
                           'Use pinned location',
                           style: GoogleFonts.nunito(
-                            fontSize: getButtonFontSize(),
+                            fontSize: MediaQuery.of(context).size.width < 360 ? 16 : MediaQuery.of(context).size.width < 600 ? 18 : 20,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                           ),
@@ -764,10 +750,10 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                         ),
                       ),
                     ),
+                    SizedBox(height: 32), // Add space under use pinned location button
                   ],
                 ),
               ),
-
               // Loading Indicator (full-screen overlay when loading)
               if (isLoading)
                 Positioned.fill(
@@ -780,8 +766,8 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                 ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../custom_header.dart';
+import '../white_headr.dart';
 import 'signup_user4.dart'; // Assuming next page is SignupUserPage4
 import '../responsive_utils.dart';
 class SignupUserPage3 extends StatefulWidget {
@@ -56,6 +57,10 @@ class _SignupUserPage3State extends State<SignupUserPage3> {
           return 26;
         }
 
+        // Fixed heights for header and gap
+        final double whiteHeaderHeight = 180;
+        final double headerGap = 16;
+
         return Scaffold(
           resizeToAvoidBottomInset: true,
           body: SingleChildScrollView(
@@ -85,7 +90,7 @@ class _SignupUserPage3State extends State<SignupUserPage3> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      height: constraints.maxHeight * 0.19,
+                      height: whiteHeaderHeight,
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.only(
@@ -110,19 +115,14 @@ class _SignupUserPage3State extends State<SignupUserPage3> {
 
                           // Sign Up Text
                           Positioned(
-                            top: 103,
-                            left: 33,
+                            top: 0,
+                            left: 0,
                             right: 0,
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: Text(
-                                'Sign Up',
-                                style: GoogleFonts.nunito(
-                                  fontSize: ResponsiveUtils.getTitleFontSize(context),
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF05054F),
-                                  letterSpacing: 1.2,
-                                ),
+                            child: Container(
+                              height: whiteHeaderHeight,
+                              child: WhiteHeader(
+                                title: 'Sign Up',
+                                onBackPressed: () => Navigator.pop(context),
                               ),
                             ),
                           ),
@@ -133,7 +133,7 @@ class _SignupUserPage3State extends State<SignupUserPage3> {
 
                   // Custom Header with Progress Bar
                   Positioned(
-                    top: constraints.maxHeight * 0.20, // Position right after the white header
+                    top: whiteHeaderHeight + headerGap,
                     left: 0,
                     right: 0,
                     child: CustomHeader(
@@ -148,11 +148,12 @@ class _SignupUserPage3State extends State<SignupUserPage3> {
                   Positioned(
                     left: 24,
                     right: 24,
-                    top: constraints.maxHeight * 0.30, // Adjusted position
+                    top: whiteHeaderHeight + headerGap + 50, // 50 is an estimated height for CustomHeader, adjust if needed
                     bottom: 0,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        SizedBox(height:40), // Add fixed space between CustomHeader and content
                         // "Type of deals" heading
                         Text(
                           'Type of deals',

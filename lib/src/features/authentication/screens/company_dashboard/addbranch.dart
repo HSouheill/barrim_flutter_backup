@@ -161,6 +161,73 @@ class _AddBranchPageState extends State<AddBranchPage> {
     }
   }
 
+  Future<void> _pickMultipleVideos() async {
+    try {
+      // Show a dialog to let user pick multiple videos one by one
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Add Multiple Videos'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('You can add multiple videos one by one.'),
+                SizedBox(height: 16),
+                Text('Current videos: ${_selectedVideos.length}'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Done'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _pickVideo(); // Pick one video at a time
+                },
+                child: Text('Add Another Video'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(content: Text("Error picking videos: $e")),
+      // );
+    }
+  }
+
+  void _clearAllMedia() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Clear All Media'),
+          content: Text('Are you sure you want to remove all selected images and videos?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectedImages.clear();
+                  _selectedVideos.clear();
+                });
+                Navigator.pop(context);
+              },
+              child: Text('Clear All'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showMediaPickerOptions() {
     showModalBottomSheet(
         context: context,
@@ -172,6 +239,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                 ListTile(
                   leading: Icon(Icons.photo_library, color: Color(0xFF2079C2)),
                   title: Text('Add Images'),
+                  subtitle: Text('Select multiple images'),
                   onTap: () {
                     Navigator.pop(context);
                     _pickImages();
@@ -180,10 +248,21 @@ class _AddBranchPageState extends State<AddBranchPage> {
                 Divider(height: 1),
                 ListTile(
                   leading: Icon(Icons.videocam, color: Color(0xFF2079C2)),
-                  title: Text('Add Video'),
+                  title: Text('Add Single Video'),
+                  subtitle: Text('Select one video'),
                   onTap: () {
                     Navigator.pop(context);
                     _pickVideo();
+                  },
+                ),
+                Divider(height: 1),
+                ListTile(
+                  leading: Icon(Icons.video_library, color: Color(0xFF2079C2)),
+                  title: Text('Add Multiple Videos'),
+                  subtitle: Text('Select multiple videos'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickMultipleVideos();
                   },
                 ),
               ],
@@ -300,104 +379,181 @@ class _AddBranchPageState extends State<AddBranchPage> {
                 children: [
                   // Selected images preview
                   if (_selectedImages.isNotEmpty) ...[
-                    SizedBox(
-                      height: 120,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _selectedImages.length,
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 10.0),
-                            child: Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    _selectedImages[index],
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Selected Images (${_selectedImages.length})",
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _selectedImages.clear();
+                                });
+                              },
+                              child: Text(
+                                "Clear All",
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
                                 ),
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        _selectedImages.removeAt(index);
-                                      });
-                                    },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                        size: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(
+                          height: 120,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _selectedImages.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 10.0),
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.file(
+                                        _selectedImages[index],
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.cover,
                                       ),
                                     ),
-                                  ),
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedImages.removeAt(index);
+                                          });
+                                        },
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.red,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                     SizedBox(height: 16),
                   ],
                   if (_selectedVideos.isNotEmpty) ...[
-                    SizedBox(
-                      height: 120,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _selectedVideos.length,
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 10.0),
-                            child: Stack(
-                              children: [
-                                Container(
-                                  width: 100,
-                                  height: 100,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade300,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Center(
-                                    child: Icon(Icons.videocam, size: 40, color: Colors.grey.shade700),
-                                  ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Selected Videos (${_selectedVideos.length})",
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _selectedVideos.clear();
+                                });
+                              },
+                              child: Text(
+                                "Clear All",
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
                                 ),
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        _selectedVideos.removeAt(index);
-                                      });
-                                    },
-                                    child: Container(
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(
+                          height: 120,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _selectedVideos.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 10.0),
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      width: 100,
+                                      height: 100,
                                       decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
+                                        color: Colors.grey.shade300,
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                        size: 18,
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.videocam, size: 30, color: Colors.grey.shade700),
+                                            SizedBox(height: 4),
+                                            Text(
+                                              "Video ${index + 1}",
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedVideos.removeAt(index);
+                                          });
+                                        },
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.red,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                     SizedBox(height: 16),
                   ],
@@ -437,6 +593,24 @@ class _AddBranchPageState extends State<AddBranchPage> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
+                            if (_selectedImages.isNotEmpty || _selectedVideos.isNotEmpty) ...[
+                              SizedBox(width: 8),
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  "${_selectedImages.length + _selectedVideos.length}",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),

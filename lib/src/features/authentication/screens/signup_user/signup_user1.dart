@@ -13,6 +13,7 @@ import '../../../../services/apple_auth_service.dart';
 import '../user_dashboard/home.dart';
 import '../company_dashboard/company_dashboard.dart';
 import '../serviceProvider_dashboard/serviceprovider_dashboard.dart';
+import '../white_headr.dart';
 import '../wholesaler_dashboard/wholesaler_dashboard.dart';
 
 class SignupUserPage1 extends StatefulWidget {
@@ -245,6 +246,9 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
         final inputTextFontSize = ResponsiveUtils.getInputTextFontSize(context);
         final buttonFontSize = ResponsiveUtils.getButtonFontSize(context);
 
+        // Fixed heights for header and gap
+        final double whiteHeaderHeight = 180;
+        final double headerGap = 16;
 
         return Scaffold(
           resizeToAvoidBottomInset: true,
@@ -275,7 +279,7 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      height: constraints.maxHeight * 0.19,
+                      height: whiteHeaderHeight,
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.only(
@@ -300,19 +304,14 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
 
                           // Sign Up Text
                           Positioned(
-                            top: 103,
-                            left: 33,
+                            top: 0,
+                            left: 0,
                             right: 0,
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: Text(
-                                'Sign Up',
-                                style: GoogleFonts.nunito(
-                                  fontSize: getTitleFontSize(),
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF05054F),
-                                  letterSpacing: 1.2,
-                                ),
+                            child: Container(
+                              height: whiteHeaderHeight,
+                              child: WhiteHeader(
+                                title: 'Sign Up',
+                                onBackPressed: () => Navigator.pop(context),
                               ),
                             ),
                           ),
@@ -321,15 +320,14 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                     ),
                   ),
 
-                  // Custom Header with Progress Bar - Added below the white header
+                  // Custom Header with Progress Bar - fixed gap below white header
                   Positioned(
-                    top: constraints.maxHeight * 0.20, // Position right after the white header
+                    top: whiteHeaderHeight + headerGap,
                     left: 0,
                     right: 0,
                     child: CustomHeader(
                       currentPageIndex: 1,
                       totalPages: 4,
-                      // title: 'Sign Up',
                       subtitle: 'User',
                       onBackPressed: () => Navigator.of(context).pop(),
                     ),
@@ -339,7 +337,7 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                   Positioned(
                     left: 24,
                     right: 24,
-                    top: constraints.maxHeight * 0.24, // Adjusted to position below custom header
+                    top: whiteHeaderHeight + headerGap + 50, // 50 is an estimated height for CustomHeader, adjust if needed
                     bottom: 0,
                     child: Form(
                       key: _formKey,

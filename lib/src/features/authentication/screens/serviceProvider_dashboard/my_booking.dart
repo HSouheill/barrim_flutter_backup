@@ -2,6 +2,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../models/booking.dart';
 import '../../../../services/booking_service.dart';
 import '../../../../services/serviceprovider_controller.dart';
@@ -194,6 +195,229 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
     return DateFormat('MM/dd').format(date);
   }
 
+  Widget _buildMediaGallery(Booking booking) {
+    // Debug: Print booking media information
+    print('Booking ${booking.id}: mediaUrls=${booking.mediaUrls.length}, mediaTypes=${booking.mediaTypes.length}');
+    if (booking.mediaUrls.isNotEmpty) {
+      print('Media URLs: ${booking.mediaUrls}');
+      print('Media Types: ${booking.mediaTypes}');
+    }
+
+    if (booking.mediaUrls.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Media (${booking.mediaUrls.length})',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 80,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: booking.mediaUrls.length,
+              itemBuilder: (context, index) {
+                final mediaUrl = booking.mediaUrls[index];
+                final mediaType = index < booking.mediaTypes.length 
+                    ? booking.mediaTypes[index] 
+                    : 'image';
+                final thumbnailUrl = index < booking.thumbnailUrls.length 
+                    ? booking.thumbnailUrls[index] 
+                    : null;
+
+                return Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: GestureDetector(
+                    onTap: () => _showMediaFullScreen(booking, index),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Stack(
+                        children: [
+                          if (mediaType == 'image')
+                            CachedNetworkImage(
+                              imageUrl: mediaUrl,
+                              fit: BoxFit.cover,
+                              width: 80,
+                              height: 80,
+                              placeholder: (context, url) => Container(
+                                color: Colors.grey[200],
+                                child: const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                color: Colors.grey[200],
+                                child: const Icon(Icons.error, color: Colors.grey),
+                              ),
+                            )
+                          else
+                            Container(
+                              color: Colors.black,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  if (thumbnailUrl != null)
+                                    CachedNetworkImage(
+                                      imageUrl: thumbnailUrl,
+                                      fit: BoxFit.cover,
+                                      width: 80,
+                                      height: 80,
+                                      placeholder: (context, url) => Container(
+                                        color: Colors.grey[200],
+                                        child: const Center(
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      ),
+                                      errorWidget: (context, url, error) => Container(
+                                        color: Colors.grey[200],
+                                        child: const Icon(Icons.error, color: Colors.grey),
+                                      ),
+                                    ),
+                                  const Icon(
+                                    Icons.play_circle_outline,
+                                    size: 24,
+                                    color: Colors.white,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                mediaType.toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMediaFullScreen(Booking booking, int initialIndex) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: Colors.black,
+            child: Stack(
+              children: [
+                PageView.builder(
+                  itemCount: booking.mediaUrls.length,
+                  controller: PageController(initialPage: initialIndex),
+                  itemBuilder: (context, index) {
+                    final mediaUrl = booking.mediaUrls[index];
+                    final mediaType = index < booking.mediaTypes.length 
+                        ? booking.mediaTypes[index] 
+                        : 'image';
+                    final thumbnailUrl = index < booking.thumbnailUrls.length 
+                        ? booking.thumbnailUrls[index] 
+                        : null;
+
+                    return Center(
+                      child: mediaType == 'image'
+                          ? CachedNetworkImage(
+                              imageUrl: mediaUrl,
+                              fit: BoxFit.contain,
+                              placeholder: (context, url) => const Center(
+                                child: CircularProgressIndicator(color: Colors.white),
+                              ),
+                              errorWidget: (context, url, error) => const Center(
+                                child: Icon(Icons.error, color: Colors.white, size: 50),
+                              ),
+                            )
+                          : Container(
+                              color: Colors.black,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  if (thumbnailUrl != null)
+                                    CachedNetworkImage(
+                                      imageUrl: thumbnailUrl,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                    ),
+                                  const Icon(
+                                    Icons.play_circle_outline,
+                                    size: 80,
+                                    color: Colors.white,
+                                  ),
+                                  Positioned(
+                                    bottom: 20,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: const Text(
+                                        'Video - Tap to play',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    );
+                  },
+                ),
+                Positioned(
+                  top: 40,
+                  right: 20,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
@@ -371,6 +595,9 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
                                         booking.details,
                                         style: const TextStyle(fontSize: 14),
                                       ),
+
+                                      // Display media gallery
+                                      _buildMediaGallery(booking),
 
                                       const SizedBox(height: 8),
                                       Row(

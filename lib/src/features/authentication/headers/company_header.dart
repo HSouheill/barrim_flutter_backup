@@ -58,8 +58,7 @@ class CompanyAppHeader extends StatelessWidget {
           ),
           Spacer(),
 
-          // Make CircleAvatar clickable to navigate to Settings
-          GestureDetector(
+          InkWell(
             onTap: onAvatarTap ?? () {
               // Navigate directly to SettingsPage
               Navigator.push(
@@ -67,43 +66,23 @@ class CompanyAppHeader extends StatelessWidget {
                 MaterialPageRoute(builder: (context) => const SettingsPage()),
               );
             },
-            child: ClipOval(
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.grey.shade200,
               child: (logoUrl != null && logoUrl!.isNotEmpty)
-                  ? Image.network(
-                      fullLogoUrl!,
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        print('CompanyAppHeader: Image network error: $error');
-                        return Image.asset(
-                          'assets/logo/barrim_logo1.png',
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                        );
-                      },
-                      loadingBuilder: (context, child, loadingProgress) {
-                        print('CompanyAppHeader: Loading image: $loadingProgress');
-                        if (loadingProgress == null) {
-                          print('CompanyAppHeader: Image loaded successfully');
-                          return child;
-                        }
-                        return Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                : null,
-                          ),
-                        );
-                      },
+                  ? ClipOval(
+                      child: SecureNetworkImage(
+                        imageUrl: fullLogoUrl!,
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) {
+                          print('CompanyAppHeader: Image network error: $error');
+                          return const Icon(Icons.person, color: Colors.white, size: 22);
+                        },
+                      ),
                     )
-                  : Image.asset(
-                      'assets/logo/barrim_logo1.png',
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                    ),
+                  : Icon(Icons.person, color: Colors.white, size: 22),
             ),
           ),
           SizedBox(width: 12),
