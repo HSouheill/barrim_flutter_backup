@@ -15,6 +15,7 @@ import 'branches.dart';
 import 'company_referral.dart';
 import '../login_page.dart';
 import 'package:flutter/foundation.dart';
+import 'branch_subscription_branches.dart';
 
 class CompanyDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -1176,10 +1177,29 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
               );
             }
             if (title == 'Subscriptions') {
+              final token = widget.userData['token'];
+              if (token == null || (token is String && token.isEmpty)) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('Error'),
+                    content: Text('Authentication token not found. Please login again.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+                return;
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CompanySubscriptionsPage(
+                  builder: (context) => BranchSubscriptionBranchesPage(
+                    token: token,
+                    initialBranches: branches,
                     userData: widget.userData,
                     logoUrl: logoUrl,
                   ),

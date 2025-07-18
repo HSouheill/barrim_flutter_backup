@@ -92,8 +92,15 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
   Future<void> _loadCompanies() async {
     try {
       final companies = await ApiService.getCompaniesWithLocations();
+      
+      // Filter out companies with status 'pending' or 'rejected'
+      final filteredCompanies = companies.where((company) {
+        final status = company['status'] ?? company['companyInfo']?['status'];
+        return status == 'approved';
+      }).toList();
+      
       setState(() {
-        _companies = List<Map<String, dynamic>>.from(companies);
+        _companies = List<Map<String, dynamic>>.from(filteredCompanies);
       });
     } catch (e) {
       if (!kReleaseMode) {
@@ -112,8 +119,18 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
 
       final branchesData = await _companyService.getAllBranches();
 
-      // Convert the raw data to Branch objects
-      final branches = branchesData.map((data) {
+      // Filter out branches whose companies have 'pending' or 'rejected' status
+      final filteredBranchesData = branchesData.where((branchData) {
+        final company = branchData['company'];
+        if (company == null) return false;
+        
+        // Check company status - can be in different fields
+        final status = company['status'] ?? company['companyInfo']?['status'];
+        return status == 'approved';
+      }).toList();
+
+      // Convert the filtered data to Branch objects
+      final branches = filteredBranchesData.map((data) {
         return Branch.fromJson(data);
       }).toList();
 

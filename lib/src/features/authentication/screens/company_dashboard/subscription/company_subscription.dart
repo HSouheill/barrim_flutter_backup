@@ -15,7 +15,8 @@ import '../company_settings.dart';
 class CompanySubscriptionsPage extends StatefulWidget {
   final Map<String, dynamic> userData;
   final String? logoUrl;
-  const CompanySubscriptionsPage({Key? key, required this.userData, this.logoUrl}) : super(key: key);
+  final String? branchId;
+  const CompanySubscriptionsPage({Key? key, required this.userData, this.logoUrl, this.branchId}) : super(key: key);
 
   @override
   State<CompanySubscriptionsPage> createState() => _CompanySubscriptionsPageState();
@@ -31,6 +32,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   Timer? _refreshTimer;
   late AnimationController _progressAnimationController;
   late Animation<double> _progressAnimation;
+  SubscriptionRemainingTimeData? _remainingTimeData; // <-- Add this line
 
   @override
   void initState() {
@@ -110,6 +112,15 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         print('- Days Remaining: ${_currentSubscription?.daysRemaining}');
         print('- Status Text: ${_currentSubscription?.statusText}');
         print('- Plan: ${_currentSubscription?.plan?.toJson()}');
+      }
+
+      // Load remaining time
+      final remainingTimeResponse = await CompanySubscriptionService.getSubscriptionRemainingTime();
+      if (remainingTimeResponse.success && remainingTimeResponse.data != null) {
+        setState(() {
+          _remainingTimeData = remainingTimeResponse.data;
+        });
+        _progressAnimationController.forward(from: 0.0);
       }
     } catch (e) {
       print('Error loading subscription data: $e');
@@ -242,10 +253,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                     child: Column(
                       children: [
                         const SizedBox(height: 10),
-
-
-
-                        // Company Subscriptions Section
+                        _buildRemainingTimeWidget(), // <-- Insert here
                         _buildSectionTitle('Company Subscriptions'),
                         // const SizedBox(height: 14),
 
@@ -564,8 +572,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       //     content: Text('Failed to send subscription request: \\${e.toString()}'),
       //     backgroundColor: Colors.red,
       //     duration: const Duration(seconds: 3),
-      //   ),
-      // );
+        // );
     }
   }
 
@@ -780,6 +787,103 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRemainingTimeWidget() {
+    if (_remainingTimeData == null || !_remainingTimeData!.hasActiveSubscription!) {
+      return SizedBox.shrink();
+    }
+    final remaining = _remainingTimeData!.remainingTime;
+    if (remaining == null) return SizedBox.shrink();
+    final percentUsed = double.tryParse((remaining.percentageUsed ?? '0').replaceAll('%', '')) ?? 0;
+    final percentLeft = 1 - (percentUsed / 100);
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 100,
+              height: 100,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: 1.0,
+                    strokeWidth: 10,
+                    backgroundColor: Colors.grey[200],
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[200]!),
+                  ),
+                  CircularProgressIndicator(
+                    value: percentLeft * _progressAnimation.value,
+                    strokeWidth: 10,
+                    backgroundColor: Colors.transparent,
+                    valueColor: AlwaysStoppedAnimation<Color>(percentLeft > 0.5 ? Colors.blue : percentLeft > 0.2 ? Colors.orange : Colors.red),
+                  ),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        remaining.formatted ?? '',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Time Left',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Subscription ends:', style: TextStyle(color: Colors.grey[700])),
+                  Text(
+                    remaining.endDate != null ? '${remaining.endDate}' : '-',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Used: ${remaining.percentageUsed ?? '-'}', style: TextStyle(color: Colors.grey[700])),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _timeBox('${remaining.days ?? 0}', 'Days'),
+                      _timeBox('${remaining.hours ?? 0}', 'Hours'),
+                      _timeBox('${remaining.minutes ?? 0}', 'Min'),
+                      _timeBox('${remaining.seconds ?? 0}', 'Sec'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _timeBox(String value, String label) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
       ),
     );

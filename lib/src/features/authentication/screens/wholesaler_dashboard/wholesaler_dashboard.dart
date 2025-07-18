@@ -304,17 +304,17 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
   Widget _buildBranchesSection() {
     String formatLocation(Map<String, dynamic> branch) {
       if (branch['location'] is String) {
-        return branch['location'];
+        return branch['location']?.toString() ?? '';
       }
 
       // Handle structured location data
       if (branch['location'] is Map) {
         final loc = branch['location'] as Map<String, dynamic>;
         return [
-          loc['street'],
-          loc['city'],
-          loc['country']
-        ].where((part) => part != null && part.isNotEmpty).join(', ');
+          (loc['street']?.toString() ?? '').trim(),
+          (loc['city']?.toString() ?? '').trim(),
+          (loc['country']?.toString() ?? '').trim(),
+        ].where((part) => part.isNotEmpty).join(', ');
       }
 
       return 'No location';
@@ -410,7 +410,7 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        branch['name']?.toString() ?? 'Branch ${index + 1}',
+                        branch['name']?.toString() ?? 'Branch  ${index + 1}',
                         style: TextStyle(
                           color: Colors.blue,
                           fontWeight: FontWeight.w500,
@@ -561,7 +561,7 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
       // Handle both URL and file path cases
       if (images is List && images.isNotEmpty) {
         final imagePath = images[0];
-        if (imagePath == null || imagePath is! String) {
+        if (imagePath == null || imagePath is! String || imagePath.isEmpty) {
           return Center(
             child: Icon(
               Icons.store,

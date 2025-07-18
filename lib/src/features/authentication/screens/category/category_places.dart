@@ -82,6 +82,11 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
 
       // Filter branches by category or subcategory including related ones
       final filteredBranches = allBranches.where((branch) {
+        // Filter out branches whose company status is not approved
+        final companyStatus = branch['company'] != null ? branch['company']['status'] : null;
+        if (companyStatus != null && companyStatus != 'approved') {
+          return false;
+        }
         // Debug branch data
         if (!kReleaseMode) {
           print('Processing branch: ${branch['name']} - Category: ${branch['category']}, SubCategory: ${branch['subCategory']}');

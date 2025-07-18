@@ -105,12 +105,14 @@ class _WholesalerBranchesState extends State<WholesalerBranches> {
   }
 
   // Helper to build the image URL
-  String getImageUrl(String imagePath) {
+  String getImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) {
+      return 'assets/placeholder.png';
+    }
     // Check if the image path is already a full URL
     if (imagePath.startsWith('http')) {
       return imagePath;
     }
-
     // Handle relative paths - assuming images are stored in "uploads" folder on backend
     return '${ApiService.baseUrl}/$imagePath';
   }
@@ -200,8 +202,11 @@ class _WholesalerBranchesState extends State<WholesalerBranches> {
         // Fixed: Properly handle the images array, which should be a list of strings
         List<String> branchImages = [];
         if (branch['images'] != null) {
-          // Convert each item in the images array to a string
-          branchImages = (branch['images'] as List).map((img) => img.toString()).toList();
+          // Convert each item in the images array to a string, filter out nulls
+          branchImages = (branch['images'] as List)
+              .where((img) => img != null)
+              .map((img) => img.toString())
+              .toList();
         }
 
         final String firstImage = branchImages.isNotEmpty

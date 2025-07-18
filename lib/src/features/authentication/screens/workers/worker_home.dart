@@ -117,6 +117,12 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
         providers = await ApiService.getAllServiceProviders();
         print('Fetched ${providers.length} providers'); // Debug log
 
+        // Filter out providers with status 'pending' or 'rejected'
+        providers = providers.where((provider) {
+          final status = provider['serviceProviderInfo'] != null ? provider['serviceProviderInfo']['status'] : null;
+          return status == 'approved';
+        }).toList();
+
         // Fetch logos for each provider
         await _fetchProviderLogos(providers);
 

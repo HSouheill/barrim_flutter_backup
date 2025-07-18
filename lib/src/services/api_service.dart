@@ -22,10 +22,14 @@ import '../utils/token_manager.dart';
 import 'auth_service.dart';
 
 class ApiService {
-  // Base URL for your API - change this according to your deployment
-  static const String baseUrl = 'https://barrim.online'; // Replace with your actual domain
-  // Use 'http://localhost:8080' for iOS simulator
-  // Use your actual server URL for production
+  static const String baseUrl = 'https://barrim.online';
+  static const String alternativeBaseUrl = 'https://104.131.188.174'; // Fallback IP address
+  
+  // Method to get the appropriate base URL
+  static String getBaseUrl() {
+    // You can add logic here to switch between URLs if needed
+    return baseUrl;
+  }
 
   // Headers for API requests
   static Future<Map<String, String>> _getHeaders() async {
@@ -66,18 +70,46 @@ class ApiService {
     final client = http.Client();
     
     try {
+      // Add timeout and retry logic for DNS issues
       switch (method.toUpperCase()) {
         case 'GET':
-          return await client.get(uri, headers: headers);
+          return await client.get(uri, headers: headers).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout. Please check your internet connection.');
+            },
+          );
         case 'POST':
-          return await client.post(uri, headers: headers, body: body);
+          return await client.post(uri, headers: headers, body: body).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout. Please check your internet connection.');
+            },
+          );
         case 'PUT':
-          return await client.put(uri, headers: headers, body: body);
+          return await client.put(uri, headers: headers, body: body).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout. Please check your internet connection.');
+            },
+          );
         case 'DELETE':
-          return await client.delete(uri, headers: headers, body: body);
+          return await client.delete(uri, headers: headers, body: body).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout. Please check your internet connection.');
+            },
+          );
         default:
           throw Exception('Unsupported HTTP method: $method');
       }
+    } catch (e) {
+      // Handle DNS resolution errors specifically
+      if (e.toString().contains('Failed host lookup') || 
+          e.toString().contains('No address associated with hostname')) {
+        throw Exception('Cannot connect to server. Please check:\n1. Your internet connection\n2. Try again in a few moments');
+      }
+      rethrow;
     } finally {
       client.close();
     }
@@ -1666,6 +1698,26 @@ class ApiService {
     } catch (e) {
       print('ApiService: Error in getAllServiceProviders: $e');
       throw Exception('Error getting service providers: $e');
+    }
+  }
+
+  // Test connection method
+  static Future<bool> testConnection() async {
+    try {
+      print('Testing connection to: $baseUrl');
+      
+      // Try to connect to the base URL
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse(baseUrl),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      print('Connection test successful: ${response.statusCode}');
+      return response.statusCode == 200 || response.statusCode == 404; // 404 is OK for base URL
+    } catch (e) {
+      print('Connection test failed: $e');
+      return false;
     }
   }
 

@@ -133,11 +133,21 @@ class _HomeState extends State<Home> {
     try {
       final branches = await ApiService.getAllBranches();
 
-      setState(() {
-        _allBranches = branches;
+      // Filter out branches whose companies have 'pending' or 'rejected' status
+      final filteredBranches = branches.where((branch) {
+        final company = branch['company'];
+        if (company == null) return false;
+        
+        // Check company status - can be in different fields
+        final status = company['status'] ?? company['companyInfo']?['status'];
+        return status == 'approved';
+      }).toList();
 
-        // Create markers for all branches
-        final branchMarkers = branches.map((branch) {
+      setState(() {
+        _allBranches = filteredBranches;
+
+        // Create markers for filtered branches
+        final branchMarkers = filteredBranches.map((branch) {
           final location = branch['location'];
           final company = branch['company'];
           final logoUrl = company['logoUrl'];
@@ -235,6 +245,15 @@ class _HomeState extends State<Home> {
 
       // Filter branches based on the category
       final filteredBranches = _allBranches.where((branch) {
+        // First check if the company is approved
+        final company = branch['company'];
+        if (company != null) {
+          final status = company['status'] ?? company['companyInfo']?['status'];
+          if (status != 'approved') {
+            return false; // Skip branches whose companies are not approved
+          }
+        }
+
         final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
         final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
 
@@ -339,14 +358,20 @@ class _HomeState extends State<Home> {
       final companies = await ApiService.getCompaniesWithLocations();
       print('Raw companies data: ${jsonEncode(companies)}'); // Debug output
 
+      // Filter out companies with status 'pending' or 'rejected'
+      final filteredCompanies = companies.where((company) {
+        final status = company['status'] ?? company['companyInfo']?['status'];
+        return status == 'approved';
+      }).toList();
+
       // Store all companies for later use in filtering and searching
-      _allCompanies = List<Map<String, dynamic>>.from(companies);
+      _allCompanies = List<Map<String, dynamic>>.from(filteredCompanies);
 
       setState(() {
         // Create markers for companies and their branches
         _wayPointMarkers = [];
 
-        for (var company in companies) {
+        for (var company in filteredCompanies) {
           print('Processing company: ${company['companyInfo']?['name']}'); // Debug log
 
           // Add company headquarters marker
@@ -377,8 +402,22 @@ class _HomeState extends State<Home> {
                       final token = prefs.getString('auth_token');
                       if (token != null) {
                         final branches = await ApiService.getCompanyBranches(token);
-                        // Filter branches for this specific company
-                        final companyBranches = branches.where((b) => b['companyId'] == company['_id']).toList();
+                        // Filter branches for this specific company and check status
+                        final companyBranches = branches.where((b) {
+                          // First check if this branch belongs to the current company
+                          if (b['companyId'] != company['_id']) return false;
+                          
+                          // Then check if the company is approved
+                          final companyData = b['company'];
+                          if (companyData != null) {
+                            final status = companyData['status'] ?? companyData['companyInfo']?['status'];
+                            if (status != 'approved') {
+                              return false; // Skip branches whose companies are not approved
+                            }
+                          }
+                          
+                          return true;
+                        }).toList();
 
                         // Process branch data
                         final processedBranches = companyBranches.map((branch) {
@@ -647,8 +686,22 @@ class _HomeState extends State<Home> {
                 final token = prefs.getString('auth_token');
                 if (token != null) {
                   final branches = await ApiService.getCompanyBranches(token);
-                  // Filter branches for this specific company
-                  final companyBranches = branches.where((b) => b['companyId'] == company['_id']).toList();
+                  // Filter branches for this specific company and check status
+                  final companyBranches = branches.where((b) {
+                    // First check if this branch belongs to the current company
+                    if (b['companyId'] != company['_id']) return false;
+                    
+                    // Then check if the company is approved
+                    final companyData = b['company'];
+                    if (companyData != null) {
+                      final status = companyData['status'] ?? companyData['companyInfo']?['status'];
+                      if (status != 'approved') {
+                        return false; // Skip branches whose companies are not approved
+                      }
+                    }
+                    
+                    return true;
+                  }).toList();
 
                   // Process branch data to ensure it has all required fields
                   final processedBranches = companyBranches.map((branch) {
@@ -903,6 +956,15 @@ class _HomeState extends State<Home> {
 
     // Filter branches
     List<Map<String, dynamic>> filteredBranches = _allBranches.where((branch) {
+      // First check if the company is approved
+      final company = branch['company'];
+      if (company != null) {
+        final status = company['status'] ?? company['companyInfo']?['status'];
+        if (status != 'approved') {
+          return false; // Skip branches whose companies are not approved
+        }
+      }
+
       final branchType = branch['type']?.toString().toLowerCase() ?? branch['category']?.toString().toLowerCase() ?? '';
       final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
       final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
@@ -1256,6 +1318,15 @@ class _HomeState extends State<Home> {
         // Add existing search results from branches and companies if not a wholesaler-specific search
         if (!isWholesalerSearch && _allBranches.isNotEmpty) {
           for (var branch in _allBranches) {
+            // Filter out branches whose companies have 'pending' or 'rejected' status
+            final company = branch['company'];
+            if (company != null) {
+              final status = company['status'] ?? company['companyInfo']?['status'];
+              if (status != 'approved') {
+                continue; // Skip this branch if company is not approved
+              }
+            }
+
             final name = branch['name']?.toString().toLowerCase() ?? '';
             final description = branch['description']?.toString().toLowerCase() ?? '';
             final category = branch['category']?.toString().toLowerCase() ?? '';
@@ -1718,6 +1789,15 @@ class _HomeState extends State<Home> {
 
     // Search for branches that match the query
     final matchedBranches = _allBranches.where((branch) {
+      // First check if the company is approved
+      final company = branch['company'];
+      if (company != null) {
+        final status = company['status'] ?? company['companyInfo']?['status'];
+        if (status != 'approved') {
+          return false; // Skip branches whose companies are not approved
+        }
+      }
+
       final name = branch['name']?.toString().toLowerCase() ?? '';
       final description = branch['description']?.toString().toLowerCase() ?? '';
       final category = branch['category']?.toString().toLowerCase() ?? '';
@@ -2204,14 +2284,18 @@ class _HomeState extends State<Home> {
 
   Future<void> _fetchAllWholesalers() async {
     try {
-
       final wholesalers = await _wholesalerService.getAllWholesalers();
+      // Filter out wholesalers with status 'pending' or 'rejected'
+      final filteredWholesalers = wholesalers.where((wholesaler) {
+        final status = wholesaler.toJson()['status'];
+        return status == 'approved';
+      }).toList();
       
       // Print detailed wholesaler data for debugging
       print('\n=== WHOLESALER DATA DEBUG ===');
-      print('Total wholesalers retrieved: ${wholesalers.length}');
+      print('Total wholesalers retrieved: ${filteredWholesalers.length}');
       
-      for (var wholesaler in wholesalers) {
+      for (var wholesaler in filteredWholesalers) {
         print('\n----------------------------------------');
         print('Wholesaler ID: ${wholesaler.id}');
         print('Business Name: ${wholesaler.businessName}');
@@ -2258,9 +2342,9 @@ class _HomeState extends State<Home> {
         print('----------------------------------------\n');
       }
       
-      if (wholesalers.isNotEmpty) {
+      if (filteredWholesalers.isNotEmpty) {
         // Create markers for each wholesaler
-        final wholesalerMarkers = wholesalers.map((wholesaler) {
+        final wholesalerMarkers = filteredWholesalers.map((wholesaler) {
           // Get location from first branch if available, otherwise use wholesaler's address
           double lat = 0.0;
           double lng = 0.0;
@@ -2338,7 +2422,7 @@ class _HomeState extends State<Home> {
           );
         }).where((marker) => marker != null).cast<Marker>().toList();
 
-        print('\nCreated ${wholesalerMarkers.length} markers out of ${wholesalers.length} wholesalers');
+        print('\nCreated ${wholesalerMarkers.length} markers out of ${filteredWholesalers.length} wholesalers');
 
         setState(() {
           // Add wholesaler markers to existing markers

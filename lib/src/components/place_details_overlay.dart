@@ -47,6 +47,17 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
   @override
   void initState() {
     super.initState();
+    // Check company status before proceeding
+    final status = widget.place['status'] ?? widget.place['companyInfo']?['status'];
+    if (status != null && status != 'approved') {
+      // Pop the overlay immediately if not approved
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      });
+      return;
+    }
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
