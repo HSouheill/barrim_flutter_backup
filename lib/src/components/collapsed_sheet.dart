@@ -123,10 +123,11 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
       final filteredBranchesData = branchesData.where((branchData) {
         final company = branchData['company'];
         if (company == null) return false;
-        
         // Check company status - can be in different fields
         final status = company['status'] ?? company['companyInfo']?['status'];
-        return status == 'approved';
+        if (status != 'approved') return false;
+        if (branchData['status'] == 'inactive') return false;
+        return true;
       }).toList();
 
       // Convert the filtered data to Branch objects

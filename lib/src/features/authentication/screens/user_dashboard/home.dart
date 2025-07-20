@@ -137,10 +137,11 @@ class _HomeState extends State<Home> {
       final filteredBranches = branches.where((branch) {
         final company = branch['company'];
         if (company == null) return false;
-        
         // Check company status - can be in different fields
         final status = company['status'] ?? company['companyInfo']?['status'];
-        return status == 'approved';
+        if (status != 'approved') return false;
+        if (branch['status'] == 'inactive') return false;
+        return true;
       }).toList();
 
       setState(() {
@@ -253,7 +254,7 @@ class _HomeState extends State<Home> {
             return false; // Skip branches whose companies are not approved
           }
         }
-
+        if (branch['status'] == 'inactive') return false;
         final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
         final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
 
@@ -872,10 +873,16 @@ class _HomeState extends State<Home> {
         double lat = 0.0;
         double lng = 0.0;
         String address = '';
+        Branch? activeBranch;
         if (wholesaler.branches.isNotEmpty) {
-          lat = wholesaler.branches.first.location.lat;
-          lng = wholesaler.branches.first.location.lng;
-          address = '${wholesaler.branches.first.location.street}, ${wholesaler.branches.first.location.city}';
+          // Find the first active branch
+          final activeBranches = wholesaler.branches.where((b) => b.status != 'inactive');
+          if (activeBranches.isNotEmpty) {
+            activeBranch = activeBranches.first;
+            lat = activeBranch.location.lat;
+            lng = activeBranch.location.lng;
+            address = '${activeBranch.location.street}, ${activeBranch.location.city}';
+          }
         } else if (wholesaler.address != null) {
           lat = wholesaler.address!.lat;
           lng = wholesaler.address!.lng;
@@ -901,7 +908,7 @@ class _HomeState extends State<Home> {
                   'logoUrl': wholesaler.logoUrl,
                   'companyName': wholesaler.businessName,
                   'companyId': wholesaler.id,
-                  'images': wholesaler.branches.isNotEmpty ? wholesaler.branches.first.images : [],
+                  'images': activeBranch != null ? activeBranch.images : [],
                   'category': wholesaler.category,
                   'company': {
                     'businessName': wholesaler.businessName,
@@ -964,13 +971,12 @@ class _HomeState extends State<Home> {
           return false; // Skip branches whose companies are not approved
         }
       }
-
+      if (branch['status'] == 'inactive') return false;
       final branchType = branch['type']?.toString().toLowerCase() ?? branch['category']?.toString().toLowerCase() ?? '';
       final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
       final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
       final location = branch['location'];
       if (location == null || location['lat'] == null || location['lng'] == null) return false;
-
       // Type filter
       if (filters['type'] != null && filters['type'] != 'All' && filters['type'] != '') {
         if (branchType != filters['type'].toString().toLowerCase()) {
@@ -1272,16 +1278,15 @@ class _HomeState extends State<Home> {
 
           // Search in wholesaler branches
           for (var branch in wholesaler.branches) {
+            if (branch.status == 'inactive') continue;
             if (isWholesalerSearch ||
                 branch.name.toLowerCase().contains(searchQuery) ||
                 branch.category.toLowerCase().contains(searchQuery) ||
                 branch.description.toLowerCase().contains(searchQuery) ||
                 branch.location.city.toLowerCase().contains(searchQuery) ||
                 branch.location.street.toLowerCase().contains(searchQuery)) {
-              
               final lat = branch.location.lat;
               final lng = branch.location.lng;
-              
               if (lat != 0.0 && lng != 0.0) {
                 // Calculate distance if current location is available
                 double? distance;
@@ -1291,7 +1296,6 @@ class _HomeState extends State<Home> {
                   lat,
                   lng,
                 );
-
                 results.add({
                   'name': branch.name,
                   'id': branch.id,
@@ -1326,7 +1330,7 @@ class _HomeState extends State<Home> {
                 continue; // Skip this branch if company is not approved
               }
             }
-
+            if (branch['status'] == 'inactive') continue;
             final name = branch['name']?.toString().toLowerCase() ?? '';
             final description = branch['description']?.toString().toLowerCase() ?? '';
             final category = branch['category']?.toString().toLowerCase() ?? '';
@@ -1797,7 +1801,7 @@ class _HomeState extends State<Home> {
           return false; // Skip branches whose companies are not approved
         }
       }
-
+      if (branch['status'] == 'inactive') return false;
       final name = branch['name']?.toString().toLowerCase() ?? '';
       final description = branch['description']?.toString().toLowerCase() ?? '';
       final category = branch['category']?.toString().toLowerCase() ?? '';
@@ -2349,33 +2353,22 @@ class _HomeState extends State<Home> {
           double lat = 0.0;
           double lng = 0.0;
           String address = '';
-          
+          Branch? activeBranch;
           if (wholesaler.branches.isNotEmpty) {
-            final branch = wholesaler.branches.first;
-            lat = branch.location.lat;
-            lng = branch.location.lng;
-            address = '${branch.location.street}, ${branch.location.city}';
+            // Find the first active branch
+            final activeBranches = wholesaler.branches.where((b) => b.status != 'inactive');
+            if (activeBranches.isNotEmpty) {
+              activeBranch = activeBranches.first;
+              lat = activeBranch.location.lat;
+              lng = activeBranch.location.lng;
+              address = '${activeBranch.location.street}, ${activeBranch.location.city}';
+            }
           } else if (wholesaler.address != null) {
-            // Use wholesaler's address if no branches
             lat = wholesaler.address!.lat;
             lng = wholesaler.address!.lng;
             address = '${wholesaler.address!.street}, ${wholesaler.address!.city}';
-            print('Using wholesaler address for ${wholesaler.businessName}: $lat, $lng');
-          } else {
-            // Use default location (you can adjust these coordinates)
-            lat = 0.0; // Replace with default latitude
-            lng = 0.0; // Replace with default longitude
-            address = 'Location not specified';
-            print('No location available for wholesaler: ${wholesaler.businessName}');
           }
-
-          // Skip if no valid coordinates
-          if (lat == 0.0 && lng == 0.0) {
-            print('Skipping wholesaler ${wholesaler.businessName} - no valid coordinates');
-            return null;
-          }
-
-          print('Creating marker for wholesaler: ${wholesaler.businessName} at $lat, $lng');
+          if (lat == 0.0 && lng == 0.0) return null;
           return Marker(
             point: LatLng(lat, lng),
             width: 40,
@@ -2395,7 +2388,7 @@ class _HomeState extends State<Home> {
                     'logoUrl': wholesaler.logoUrl,
                     'companyName': wholesaler.businessName,
                     'companyId': wholesaler.id,
-                    'images': wholesaler.branches.isNotEmpty ? wholesaler.branches.first.images : [],
+                    'images': activeBranch != null ? activeBranch.images : [],
                     'category': wholesaler.category,
                     'company': {
                       'businessName': wholesaler.businessName,
@@ -2410,7 +2403,6 @@ class _HomeState extends State<Home> {
               width: 40,
               height: 40,
               errorBuilder: (context, error, stackTrace) {
-                print('Error loading wholesaler icon: $error');
                 return Icon(
                   Icons.store,
                   color: Colors.blue,

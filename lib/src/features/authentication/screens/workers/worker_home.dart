@@ -120,7 +120,9 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
         // Filter out providers with status 'pending' or 'rejected'
         providers = providers.where((provider) {
           final status = provider['serviceProviderInfo'] != null ? provider['serviceProviderInfo']['status'] : null;
-          return status == 'approved';
+          if (status != 'approved') return false;
+          if (status == 'inactive') return false;
+          return true;
         }).toList();
 
         // Fetch logos for each provider
