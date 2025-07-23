@@ -2422,7 +2422,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
 
       final response = await _makeRequest(
         'DELETE',
-        Uri.parse('$baseUrl/api/users/account'),
+        Uri.parse('$baseUrl/api/users'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

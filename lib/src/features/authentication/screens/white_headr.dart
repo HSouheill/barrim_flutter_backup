@@ -37,41 +37,44 @@ class WhiteHeader extends StatelessWidget {
               bottomRight: Radius.circular(63),
             ),
           ),
-          child: Stack(
-            children: [
-              // Back Button
-              Positioned(
-                top: 40,
-                left: 20,
-                child: IconButton(
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: Colors.black,
-                    size: isSmallScreen ? 30 : 40,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16.0, bottom: 16.0), // Add fixed space at top and bottom
+            child: Stack(
+              children: [
+                // Back Button
+                Positioned(
+                  top: 24, // Adjusted for new padding
+                  left: 20,
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.arrow_back,
+                      color: Colors.black,
+                      size: isSmallScreen ? 30 : 40,
+                    ),
+                    onPressed: onBackPressed,
                   ),
-                  onPressed: onBackPressed,
                 ),
-              ),
 
-              // Title Text
-              Positioned(
-                top: subtitle != null ? 70 : 103,
-                left: 33,
-                right: 0,
-                child: Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Text(
-                    title,
-                    style: GoogleFonts.nunito(
-                      fontSize: getTitleFontSize(),
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF05054F),
-                      letterSpacing: 1.2,
+                // Title Text
+                Positioned(
+                  top: subtitle != null ? 54 : 87, // Adjusted for new padding
+                  left: 33,
+                  right: 0,
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Text(
+                      title,
+                      style: GoogleFonts.nunito(
+                        fontSize: getTitleFontSize(),
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF05054F),
+                        letterSpacing: 1.2,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

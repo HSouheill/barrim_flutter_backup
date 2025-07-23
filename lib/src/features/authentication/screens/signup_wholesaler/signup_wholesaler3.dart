@@ -12,6 +12,8 @@ import '../login_page.dart';
 import '../welcome_page.dart';
 import '../../../../data/lebanon_locations.dart';
 import '../verification_code.dart';
+import 'package:barrim/src/features/authentication/screens/white_headr.dart';
+
 
 class SignupWholesaler3 extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -553,48 +555,10 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      height: constraints.maxHeight * 0.19,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.only(
-                          bottomRight: Radius.circular(63),
-                        ),
-                      ),
-                      child: Stack(
-                        children: [
-                          // Back Button
-                          Positioned(
-                            top: 40,
-                            left: 20,
-                            child: IconButton(
-                              icon: Icon(
-                                Icons.arrow_back,
-                                color: Colors.black,
-                                size: isSmallScreen ? 30 : 40,
-                              ),
-                              onPressed: () => Navigator.of(context).pop(),
-                            ),
-                          ),
-
-                          // Sign Up Text
-                          Positioned(
-                            top: 103,
-                            left: 33,
-                            right: 0,
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: Text(
-                                'Sign Up',
-                                style: GoogleFonts.nunito(
-                                  fontSize: getTitleFontSize(),
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF05054F),
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      height: 180,
+                      child: WhiteHeader(
+                        title: 'Sign Up',
+                        onBackPressed: () => Navigator.of(context).pop(),
                       ),
                     ),
                   ),
