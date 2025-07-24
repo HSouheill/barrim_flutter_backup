@@ -562,6 +562,13 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
                       ),
                     ),
                   ),
+                  // Add fixed space between WhiteHeader and progress bar
+                  Positioned(
+                    top: 180,
+                    left: 0,
+                    right: 0,
+                    child: SizedBox(height: 16),
+                  ),
 
                   // Custom Header with Progress Bar
                   Positioned(

@@ -420,6 +420,13 @@ class _SignupCompany3State extends State<SignupCompany3> {
               ),
             ),
           ),
+          // Add fixed space between WhiteHeader and progress bar
+          Positioned(
+            top: 180,
+            left: 0,
+            right: 0,
+            child: SizedBox(height: 16),
+          ),
           SafeArea(
             child: Stack(
               children: [
