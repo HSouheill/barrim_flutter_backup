@@ -2,7 +2,7 @@ name: barrim
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.7+2
+version: 1.0.8+3
 
 environment:
   sdk: ^3.7.0
