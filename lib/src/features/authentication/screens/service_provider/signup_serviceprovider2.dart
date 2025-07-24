@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import '../responsive_utils.dart';
 import 'signup_serviceprovider3.dart';
 import '../../../../data/lebanon_locations.dart';
+import '../white_headr.dart';
 
 class SignupServiceprovider2 extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -360,50 +361,19 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      height: constraints.maxHeight * 0.19,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.only(
-                          bottomRight: Radius.circular(63),
-                        ),
-                      ),
-                      child: Stack(
-                        children: [
-                          // Back Button
-                          Positioned(
-                            top: 40,
-                            left: 20,
-                            child: IconButton(
-                              icon: Icon(
-                                Icons.arrow_back,
-                                color: Colors.black,
-                                size: isSmallScreen ? 30 : 40,
-                              ),
-                              onPressed: () => Navigator.of(context).pop(),
-                            ),
-                          ),
-
-                          // Sign Up Text
-                          Positioned(
-                            top: 103,
-                            left: 33,
-                            right: 0,
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: Text(
-                                'Sign Up',
-                                style: GoogleFonts.nunito(
-                                  fontSize: getTitleFontSize(),
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF05054F),
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      height: 180,
+                      child: WhiteHeader(
+                        title: 'Sign Up',
+                        onBackPressed: () => Navigator.of(context).pop(),
                       ),
                     ),
+                  ),
+                  // Add fixed space between WhiteHeader and progress bar
+                  Positioned(
+                    top: 180,
+                    left: 0,
+                    right: 0,
+                    child: SizedBox(height: 16),
                   ),
 
                   // Custom Header with Progress Bar

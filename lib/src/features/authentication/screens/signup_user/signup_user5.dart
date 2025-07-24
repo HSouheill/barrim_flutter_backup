@@ -494,42 +494,9 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                 right: 0,
                 child: Container(
                   height: 180,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      bottomRight: Radius.circular(63),
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      // Back Button
-                      Positioned(
-                        top: 40,
-                        left: 20,
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.arrow_back,
-                            color: Colors.black,
-                            size: MediaQuery.of(context).size.width < 360 ? 30 : 40,
-                          ),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ),
-
-                      // Sign Up Text
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          height: 180,
-                          child: WhiteHeader(
-                            title: 'Sign Up',
-                            onBackPressed: () => Navigator.pop(context),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: WhiteHeader(
+                    title: 'Sign Up',
+                    onBackPressed: () => Navigator.pop(context),
                   ),
                 ),
               ),

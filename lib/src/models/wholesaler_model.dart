@@ -255,6 +255,7 @@ class Branch {
   final List<String> videos;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String status;
 
   Branch({
     required this.id,
@@ -268,6 +269,7 @@ class Branch {
     this.videos = const [],
     required this.createdAt,
     required this.updatedAt,
+    this.status = 'active',
   });
 
   factory Branch.fromJson(Map<String, dynamic> json) {
@@ -297,6 +299,7 @@ class Branch {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
+      status: json['status'] ?? 'active',
     );
   }
 
@@ -313,6 +316,7 @@ class Branch {
       'videos': videos,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'status': status,
     };
   }
 }

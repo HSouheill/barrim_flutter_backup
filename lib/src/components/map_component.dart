@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'dart:math' as math;
+import 'package:flutter_svg/flutter_svg.dart';
 
-class MapComponent extends StatelessWidget {
+class MapComponent extends StatefulWidget {
   final MapController mapController;
   final LatLng? currentLocation;
   final LatLng? destinationLocation;
@@ -25,39 +27,68 @@ class MapComponent extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<MapComponent> createState() => _MapComponentState();
+}
+
+class _MapComponentState extends State<MapComponent> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.3).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FlutterMap(
-      mapController: mapController,
+      mapController: widget.mapController,
       options: MapOptions(
-        center: currentLocation ?? const LatLng(33.8938, 35.5018),
+        center: widget.currentLocation ?? const LatLng(33.8938, 35.5018),
         zoom: 14.0,
-        onTap: (tapPosition, point) => onMapTap(point),
+        minZoom: 1.0,
+        maxZoom: 20.0,
+        onTap: (tapPosition, point) => widget.onMapTap(point),
       ),
       children: [
+        // High-res MapTiler tiles (replace API_KEY with your key)
         TileLayer(
-          urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          subdomains: const ['a', 'b', 'c'],
-          userAgentPackageName: 'com.example.app',
+          urlTemplate: 'https://api.maptiler.com/maps/streets/{z}/{x}/{y}@2x.png?key=V58lOsvs7pjgLPfRlEB3',
+          retinaMode: true, // Request high-res tiles on HiDPI screens
+          userAgentPackageName: 'com.BarrimApp.Barirm',
         ),
-        if (alternativeRouteCoordinates.isNotEmpty)
+        if (widget.alternativeRouteCoordinates.isNotEmpty)
           PolylineLayer(
             polylines: [
               Polyline(
-                points: alternativeRouteCoordinates,
-                strokeWidth: usingPrimaryRoute ? 2.0 : 4.0,
-                color: usingPrimaryRoute
+                points: widget.alternativeRouteCoordinates,
+                strokeWidth: widget.usingPrimaryRoute ? 2.0 : 4.0,
+                color: widget.usingPrimaryRoute
                     ? Colors.purple.withOpacity(0.5)
                     : Colors.purple,
               ),
             ],
           ),
-        if (primaryRouteCoordinates.isNotEmpty)
+        if (widget.primaryRouteCoordinates.isNotEmpty)
           PolylineLayer(
             polylines: [
               Polyline(
-                points: primaryRouteCoordinates,
-                strokeWidth: usingPrimaryRoute ? 4.0 : 2.0,
-                color: usingPrimaryRoute
+                points: widget.primaryRouteCoordinates,
+                strokeWidth: widget.usingPrimaryRoute ? 4.0 : 2.0,
+                color: widget.usingPrimaryRoute
                     ? Colors.blue
                     : Colors.blue.withOpacity(0.5),
               ),
@@ -65,22 +96,20 @@ class MapComponent extends StatelessWidget {
           ),
         MarkerLayer(
           markers: [
-            if (currentLocation != null)
+            if (widget.currentLocation != null)
               Marker(
-                point: currentLocation!,
-                width: 40,
-                height: 40,
-                builder: (ctx) => Container(
-                  child: const Icon(
-                    Icons.navigation,
-                    color: Colors.blue,
-                    size: 30,
-                  ),
+                point: widget.currentLocation!,
+                width: 60,
+                height: 60,
+                builder: (ctx) => SvgPicture.asset(
+                  'assets/icons/your_icon.svg',
+                  width: 36,
+                  height: 36,
                 ),
               ),
-            if (destinationLocation != null)
+            if (widget.destinationLocation != null)
               Marker(
-                point: destinationLocation!,
+                point: widget.destinationLocation!,
                 width: 40,
                 height: 40,
                 builder: (ctx) => const Icon(
@@ -89,8 +118,8 @@ class MapComponent extends StatelessWidget {
                   size: 40,
                 ),
               ),
-            if (usingPrimaryRoute)
-              ...wayPointMarkers,
+            if (widget.usingPrimaryRoute)
+              ...widget.wayPointMarkers,
           ],
         ),
       ],

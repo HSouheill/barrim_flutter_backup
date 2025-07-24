@@ -612,7 +612,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
             child: Text(
               title,
               style: const TextStyle(
-                fontSize: 22,
+                fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF2079C2),
               ),
