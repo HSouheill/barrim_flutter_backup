@@ -1,6 +1,8 @@
 import 'dart:math';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../headers/sidebar.dart';
 import '../../../../../models/subscription.dart';
 import '../../../../../services/wholesaler_subscription_service.dart';
@@ -80,17 +82,468 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   Future<void> _handleSubscriptionRequest(SubscriptionPlan plan) async {
     try {
       final provider = context.read<SubscriptionProvider>();
+
+      // If already subscribed, show info dialog and return
+      if (provider.hasActiveSubscription) {
+        _showActiveSubscriptionDialog();
+        return;
+      }
+
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 30),
+                Text(
+                  'Processing subscription request...',
+                  style: TextStyle(fontSize: 10),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
       final success = await provider.requestSubscription(
         planId: plan.id!,
       );
 
+      // Close loading dialog
+      Navigator.of(context).pop();
+
       if (success) {
         _showSubscriptionDialog(plan.title ?? 'Unknown Plan',
             plan.price?.toString() ?? '0');
+      } else {
+        // Show info dialog if error is about pending subscription
+        final errorMessage = provider.errorMessage ?? '';
+        if (errorMessage.toLowerCase().contains('already have a pending subscription request')) {
+          _showActiveSubscriptionDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $errorMessage'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      // Show info dialog if error is about pending subscription
+      final errorString = e.toString().toLowerCase();
+      if (errorString.contains('already have a pending subscription request')) {
+        _showActiveSubscriptionDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<bool> _showConfirmationDialog(SubscriptionPlan plan) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Confirm Subscription',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2079C2),
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to subscribe to:',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 10),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      plan.title ?? 'Unknown Plan',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF2079C2),
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'Price: \$${plan.price?.toString() ?? '0'}',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    if (plan.duration != null) ...[
+                      SizedBox(height: 5),
+                      Text(
+                        'Duration: ${plan.duration} days',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(height: 15),
+              Text(
+                'After confirmation, you will need to contact us for payment details.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF2079C2),
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  Future<File?> _pickPaymentProofImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+
+      if (image != null) {
+        return File(image.path);
+      }
+      return null;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error picking image: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
+    }
+  }
+
+  Future<bool> _showPaymentProofDialog(SubscriptionPlan plan) async {
+    File? selectedImage;
+    
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                'Upload Payment Proof',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2079C2),
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Please upload a screenshot or photo of your payment proof for:',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 10),
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          plan.title ?? 'Unknown Plan',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Color(0xFF2079C2),
+                          ),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          'Price: \$${plan.price?.toString() ?? '0'}',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  
+                  // Image picker section
+                  if (selectedImage == null) ...[
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final image = await _pickPaymentProofImage();
+                        if (image != null) {
+                          setState(() {
+                            selectedImage = image;
+                          });
+                        }
+                      },
+                      icon: Icon(Icons.upload_file),
+                      label: Text('Select Payment Proof'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF2079C2),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ] else ...[
+                    Container(
+                      width: double.infinity,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          selectedImage!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              selectedImage = null;
+                            });
+                          },
+                          child: Text('Change Image'),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final image = await _pickPaymentProofImage();
+                            if (image != null) {
+                              setState(() {
+                                selectedImage = image;
+                              });
+                            }
+                          },
+                          child: Text('Select Different'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  
+                  SizedBox(height: 15),
+                  Text(
+                    'Note: Payment proof is optional but recommended for faster processing.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF2079C2),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text('Submit Request'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ) ?? false;
+  }
+
+  void _showActiveSubscriptionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Column(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Colors.orange,
+                size: 50,
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Subscription In Progress',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2079C2),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'You are already in the subscription process.',
+            style: TextStyle(fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                // Clear error and refresh data
+                final provider = context.read<SubscriptionProvider>();
+                provider.clearError();
+                provider.initialize();
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  color: Color(0xFF2079C2),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _handleCancelSubscription() async {
+    try {
+      final provider = context.read<SubscriptionProvider>();
+      
+      // Show confirmation dialog
+      final shouldCancel = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              'Cancel Subscription',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+            content: Text(
+              'Are you sure you want to cancel your current subscription? This action cannot be undone.',
+              style: TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(
+                  'Keep Subscription',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Cancel Subscription'),
+              ),
+            ],
+          );
+        },
+      ) ?? false;
+
+      if (!shouldCancel) return;
+
+      final success = await provider.cancelSubscription();
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Subscription cancelled successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        final errorMessage = provider.errorMessage ?? 'Failed to cancel subscription';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $errorMessage'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -111,22 +564,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                     child: provider.isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : provider.hasError
-                        ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Error loading subscription data',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: () => provider.initialize(),
-                            child: Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    )
+                        ? SizedBox.shrink()
                         : SingleChildScrollView(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
@@ -279,6 +717,48 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                   ),
                 ),
               ),
+              
+              const SizedBox(height: 20),
+              
+              // Cancel subscription button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: provider.isCancellingSubscription 
+                    ? null 
+                    : () => _handleCancelSubscription(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: provider.isCancellingSubscription
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Text('Cancelling...'),
+                        ],
+                      )
+                    : const Text(
+                        'Cancel Subscription',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                ),
+              ),
             ],
           ),
         ),
@@ -405,8 +885,6 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   }
 
 
-
-
   void _showSubscriptionDialog(String plan, String price) {
     showDialog(
       context: context,
@@ -419,7 +897,6 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
             children: [
               const Icon(
                 Icons.check_circle_outline,
-                color: Colors.green,
                 size: 50,
               ),
               const SizedBox(height: 10),

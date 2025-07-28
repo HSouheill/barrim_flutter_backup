@@ -378,7 +378,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
 
                   // Custom Header with Progress Bar
                   Positioned(
-                    top: constraints.maxHeight * 0.20,
+                    top: constraints.maxHeight * 0.22,
                     left: 0,
                     right: 0,
                     child: CustomHeader(

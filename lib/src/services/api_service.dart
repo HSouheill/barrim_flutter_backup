@@ -499,7 +499,14 @@ class ApiService {
       var responseData = await http.Response.fromStream(streamedResponse);
       var decodedResponse = jsonDecode(responseData.body);
 
-      if (responseData.statusCode == 201) {
+      if (responseData.statusCode == 201 || responseData.statusCode == 200) {
+        // Check if the response indicates OTP was sent successfully
+        if (decodedResponse['message'] != null && 
+            decodedResponse['message'].toString().toLowerCase().contains('otp sent successfully')) {
+          return decodedResponse;
+        }
+        
+        // Handle case where token is provided (immediate login)
         if (decodedResponse['data'] != null &&
             decodedResponse['data']['token'] != null) {
           await saveToken(decodedResponse['data']['token']);

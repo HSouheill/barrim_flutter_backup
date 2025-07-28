@@ -1,8 +1,4 @@
-import 'dart:convert';
 import 'dart:io';
-import 'package:path/path.dart' as path;
-import 'package:http_parser/http_parser.dart';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../custom_header.dart';
@@ -12,8 +8,6 @@ import '../responsive_utils.dart';
 import '../welcome_page.dart';
 import '../../../../services/api_service.dart';
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/http.dart';
 
 class SignupServiceprovider4 extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -487,12 +481,12 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
 
   Widget _buildMonthSelector() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween ,
       children: [
         Text(
           _formatMonth(_currentDate),
           style: GoogleFonts.nunito(
-            fontSize: ResponsiveUtils.getInputTextFontSize(context) ,
+            fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
             fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
@@ -507,14 +501,14 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
                     _applyToAllMonths
                         ? Icons.check_box
                         : Icons.check_box_outline_blank,
-                    size: 18,
+                    size: 16,
                     color: _applyToAllMonths ? Color(0xFF009DFF) : Colors.grey,
                   ),
                   SizedBox(width: 4),
                   Text(
                     'Apply for all months',
                     style: GoogleFonts.nunito(
-                      fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.6,
+                      fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.5,
                       color: _applyToAllMonths ? Color(0xFF009DFF) : Colors.grey,
                     ),
                   ),
@@ -524,11 +518,11 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
             Row(
               children: [
                 IconButton(
-                  icon: Icon(Icons.chevron_left, size: 24, color: Colors.grey),
+                  icon: Icon(Icons.chevron_left, size: 22, color: Colors.grey),
                   onPressed: () => _changeMonth(-1),
                 ),
                 IconButton(
-                  icon: Icon(Icons.chevron_right, size: 24, color: Colors.grey),
+                  icon: Icon(Icons.chevron_right, size: 22, color: Colors.grey),
                   onPressed: () => _changeMonth(1),
                 ),
               ],
@@ -1030,44 +1024,21 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
                 print('Sending service provider signup request...');
                 print('Phone number: ${widget.userData['phone']}');
                 
-                // Create multipart request for signup with logo
-                var request = http.MultipartRequest(
-                  'POST',
-                  Uri.parse('${ApiService.baseUrl}/api/auth/signup-service-provider-with-logo'),
+                // Use the existing ApiService method instead of direct HTTP request
+                final signupResponse = await ApiService.signupServiceProviderWithLogo(
+                  completeUserData,
+                  logoFile,
                 );
 
-                // Add headers
-                request.headers.addAll({
-                  'Content-Type': 'multipart/form-data',
-                });
+                print('Signup response: $signupResponse');
 
-                // Add JSON data as a string field
-                request.fields['userData'] = jsonEncode(completeUserData);
+                // Check if the response indicates success (either through success flag or OTP sent message)
+                bool isSuccess = signupResponse['success'] == true || 
+                               signupResponse['status'] == 'success' ||
+                               (signupResponse['message'] != null && 
+                                signupResponse['message'].toString().toLowerCase().contains('otp sent successfully'));
 
-                // Add logo file if provided
-                if (logoFile != null) {
-                  var stream = http.ByteStream(logoFile.openRead());
-                  var length = await logoFile.length();
-
-                  var multipartFile = http.MultipartFile(
-                    'logo',
-                    stream,
-                    length,
-                    filename: path.basename(logoFile.path),
-                    contentType: MediaType('image', _getImageMimeType(logoFile.path)),
-                  );
-
-                  request.files.add(multipartFile);
-                }
-
-                // Send the request
-                var streamedResponse = await request.send();
-                var signupResponse = await http.Response.fromStream(streamedResponse);
-
-                print('Signup response status: ${signupResponse.statusCode}');
-                print('Signup response body: ${signupResponse.body}');
-
-                if (signupResponse.statusCode == 201 || signupResponse.statusCode == 200) {
+                if (isSuccess) {
                   // Close loading dialog
                   if (mounted) {
                     Navigator.of(context).pop();
@@ -1098,9 +1069,8 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
                   // Handle signup error
                   if (mounted) {
                     Navigator.of(context).pop(); // Close loading dialog
-                    final responseData = jsonDecode(signupResponse.body);
                     // ScaffoldMessenger.of(context).showSnackBar(
-                    //   SnackBar(content: Text(responseData['message'] ?? 'Signup failed')),
+                    //   SnackBar(content: Text(signupResponse['message'] ?? 'Signup failed')),
                     // );
                   }
                 }
@@ -1145,22 +1115,5 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
     );
   }
 
-  String _getImageMimeType(String filePath) {
-    final extension = path.extension(filePath).toLowerCase();
-    switch (extension) {
-      case '.jpg':
-      case '.jpeg':
-        return 'jpeg';
-      case '.png':
-        return 'png';
-      case '.gif':
-        return 'gif';
-      case '.webp':
-        return 'webp';
-      case '.bmp':
-        return 'bmp';
-      default:
-        return 'octet-stream';
-    }
-  }
+
 }

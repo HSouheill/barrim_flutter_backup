@@ -220,7 +220,7 @@ class _HomeState extends State<Home> {
 
       // Move camera to the first marker if exists
       if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-        _mapController.move(_wayPointMarkers[0].point, 14.0);
+        _mapController.move(_wayPointMarkers[0].point, 15.0);
       }
     } catch (e) {
       print('Error fetching branches: $e');
@@ -939,7 +939,7 @@ class _HomeState extends State<Home> {
       });
 
       if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-        _mapController.move(_wayPointMarkers[0].point, 14.0);
+        _mapController.move(_wayPointMarkers[0].point, 15.0);
       }
 
       // if (filteredWholesalers.isEmpty) {
@@ -1046,7 +1046,7 @@ class _HomeState extends State<Home> {
     _createMarkers(filteredBranches);
 
     if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-      _mapController.move(_wayPointMarkers[0].point, 14.0);
+      _mapController.move(_wayPointMarkers[0].point, 15.0);
     }
 
     // if (filteredBranches.isEmpty) {
@@ -1139,7 +1139,7 @@ class _HomeState extends State<Home> {
         _initialLocationSet = true;
         _locationDenied = true;
       });
-      _mapController.move(_defaultLocation, 15.0);
+      _mapController.move(_defaultLocation, _defaultZoom);
       return;
     }
     if (status.isGranted) {
@@ -1155,7 +1155,7 @@ class _HomeState extends State<Home> {
           _initialLocationSet = true;
           _locationDenied = true;
         });
-        _mapController.move(_defaultLocation, 15.0);
+        _mapController.move(_defaultLocation, _defaultZoom);
       }
     } else {
       // Not granted, use default
@@ -1164,7 +1164,7 @@ class _HomeState extends State<Home> {
         _initialLocationSet = true;
         _locationDenied = true;
       });
-      _mapController.move(_defaultLocation, 15.0);
+      _mapController.move(_defaultLocation, _defaultZoom);
     }
   }
 
@@ -1404,6 +1404,7 @@ class _HomeState extends State<Home> {
 
   // Default location: Beirut, Lebanon
   static const LatLng _defaultLocation = LatLng(33.8938, 35.5018);
+  static const double _defaultZoom = 15.0; // Default zoom level for MapTiler high resolution
 
   Future<void> _getCurrentLocation() async {
     try {
@@ -1881,7 +1882,7 @@ class _HomeState extends State<Home> {
             )
                 : Icon(
               Icons.business,
-              color: Colors.blue,
+              color: Colors.blue, 
               size: 40,
             ),
           ),
@@ -1892,7 +1893,7 @@ class _HomeState extends State<Home> {
 
     // Move camera to the first match
     if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-      _mapController.move(_wayPointMarkers[0].point, 15.0);
+      _mapController.move(_wayPointMarkers[0].point, 12.0);
     }
   }
 
@@ -2423,7 +2424,7 @@ class _HomeState extends State<Home> {
 
         // Move camera to the first marker if no other markers are present
         if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-          _mapController.move(_wayPointMarkers[0].point, 14.0);
+          _mapController.move(_wayPointMarkers[0].point, 15.0);
         }
       } else {
         print('No wholesalers found');

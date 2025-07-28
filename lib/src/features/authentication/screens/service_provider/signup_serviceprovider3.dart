@@ -141,7 +141,7 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
                                 _buildServiceTypeDropdown(labelFontSize, inputTextFontSize),
                                 SizedBox(height: 20),
                                 if (!_isDropdownOpen) _buildReferralField(),
-                                SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                                SizedBox(height: MediaQuery.of(context).size.height * 0.05),
                                 if (!_isDropdownOpen) _buildNextButton(constraints),
                                 SizedBox(height: 30),
                               ],

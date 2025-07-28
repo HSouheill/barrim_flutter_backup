@@ -160,15 +160,17 @@ class CompanySubscriptionService {
   /// Create a subscription request with optional payment proof image
   static Future<ApiResponse<SubscriptionRequest>> createSubscriptionRequest({
     required String planId,
+    required String branchId,
     File? paymentProofImage,
   }) async {
     try {
       final headers = await _getMultipartHeaders();
-      final uri = Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/request');
+      final uri = Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/$branchId/request');
 
       // Prepare fields
       Map<String, String> fields = {
         'planId': planId,
+        'branchId': branchId,
       };
 
       // Prepare files
@@ -223,12 +225,12 @@ class CompanySubscriptionService {
   }
 
   /// Get current active subscription
-  static Future<ApiResponse<CurrentSubscriptionData?>> getCurrentSubscription() async {
+  static Future<ApiResponse<CurrentSubscriptionData?>> getCurrentSubscription({required String branchId}) async {
     try {
       final headers = await _getHeaders();
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$_baseUrl$_subscriptionEndpoint/current-subscription'),
+        Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/request/$branchId/status'),
         headers: headers,
       );
 
@@ -262,12 +264,12 @@ class CompanySubscriptionService {
   }
 
   /// Get subscription remaining time
-  static Future<ApiResponse<SubscriptionRemainingTimeData>> getSubscriptionRemainingTime() async {
+  static Future<ApiResponse<SubscriptionRemainingTimeData>> getSubscriptionRemainingTime({required String branchId}) async {
     try {
       final headers = await _getHeaders();
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/remaining-time'),
+        Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/$branchId/remaining-time'),
         headers: headers,
       );
 
@@ -298,12 +300,12 @@ class CompanySubscriptionService {
   }
 
   /// Cancel active subscription
-  static Future<ApiResponse<void>> cancelSubscription() async {
+  static Future<ApiResponse<void>> cancelSubscription({required String branchId}) async {
     try {
       final headers = await _getHeaders();
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/cancel'),
+        Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/$branchId/cancel'),
         headers: headers,
       );
 
@@ -331,9 +333,9 @@ class CompanySubscriptionService {
   }
 
   /// Check if company has active subscription
-  static Future<bool> hasActiveSubscription() async {
+  static Future<bool> hasActiveSubscription({required String branchId}) async {
     try {
-      final response = await getSubscriptionRemainingTime();
+      final response = await getSubscriptionRemainingTime(branchId: branchId);
       if (response.success && response.data != null) {
         return response.data!.hasActiveSubscription ?? false;
       }
@@ -344,10 +346,10 @@ class CompanySubscriptionService {
   }
 
   /// Get subscription status summary
-  static Future<ApiResponse<SubscriptionStatus>> getSubscriptionStatus() async {
+  static Future<ApiResponse<SubscriptionStatus>> getSubscriptionStatus({required String branchId}) async {
     try {
-      final currentSubscriptionResponse = await getCurrentSubscription();
-      final remainingTimeResponse = await getSubscriptionRemainingTime();
+      final currentSubscriptionResponse = await getCurrentSubscription(branchId: branchId);
+      final remainingTimeResponse = await getSubscriptionRemainingTime(branchId: branchId);
 
       if (currentSubscriptionResponse.success && remainingTimeResponse.success) {
         final hasActive = remainingTimeResponse.data?.hasActiveSubscription ?? false;

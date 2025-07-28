@@ -85,7 +85,9 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       }
 
       // Load current subscription status
-      final statusResponse = await CompanySubscriptionService.getSubscriptionStatus();
+      final statusResponse = await CompanySubscriptionService.getSubscriptionStatus(
+        branchId: widget.branchId ?? '',
+      );
       print('Subscription Status Response: ${statusResponse.success}');
       print('Subscription Status Message: ${statusResponse.message}');
       if (statusResponse.data != null) {
@@ -115,7 +117,9 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       }
 
       // Load remaining time
-      final remainingTimeResponse = await CompanySubscriptionService.getSubscriptionRemainingTime();
+      final remainingTimeResponse = await CompanySubscriptionService.getSubscriptionRemainingTime(
+        branchId: widget.branchId ?? '',
+      );
       if (remainingTimeResponse.success && remainingTimeResponse.data != null) {
         setState(() {
           _remainingTimeData = remainingTimeResponse.data;
@@ -148,7 +152,9 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
 
   Future<void> _cancelSubscription() async {
     try {
-      final response = await CompanySubscriptionService.cancelSubscription();
+      final response = await CompanySubscriptionService.cancelSubscription(
+        branchId: widget.branchId ?? '',
+      );
       if (response.success) {
         // ScaffoldMessenger.of(context).showSnackBar(
         //   const SnackBar(
@@ -541,9 +547,15 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     );
 
     try {
+      // Debug: Print branch ID and plan ID
+      print('Branch ID: ${widget.branchId}');
+      print('Plan ID: ${selectedPlan.id}');
+      print('Plan Title: ${selectedPlan.title}');
+      
       // Create subscription request
       final response = await CompanySubscriptionService.createSubscriptionRequest(
         planId: selectedPlan.id!,
+        branchId: widget.branchId ?? '',
       );
 
       // Close loading dialog
@@ -554,25 +566,26 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         _showSuccessDialog();
       } else {
         // Show error message
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text(response.message),
-        //     backgroundColor: Colors.red,
-        //     duration: const Duration(seconds: 3),
-        //   ),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     } catch (e) {
       // Close loading dialog
       Navigator.of(context).pop();
 
       // Show error message
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('Failed to send subscription request: \\${e.toString()}'),
-      //     backgroundColor: Colors.red,
-      //     duration: const Duration(seconds: 3),
-        // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send subscription request: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
