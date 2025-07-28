@@ -69,10 +69,14 @@ class SubscriptionPlan {
           final List<dynamic> firstItem = items[0] as List;
           return firstItem.map((item) {
             if (item is Map && item['Key'] != null && item['Value'] != null) {
-              return '${item['Key']}: ${item['Value']}';
+              // Only include items with non-empty values
+              if (item['Value'].toString().isNotEmpty) {
+                return '${item['Key']}: ${item['Value']}';
+              }
+              return item['Key'].toString();
             }
             return item.toString();
-          }).join('\n');
+          }).where((text) => text.isNotEmpty).join('\n');
         }
       } catch (e) {
         print('Error formatting benefits: $e');

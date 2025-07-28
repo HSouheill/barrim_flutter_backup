@@ -303,7 +303,7 @@ class _SignupServiceprovider1State extends State<SignupServiceprovider1> {
                 SafeArea(
                   child: Column(
                     children: [
-                      SizedBox(height: constraints.maxHeight * 0.15),
+                      SizedBox(height: constraints.maxHeight * 0.21),
                       CustomHeader(
                         currentPageIndex: 1,
                         totalPages: 3,

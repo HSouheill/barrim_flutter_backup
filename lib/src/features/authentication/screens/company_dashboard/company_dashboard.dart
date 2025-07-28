@@ -199,12 +199,6 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             CompanyAppHeader(
               logoUrl: logoUrl,
               userData: widget.userData,
-              onLogoTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => LoginPage()),
-                );
-              },
             ),
 
             // Main content

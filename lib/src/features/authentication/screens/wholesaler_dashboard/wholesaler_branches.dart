@@ -123,7 +123,7 @@ class _WholesalerBranchesState extends State<WholesalerBranches> {
       body: Column(
         children: [
           // WholeSaler header
-          WholesalerHeader(logoUrl: _logoUrl),
+          WholesalerHeader(logoUrl: _logoUrl, userData: {}),
 
           // Branches title
           Container(

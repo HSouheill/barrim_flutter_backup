@@ -162,7 +162,7 @@ class _SignupCompany3State extends State<SignupCompany3> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select District',
+            'Select Government',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -203,7 +203,7 @@ class _SignupCompany3State extends State<SignupCompany3> {
     if (_availableCities.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a district first'),
+          content: Text('Please select a Government first'),
         ),
       );
       return;
@@ -491,7 +491,7 @@ class _SignupCompany3State extends State<SignupCompany3> {
                                 onTap: _showDistrictPicker,
                                 child: AbsorbPointer(
                                   child: buildTextField(
-                                    labelText: 'District',
+                                    labelText: 'Government',
                                     controller: _districtController,
                                     readOnly: true,
                                     suffixIcon: Icons.keyboard_arrow_down,

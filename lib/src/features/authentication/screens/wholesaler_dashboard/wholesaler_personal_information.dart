@@ -154,7 +154,7 @@ class _WholesalerPersonalInformationState extends State<WholesalerPersonalInform
     return Scaffold(
       body: Column(
         children: [
-          WholesalerHeader(logoUrl: _logoUrl),
+          WholesalerHeader(logoUrl: _logoUrl, userData: {}),
           Expanded(
             child: Container(
               color: Colors.white,

@@ -643,13 +643,8 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
         children: [
           // Top header with logo and notification
           WholesalerHeader(
-            onLogoTap: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => LoginPage()),
-              );
-            },
             logoUrl: widget.userData['logoUrl'],
+            userData: widget.userData,
           ),
 
           // Main content

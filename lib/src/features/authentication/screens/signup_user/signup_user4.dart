@@ -168,7 +168,7 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select District',
+            'Select Government',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -373,7 +373,7 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                           GestureDetector(
                             onTap: () => _handleFieldTap('district'),
                             child: buildDropdownField(
-                              labelText: 'District',
+                              labelText: 'Government',
                               controller: _districtController,
                               fontSize: ResponsiveUtils.getInputLabelFontSize(context),
                               readOnly: _isLoadingLocation,

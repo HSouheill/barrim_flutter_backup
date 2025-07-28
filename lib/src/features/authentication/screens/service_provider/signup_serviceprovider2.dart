@@ -201,7 +201,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select District',
+            'Select Government',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -242,7 +242,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
     if (_availableCities.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a district first'),
+          content: Text('Please select a Government first'),
         ),
       );
       return;
@@ -378,7 +378,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
 
                   // Custom Header with Progress Bar
                   Positioned(
-                    top: constraints.maxHeight * 0.22,
+                    top: constraints.maxHeight * 0.23,
                     left: 0,
                     right: 0,
                     child: CustomHeader(
@@ -393,7 +393,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
                   Positioned(
                     left: 24,
                     right: 24,
-                    top: constraints.maxHeight * 0.23,
+                    top: constraints.maxHeight * 0.30,
                     bottom: 0,
                     child: Form(
                       key: _formKey,
@@ -448,7 +448,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
 
                           // District Dropdown
                           buildDropdownField(
-                            labelText: 'District',
+                            labelText: 'Government',
                             controller: _districtController,
                             fontSize: getInputFontSize(),
                             readOnly: _isLoadingLocation,
@@ -645,7 +645,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
       onTap: () {
         if (labelText == 'Country') {
           _showCountryPicker();
-        } else if (labelText == 'District') {
+        } else if (labelText == 'Government') {
           _showDistrictPicker();
         } else if (labelText == 'City') {
           _showCityPicker();

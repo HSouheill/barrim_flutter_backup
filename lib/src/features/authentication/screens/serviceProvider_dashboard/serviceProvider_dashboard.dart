@@ -275,12 +275,6 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
         ServiceProviderHeader(
           serviceProvider: serviceProvider,
           isLoading: isLoading,
-          onLogoTap: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => LoginPage()),
-            );
-          },
         ),
 
         Expanded(

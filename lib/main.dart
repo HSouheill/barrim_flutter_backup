@@ -10,6 +10,7 @@ import 'package:barrim/src/features/authentication/screens/signup.dart';
 import 'package:provider/provider.dart';
 import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
+import '../src/components/auth_wrapper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,16 +73,37 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         break;
       case AppLifecycleState.resumed:
       // App is coming to foreground
-        if (userProvider.isLoggedIn && userProvider.token != null && userProvider.user != null) {
-          print('App resumed - reconnecting WebSocket');
-          notificationProvider.initWebSocket(
-            userProvider.token!,
-            userProvider.user!.id,
-          );
-        }
+        _handleAppResume(userProvider, notificationProvider);
         break;
       default:
         break;
+    }
+  }
+
+  // Handle app resume with session validation
+  Future<void> _handleAppResume(UserProvider userProvider, NotificationProvider notificationProvider) async {
+    print('App resumed - checking session status');
+    print('UserProvider.isLoggedIn: ${userProvider.isLoggedIn}');
+    print('UserProvider.token: ${userProvider.token != null ? 'Token exists' : 'No token'}');
+    print('UserProvider.user: ${userProvider.user != null ? 'User exists' : 'No user'}');
+    
+    if (userProvider.isLoggedIn && userProvider.token != null && userProvider.user != null) {
+      print('App resumed - validating session and reconnecting WebSocket');
+      
+      // Validate session before reconnecting
+      final isValid = await userProvider.refreshSession();
+      
+      if (isValid) {
+        notificationProvider.initWebSocket(
+          userProvider.token!,
+          userProvider.user!.id,
+        );
+        print('Session validated and WebSocket reconnected');
+      } else {
+        print('Session expired, user will need to login again');
+      }
+    } else {
+      print('No valid session found on app resume');
     }
   }
 
@@ -98,7 +120,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           },
         ),
       ),
-      home: const MyHomePage(),
+      home: const AuthWrapper(),
     ),
   );
 }
@@ -116,26 +138,49 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    // Initialize WebSocket after the widget is built
+    // Initialize session and WebSocket after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeWebSocket();
+      _initializeSession();
     });
   }
 
-  void _initializeWebSocket() {
+  Future<void> _initializeSession() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
 
+    print('Initializing session...');
+    print('UserProvider.isInitialized: ${userProvider.isInitialized}');
+
+    // Wait for UserProvider to initialize
+    while (!userProvider.isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    print('UserProvider initialized');
+    print('UserProvider.isLoggedIn: ${userProvider.isLoggedIn}');
+    print('UserProvider.token: ${userProvider.token != null ? 'Token exists' : 'No token'}');
+    print('UserProvider.user: ${userProvider.user != null ? 'User exists (${userProvider.user!.id})' : 'No user'}');
+
     if (userProvider.isLoggedIn &&
         userProvider.token != null &&
-        userProvider.user != null &&
-        !_websocketInitialized) {
-      print('Initializing WebSocket for user: ${userProvider.user!.id}');
-      notificationProvider.initWebSocket(
-        userProvider.token!,
-        userProvider.user!.id,
-      );
-      _websocketInitialized = true;
+        userProvider.user != null) {
+      print('Session found - initializing WebSocket for user: ${userProvider.user!.id}');
+      
+      // Validate session before initializing WebSocket
+      final isValid = await userProvider.refreshSession();
+      
+      if (isValid && !_websocketInitialized) {
+        notificationProvider.initWebSocket(
+          userProvider.token!,
+          userProvider.user!.id,
+        );
+        _websocketInitialized = true;
+        print('WebSocket initialized successfully');
+      } else if (!isValid) {
+        print('Session expired during initialization');
+      }
+    } else {
+      print('No valid session found - user needs to login');
     }
   }
 

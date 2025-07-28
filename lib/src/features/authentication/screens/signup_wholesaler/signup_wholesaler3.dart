@@ -408,7 +408,7 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select District',
+            'Select Government',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: fontSize,
@@ -638,7 +638,7 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
                           GestureDetector(
                             onTap: () => _handleFieldTap('district'),
                             child: buildDropdownField(
-                              labelText: 'District',
+                              labelText: 'Government',
                               controller: _districtController,
                               fontSize: getInputFontSize(MediaQuery.of(context).size),
                               readOnly: _isLoadingLocation,
@@ -1049,7 +1049,7 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
       onTap: () {
         if (labelText == 'Country') {
           _showCountryPicker();
-        } else if (labelText == 'District') {
+        } else if (labelText == 'Government') {
           _showDistrictPicker();
         } else if (labelText == 'City') {
           _showCityPicker();

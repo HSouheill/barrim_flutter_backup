@@ -101,7 +101,7 @@ class _WholesalerRewardsState extends State<WholesalerRewards> {
       body: Column(
         children: [
           // Import the company header from the provided file
-          WholesalerHeader(logoUrl: _logoUrl),
+          WholesalerHeader(logoUrl: _logoUrl, userData: {}),
 
           // Main content area
           Expanded(

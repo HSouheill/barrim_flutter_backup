@@ -7,12 +7,14 @@ class WholesalerHeader extends StatelessWidget {
   final VoidCallback? onLogoTap;
   final VoidCallback? onAvatarTap;
   final String? logoUrl;
+  final Map<String, dynamic>? userData;
 
   const WholesalerHeader({
     Key? key, 
     this.onLogoTap, 
     this.onAvatarTap,
     this.logoUrl,
+    this.userData,
   }) : super(key: key);
 
   @override
@@ -40,7 +42,7 @@ class WholesalerHeader extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => WholesalerDashboard(userData: {}),
+                  builder: (context) => WholesalerDashboard(userData: userData ?? {}),
                 ),
               );
             },

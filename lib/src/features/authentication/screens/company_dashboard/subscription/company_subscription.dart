@@ -221,7 +221,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                 onAvatarTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SettingsPage()),
+                    MaterialPageRoute(builder: (context) => const CompanySettingsPage()),
                   );
                 },
               ),

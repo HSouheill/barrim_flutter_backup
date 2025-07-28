@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'companyProfileSettings.dart';
 import 'company_notification_settings.dart';
@@ -6,17 +7,19 @@ import '../responsive_utils.dart';
 import '../../../../services/api_service.dart';
 import '../../../../utils/token_manager.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../services/user_provider.dart';
 import 'company_dashboard.dart';
+import '../login_page.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 
-class SettingsPage extends StatefulWidget {
-  const SettingsPage({Key? key}) : super(key: key);
+class CompanySettingsPage extends StatefulWidget {
+  const CompanySettingsPage({Key? key}) : super(key: key);
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  State<CompanySettingsPage> createState() => _CompanySettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _CompanySettingsPageState extends State<CompanySettingsPage> {
   String? logoUrl;
   final TokenManager _tokenManager = TokenManager();
   final AuthService _authService = AuthService();
@@ -47,6 +50,67 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (error) {
       print('Error loading company data: $error');
+    }
+  }
+
+  void _showLogoutConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _performLogout();
+              },
+              child: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _performLogout() async {
+    try {
+      // Get UserProvider and clear user data
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      await userProvider.clearUserData(context);
+
+      // Clear token using TokenManager
+      await _tokenManager.clearToken();
+
+      // Navigate to login page and clear navigation stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => LoginPage()),
+        (route) => false,
+      );
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Logged out successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('Error during logout: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error during logout: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -272,6 +336,48 @@ class _SettingsPageState extends State<SettingsPage> {
                           builder: (context) => CompanyNotificationSettingsPage(userData: userData),
                         ),
                       );
+                },
+              ),
+            ),
+          ),
+
+          // Logout button with red door icon
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Color(0xFFE53E3E), // Red color
+                    Color(0xFFC53030), // Darker red
+                    Color(0xFFE53E3E), // Red color
+                  ],
+                  stops: [0.0, 0.5, 1.0],
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ListTile(
+                leading: const Icon(
+                  Icons.exit_to_app, // Exit door icon
+                  color: Colors.white,
+                  size: 22,
+                ),
+                title: Text(
+                  'Logout',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                    fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.7,
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white,
+                ),
+                onTap: () {
+                  _showLogoutConfirmationDialog();
                 },
               ),
             ),

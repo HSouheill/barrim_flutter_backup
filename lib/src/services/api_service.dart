@@ -662,6 +662,30 @@ class ApiService {
     }
   }
 
+  // Validate token with server
+  static Future<Map<String, dynamic>> validateToken(String token) async {
+    try {
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/auth/validate-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'valid': true, 'data': responseData};
+      } else {
+        return {'valid': false, 'message': responseData['message'] ?? 'Token validation failed'};
+      }
+    } catch (e) {
+      return {'valid': false, 'message': 'Connection error: $e'};
+    }
+  }
+
   static Future<Map<String, dynamic>> verifyOtp({
     required String userId,
     required String otp,

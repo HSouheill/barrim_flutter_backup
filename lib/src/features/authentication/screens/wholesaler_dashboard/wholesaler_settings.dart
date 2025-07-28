@@ -3,8 +3,12 @@ import 'package:barrim/src/features/authentication/screens/wholesaler_dashboard/
 import 'package:barrim/src/features/authentication/screens/wholesaler_dashboard/wholesaler_personal_information.dart';
 import 'package:barrim/src/features/authentication/screens/wholesaler_dashboard/wholesaler_profile_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:barrim/src/services/wholesaler_service.dart';
 import 'package:barrim/src/services/api_service.dart';
+import 'package:barrim/src/services/user_provider.dart';
+import 'package:barrim/src/utils/token_manager.dart';
+import 'package:barrim/src/features/authentication/screens/login_page.dart';
 
 
 
@@ -19,6 +23,7 @@ class WholesalerSettings extends StatefulWidget {
 class _WholesalerSettingsState extends State<WholesalerSettings> {
   String? _logoUrl;
   final WholesalerService _wholesalerService = WholesalerService();
+  final TokenManager _tokenManager = TokenManager();
 
   @override
   void initState() {
@@ -51,8 +56,69 @@ class _WholesalerSettingsState extends State<WholesalerSettings> {
           _logoUrl = logoUrl;
         });
       }
+          } catch (e) {
+        print('Error loading wholesaler logo: $e');
+      }
+    }
+
+  void _showLogoutConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _performLogout();
+              },
+              child: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _performLogout() async {
+    try {
+      // Get UserProvider and clear user data
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      await userProvider.clearUserData(context);
+
+      // Clear token using TokenManager
+      await _tokenManager.clearToken();
+
+      // Navigate to login page and clear navigation stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => LoginPage()),
+        (route) => false,
+      );
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Logged out successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
-      print('Error loading wholesaler logo: $e');
+      print('Error during logout: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error during logout: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -323,6 +389,47 @@ class _WholesalerSettingsState extends State<WholesalerSettings> {
                     context,
                     MaterialPageRoute(builder: (context) => const WholesalerNotificationSettingsPage()),
                   );
+                },
+              ),
+            ),
+          ),
+
+          // Logout button with red door icon
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Color(0xFFE53E3E), // Red color
+                    Color(0xFFC53030), // Darker red
+                    Color(0xFFE53E3E), // Red color
+                  ],
+                  stops: [0.0, 0.5, 1.0],
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ListTile(
+                leading: const Icon(
+                  Icons.exit_to_app, // Exit door icon
+                  color: Colors.white,
+                  size: 22,
+                ),
+                title: const Text(
+                  'Logout',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white,
+                ),
+                onTap: () {
+                  _showLogoutConfirmationDialog();
                 },
               ),
             ),

@@ -63,7 +63,7 @@ class CompanyAppHeader extends StatelessWidget {
               // Navigate directly to SettingsPage
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SettingsPage()),
+                MaterialPageRoute(builder: (context) => const CompanySettingsPage()),
               );
             },
             child: CircleAvatar(

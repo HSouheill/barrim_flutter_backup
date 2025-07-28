@@ -105,7 +105,7 @@ class _WholesalerReferralState extends State<WholesalerReferral> {
       body: Column(
         children: [
           // Using the imported WholesalerHeader
-          WholesalerHeader(logoUrl: _logoUrl),
+          WholesalerHeader(logoUrl: _logoUrl, userData: {}),
 
           // Main content
           Expanded(

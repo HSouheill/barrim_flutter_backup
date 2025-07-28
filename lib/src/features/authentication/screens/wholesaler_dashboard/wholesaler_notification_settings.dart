@@ -96,7 +96,7 @@ class _WholesalerNotificationSettingsPageState extends State<WholesalerNotificat
           Column(
             children: [
               // App Header
-            WholesalerHeader(logoUrl: _logoUrl),
+            WholesalerHeader(logoUrl: _logoUrl, userData: {}),
 
 
               // Back button and page title

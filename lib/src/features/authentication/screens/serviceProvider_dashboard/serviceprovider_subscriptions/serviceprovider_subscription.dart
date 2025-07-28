@@ -77,6 +77,10 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
           if (plansResponse.success) {
             _subscriptionPlans = plansResponse.data ?? [];
             print('Loaded subscription plans: ${_subscriptionPlans.length}');
+            // Debug: Print each plan details
+            for (var plan in _subscriptionPlans) {
+              print('Plan: ${plan.title}, Type: ${plan.type}, Price: ${plan.price}');
+            }
           } else {
             _error = plansResponse.message;
           }
@@ -398,6 +402,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
   }
 
   Widget _buildSubscriptionPlansGrid() {
+    print('Building subscription plans grid with ${_subscriptionPlans.length} plans');
     if (_subscriptionPlans.isEmpty) {
       return const Center(
         child: Text('No subscription plans available'),
@@ -413,16 +418,18 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       );
     }
 
-    // Group plans by type (monthly, 6 months, yearly)
+    // Group plans by title (monthly, 6 months, yearly)
     final monthlyPlans = _subscriptionPlans.where((p) =>
-    p.type?.toLowerCase()
+    p.title?.toLowerCase()
         .contains('monthly') ?? false).toList();
     final sixMonthPlans = _subscriptionPlans.where((p) =>
-    p.type?.toLowerCase()
+    p.title?.toLowerCase()
         .contains('6') ?? false).toList();
     final yearlyPlans = _subscriptionPlans.where((p) =>
-    p.type?.toLowerCase()
+    p.title?.toLowerCase()
         .contains('yearly') ?? false).toList();
+    
+    print('Filtered plans - Monthly: ${monthlyPlans.length}, 6 Months: ${sixMonthPlans.length}, Yearly: ${yearlyPlans.length}');
 
     return Column(
       children: [
@@ -474,7 +481,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       width: isFullWidth ? double.infinity : null,
       constraints: isFullWidth ? null : const BoxConstraints(maxWidth: 200),
       decoration: BoxDecoration(
-        color: (plan.type?.toLowerCase().contains('yearly') ?? false)
+        color: (plan.title?.toLowerCase().contains('yearly') ?? false)
             ? const Color(0xFF0094FF)
             : null,
         borderRadius: BorderRadius.circular(20),
@@ -493,7 +500,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
             // Background image
             Positioned.fill(
               child: Image.asset(
-                _getSubscriptionImage(plan.type ?? ''),
+                _getSubscriptionImage(plan.title ?? ''),
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   print('Error loading image: $error');
@@ -531,7 +538,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
               child: Column(
                 children: [
                   Text(
-                    plan.title ?? plan.type ?? 'Unknown Plan',
+                    plan.title ?? 'Unknown Plan',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -630,14 +637,14 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
   }
 
   // Helper method to get subscription image
-  String _getSubscriptionImage(String type) {
-    if (type.toLowerCase().contains('monthly')) {
+  String _getSubscriptionImage(String title) {
+    if (title.toLowerCase().contains('monthly')) {
       return 'assets/images/monthly_subscription.png';
-    } else if (type.toLowerCase().contains('6') ||
-        type.toLowerCase().contains('six')) {
+    } else if (title.toLowerCase().contains('6') ||
+        title.toLowerCase().contains('six')) {
       return 'assets/images/6months_subscription.png';
-    } else if (type.toLowerCase().contains('yearly') ||
-        type.toLowerCase().contains('annual')) {
+    } else if (title.toLowerCase().contains('yearly') ||
+        title.toLowerCase().contains('annual')) {
       return 'assets/images/yearly_subscription.png';
     }
     return 'assets/images/monthly_subscription.png'; // Default fallback
