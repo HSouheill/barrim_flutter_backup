@@ -49,7 +49,7 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
     super.initState();
     // Check company status before proceeding
     final status = widget.place['status'] ?? widget.place['companyInfo']?['status'];
-    if (status != null && status != 'approved') {
+            if (status != null && status != 'active') {
       // Pop the overlay immediately if not approved
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {

@@ -116,14 +116,25 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
       try {
         providers = await ApiService.getAllServiceProviders();
         print('Fetched ${providers.length} providers'); // Debug log
+        
+        // Debug: Print first provider structure
+        if (providers.isNotEmpty) {
+          print('First provider structure: ${providers[0]}');
+          print('First provider serviceProviderInfo: ${providers[0]['serviceProviderInfo']}');
+          print('First provider status: ${providers[0]['status']}');
+          print('First provider serviceProviderInfo status: ${providers[0]['serviceProviderInfo']?['status']}');
+        }
 
         // Filter out providers with status 'pending' or 'rejected'
+        print('Total providers before filtering: ${providers.length}');
         providers = providers.where((provider) {
-          final status = provider['serviceProviderInfo'] != null ? provider['serviceProviderInfo']['status'] : null;
-          if (status != 'approved') return false;
-          if (status == 'inactive') return false;
+          // Use ONLY the root level status, ignore serviceProviderInfo status
+          final status = provider['status'];
+          print('Provider: ${provider['fullName']}, Root Status: $status');
+          if (status != 'active') return false;
           return true;
         }).toList();
+        print('Active providers after filtering: ${providers.length}');
 
         // Fetch logos for each provider
         await _fetchProviderLogos(providers);

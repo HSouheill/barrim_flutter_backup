@@ -163,7 +163,7 @@ class _SignupCompany2State extends State<SignupCompany2> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.20),
                         CustomHeader(currentPageIndex: 2, totalPages: 3, subtitle: 'Company', onBackPressed: () => Navigator.pop(context)),
                         Padding(
                           padding: EdgeInsets.symmetric(horizontal: constraints.maxWidth * 0.06),

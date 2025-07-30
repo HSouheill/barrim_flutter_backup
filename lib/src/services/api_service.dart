@@ -599,7 +599,7 @@ class ApiService {
     try {
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$baseUrl/auth/forget-password'),
+        Uri.parse('$baseUrl/api/auth/forget-password'),
         headers: await _getHeaders(),
         body: jsonEncode({'email': email}),
       );
@@ -622,7 +622,7 @@ class ApiService {
     try {
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$baseUrl/auth/reset-password'),
+        Uri.parse('$baseUrl/api/auth/reset-password'),
         headers: await _getHeaders(),
         body: jsonEncode({
           'userId': userId,
@@ -1705,8 +1705,11 @@ class ApiService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         print('ApiService: Service providers data retrieved successfully');
+        print('ApiService: Response data structure: $responseData');
         if (responseData['status'] == 200 && responseData['data'] != null) {
           var data = responseData['data'];
+          print('ApiService: Data type: ${data.runtimeType}');
+          print('ApiService: Data content: $data');
           if (data is Map<String, dynamic> &&
               data.containsKey('serviceProviders')) {
             return data['serviceProviders'] as List<dynamic>;

@@ -432,7 +432,7 @@ class _SignupCompany3State extends State<SignupCompany3> {
               children: [
                 Column(
                   children: [
-                    SizedBox(height: 130),
+                    SizedBox(height: 160),
                     CustomHeader(
                       currentPageIndex: 3,
                       totalPages: 3,

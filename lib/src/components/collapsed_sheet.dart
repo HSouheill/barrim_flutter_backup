@@ -96,7 +96,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
       // Filter out companies with status 'pending' or 'rejected'
       final filteredCompanies = companies.where((company) {
         final status = company['status'] ?? company['companyInfo']?['status'];
-        return status == 'approved';
+        return status == 'active';
       }).toList();
       
       setState(() {
@@ -123,10 +123,9 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
       final filteredBranchesData = branchesData.where((branchData) {
         final company = branchData['company'];
         if (company == null) return false;
-        // Check company status - can be in different fields
-        final status = company['status'] ?? company['companyInfo']?['status'];
-        if (status != 'approved') return false;
-        if (branchData['status'] == 'inactive') return false;
+        // Check branch status
+        final branchStatus = branchData['status'];
+        if (branchStatus != 'active') return false;
         return true;
       }).toList();
 

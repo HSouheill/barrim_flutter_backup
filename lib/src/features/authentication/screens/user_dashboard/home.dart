@@ -132,17 +132,26 @@ class _HomeState extends State<Home> {
   Future<void> _fetchAllBranches() async {
     try {
       final branches = await ApiService.getAllBranches();
+      print('Total branches fetched: ${branches.length}');
+      
+      // Debug: Print first few branches to see structure
+      if (branches.isNotEmpty) {
+        print('First branch structure: ${branches[0]}');
+        print('First branch status: ${branches[0]['status']}');
+        print('First branch location: ${branches[0]['location']}');
+        print('First branch company: ${branches[0]['company']}');
+      }
 
-      // Filter out branches whose companies have 'pending' or 'rejected' status
+      // Filter out branches whose status is not 'active'
       final filteredBranches = branches.where((branch) {
-        final company = branch['company'];
-        if (company == null) return false;
-        // Check company status - can be in different fields
-        final status = company['status'] ?? company['companyInfo']?['status'];
-        if (status != 'approved') return false;
-        if (branch['status'] == 'inactive') return false;
+        // Check branch status - only show active branches
+        final branchStatus = branch['status'];
+        print('Branch: ${branch['name']}, Status: $branchStatus');
+        if (branchStatus != 'active') return false;
         return true;
       }).toList();
+      
+      print('Active branches after filtering: ${filteredBranches.length}');
 
       setState(() {
         _allBranches = filteredBranches;
@@ -151,14 +160,19 @@ class _HomeState extends State<Home> {
         final branchMarkers = filteredBranches.map((branch) {
           final location = branch['location'];
           final company = branch['company'];
-          final logoUrl = company['logoUrl'];
+          final logoUrl = company?['logoUrl'];
+
+          print('Processing branch: ${branch['name']}, Location: $location, Company: $company');
 
           // Validate location data
           if (location == null ||
               location['lat'] == null ||
               location['lng'] == null) {
+            print('Branch ${branch['name']} has invalid location data');
             return null;
           }
+          
+          print('Creating marker for branch: ${branch['name']} at lat: ${location['lat']}, lng: ${location['lng']}');
 
           return Marker(
             point: LatLng(
@@ -214,8 +228,34 @@ class _HomeState extends State<Home> {
           );
         }).where((marker) => marker != null).cast<Marker>().toList();
 
+        print('Created ${branchMarkers.length} branch markers');
+
+        // Add a test marker to see if markers are working
+        if (filteredBranches.isNotEmpty) {
+          final testBranch = filteredBranches.first;
+          final testLocation = testBranch['location'];
+          if (testLocation != null && testLocation['lat'] != null && testLocation['lng'] != null) {
+            final testMarker = Marker(
+              point: LatLng(
+                testLocation['lat'].toDouble(),
+                testLocation['lng'].toDouble(),
+              ),
+              width: 40,
+              height: 40,
+              builder: (ctx) => Icon(
+                Icons.location_on,
+                color: Colors.red,
+                size: 40,
+              ),
+            );
+            _wayPointMarkers.add(testMarker);
+            print('Added test marker for branch: ${testBranch['name']}');
+          }
+        }
+
         // Add branch markers to existing company markers
         _wayPointMarkers.addAll(branchMarkers);
+        print('Total markers on map: ${_wayPointMarkers.length}');
       });
 
       // Move camera to the first marker if exists
@@ -246,15 +286,11 @@ class _HomeState extends State<Home> {
 
       // Filter branches based on the category
       final filteredBranches = _allBranches.where((branch) {
-        // First check if the company is approved
-        final company = branch['company'];
-        if (company != null) {
-          final status = company['status'] ?? company['companyInfo']?['status'];
-          if (status != 'approved') {
-            return false; // Skip branches whose companies are not approved
-          }
+        // First check if the branch is active
+        final branchStatus = branch['status'];
+        if (branchStatus != 'active') {
+          return false; // Skip branches that are not active
         }
-        if (branch['status'] == 'inactive') return false;
         final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
         final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
 
@@ -362,7 +398,7 @@ class _HomeState extends State<Home> {
       // Filter out companies with status 'pending' or 'rejected'
       final filteredCompanies = companies.where((company) {
         final status = company['status'] ?? company['companyInfo']?['status'];
-        return status == 'approved';
+        return status == 'active';
       }).toList();
 
       // Store all companies for later use in filtering and searching
@@ -408,13 +444,10 @@ class _HomeState extends State<Home> {
                           // First check if this branch belongs to the current company
                           if (b['companyId'] != company['_id']) return false;
                           
-                          // Then check if the company is approved
-                          final companyData = b['company'];
-                          if (companyData != null) {
-                            final status = companyData['status'] ?? companyData['companyInfo']?['status'];
-                            if (status != 'approved') {
-                              return false; // Skip branches whose companies are not approved
-                            }
+                          // Then check if the branch is active
+                          final branchStatus = b['status'];
+                          if (branchStatus != 'active') {
+                            return false; // Skip branches that are not active
                           }
                           
                           return true;
@@ -692,13 +725,10 @@ class _HomeState extends State<Home> {
                     // First check if this branch belongs to the current company
                     if (b['companyId'] != company['_id']) return false;
                     
-                    // Then check if the company is approved
-                    final companyData = b['company'];
-                    if (companyData != null) {
-                      final status = companyData['status'] ?? companyData['companyInfo']?['status'];
-                      if (status != 'approved') {
-                        return false; // Skip branches whose companies are not approved
-                      }
+                    // Then check if the branch is active
+                    final branchStatus = b['status'];
+                    if (branchStatus != 'active') {
+                      return false; // Skip branches that are not active
                     }
                     
                     return true;
@@ -963,15 +993,11 @@ class _HomeState extends State<Home> {
 
     // Filter branches
     List<Map<String, dynamic>> filteredBranches = _allBranches.where((branch) {
-      // First check if the company is approved
-      final company = branch['company'];
-      if (company != null) {
-        final status = company['status'] ?? company['companyInfo']?['status'];
-        if (status != 'approved') {
-          return false; // Skip branches whose companies are not approved
-        }
+      // First check if the branch is active
+      final branchStatus = branch['status'];
+      if (branchStatus != 'active') {
+        return false; // Skip branches that are not active
       }
-      if (branch['status'] == 'inactive') return false;
       final branchType = branch['type']?.toString().toLowerCase() ?? branch['category']?.toString().toLowerCase() ?? '';
       final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
       final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
@@ -1278,7 +1304,7 @@ class _HomeState extends State<Home> {
 
           // Search in wholesaler branches
           for (var branch in wholesaler.branches) {
-            if (branch.status == 'inactive') continue;
+            if (branch.status != 'active') continue;
             if (isWholesalerSearch ||
                 branch.name.toLowerCase().contains(searchQuery) ||
                 branch.category.toLowerCase().contains(searchQuery) ||
@@ -1322,15 +1348,11 @@ class _HomeState extends State<Home> {
         // Add existing search results from branches and companies if not a wholesaler-specific search
         if (!isWholesalerSearch && _allBranches.isNotEmpty) {
           for (var branch in _allBranches) {
-            // Filter out branches whose companies have 'pending' or 'rejected' status
-            final company = branch['company'];
-            if (company != null) {
-              final status = company['status'] ?? company['companyInfo']?['status'];
-              if (status != 'approved') {
-                continue; // Skip this branch if company is not approved
-              }
+            // Filter out branches whose status is not 'active'
+            final branchStatus = branch['status'];
+            if (branchStatus != 'active') {
+              continue; // Skip this branch if it's not active
             }
-            if (branch['status'] == 'inactive') continue;
             final name = branch['name']?.toString().toLowerCase() ?? '';
             final description = branch['description']?.toString().toLowerCase() ?? '';
             final category = branch['category']?.toString().toLowerCase() ?? '';
@@ -1794,15 +1816,11 @@ class _HomeState extends State<Home> {
 
     // Search for branches that match the query
     final matchedBranches = _allBranches.where((branch) {
-      // First check if the company is approved
-      final company = branch['company'];
-      if (company != null) {
-        final status = company['status'] ?? company['companyInfo']?['status'];
-        if (status != 'approved') {
-          return false; // Skip branches whose companies are not approved
-        }
+      // First check if the branch is active
+      final branchStatus = branch['status'];
+      if (branchStatus != 'active') {
+        return false; // Skip branches that are not active
       }
-      if (branch['status'] == 'inactive') return false;
       final name = branch['name']?.toString().toLowerCase() ?? '';
       final description = branch['description']?.toString().toLowerCase() ?? '';
       final category = branch['category']?.toString().toLowerCase() ?? '';
@@ -2290,10 +2308,11 @@ class _HomeState extends State<Home> {
   Future<void> _fetchAllWholesalers() async {
     try {
       final wholesalers = await _wholesalerService.getAllWholesalers();
-      // Filter out wholesalers with status 'pending' or 'rejected'
+      // Filter wholesalers and their active branches
       final filteredWholesalers = wholesalers.where((wholesaler) {
-        final status = wholesaler.toJson()['status'];
-        return status == 'approved';
+        // Check if wholesaler has any active branches
+        final hasActiveBranches = wholesaler.branches.any((branch) => branch.status == 'active');
+        return hasActiveBranches;
       }).toList();
       
       // Print detailed wholesaler data for debugging
@@ -2348,72 +2367,63 @@ class _HomeState extends State<Home> {
       }
       
       if (filteredWholesalers.isNotEmpty) {
-        // Create markers for each wholesaler
-        final wholesalerMarkers = filteredWholesalers.map((wholesaler) {
-          // Get location from first branch if available, otherwise use wholesaler's address
-          double lat = 0.0;
-          double lng = 0.0;
-          String address = '';
-          Branch? activeBranch;
-          if (wholesaler.branches.isNotEmpty) {
-            // Find the first active branch
-            final activeBranches = wholesaler.branches.where((b) => b.status != 'inactive');
-            if (activeBranches.isNotEmpty) {
-              activeBranch = activeBranches.first;
-              lat = activeBranch.location.lat;
-              lng = activeBranch.location.lng;
-              address = '${activeBranch.location.street}, ${activeBranch.location.city}';
-            }
-          } else if (wholesaler.address != null) {
-            lat = wholesaler.address!.lat;
-            lng = wholesaler.address!.lng;
-            address = '${wholesaler.address!.street}, ${wholesaler.address!.city}';
-          }
-          if (lat == 0.0 && lng == 0.0) return null;
-          return Marker(
-            point: LatLng(lat, lng),
-            width: 40,
-            height: 40,
-            builder: (ctx) => GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedPlace = {
-                    'name': wholesaler.businessName,
-                    '_id': wholesaler.id,
-                    'latitude': lat,
-                    'longitude': lng,
-                    'address': address,
-                    'phone': wholesaler.phone,
-                    'description': 'Wholesaler',
-                    'image': wholesaler.logoUrl ?? 'assets/images/company_placeholder.png',
-                    'logoUrl': wholesaler.logoUrl,
-                    'companyName': wholesaler.businessName,
-                    'companyId': wholesaler.id,
-                    'images': activeBranch != null ? activeBranch.images : [],
-                    'category': wholesaler.category,
-                    'company': {
-                      'businessName': wholesaler.businessName,
-                      'logoUrl': wholesaler.logoUrl,
-                      'id': wholesaler.id,
-                    },
-                  };
-                });
-              },
-              child: Image.asset(
-              'assets/icons/wholesaler.png',
+        // Create markers for each wholesaler's active branches
+        final wholesalerMarkers = filteredWholesalers.expand((wholesaler) {
+          // Get only active branches
+          final activeBranches = wholesaler.branches.where((b) => b.status == 'active');
+          
+          return activeBranches.map((branch) {
+            double lat = branch.location.lat;
+            double lng = branch.location.lng;
+            String address = '${branch.location.street}, ${branch.location.city}';
+            
+            if (lat == 0.0 && lng == 0.0) return null;
+            
+            return Marker(
+              point: LatLng(lat, lng),
               width: 40,
               height: 40,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  Icons.store,
-                  color: Colors.blue,
-                  size: 40,
-                );
-              },
-            ),
-            ),
-          );
-        }).where((marker) => marker != null).cast<Marker>().toList();
+              builder: (ctx) => GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedPlace = {
+                      'name': branch.name,
+                      '_id': branch.id,
+                      'latitude': lat,
+                      'longitude': lng,
+                      'address': address,
+                      'phone': branch.phone,
+                      'description': 'Wholesaler Branch',
+                      'image': wholesaler.logoUrl ?? 'assets/images/company_placeholder.png',
+                      'logoUrl': wholesaler.logoUrl,
+                      'companyName': wholesaler.businessName,
+                      'companyId': wholesaler.id,
+                      'images': branch.images,
+                      'category': branch.category,
+                      'company': {
+                        'businessName': wholesaler.businessName,
+                        'logoUrl': wholesaler.logoUrl,
+                        'id': wholesaler.id,
+                      },
+                    };
+                  });
+                },
+                child: Image.asset(
+                  'assets/icons/wholesaler.png',
+                  width: 40,
+                  height: 40,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      Icons.store,
+                      color: Colors.blue,
+                      size: 40,
+                    );
+                  },
+                ),
+              ),
+            );
+          }).where((marker) => marker != null).cast<Marker>();
+        }).toList();
 
         print('\nCreated ${wholesalerMarkers.length} markers out of ${filteredWholesalers.length} wholesalers');
 
