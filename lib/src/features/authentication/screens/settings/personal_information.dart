@@ -9,6 +9,7 @@ import '../booking/myboooking.dart';
 import '../referrals/user_referral.dart';
 import '../login_page.dart';
 import 'settings.dart';
+import 'package:barrim/src/utils/authService.dart';
 
 class PersonalInformationPage extends StatefulWidget {
   const PersonalInformationPage({super.key});
@@ -172,12 +173,12 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                 SizedBox(height: 40),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('Home', style: TextStyle(color: Colors.white)),
+                  title: Text('UserDashboard', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const Home(userData: {})),
+                        MaterialPageRoute(builder: (context) => const UserDashboard(userData: {})),
                       );
                     });
                   },
@@ -252,8 +253,9 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                     child: ListTile(
                       leading: Icon(Icons.logout, color: Colors.blue),
                       title: Text('Logout', style: TextStyle(color: Colors.blue)),
-                      onTap: () {
+                      onTap: () async {
                         _toggleSidebar();
+                        await AuthService().logout();
                         Future.delayed(const Duration(milliseconds: 300), () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (context) => const LoginPage()),

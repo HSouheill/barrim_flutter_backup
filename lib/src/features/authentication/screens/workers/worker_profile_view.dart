@@ -16,6 +16,7 @@ import '../category/categories.dart';
 import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
+import 'package:barrim/src/utils/authService.dart';
 
 class ServiceProviderProfile extends StatefulWidget {
   final dynamic provider;
@@ -501,14 +502,14 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
                 SizedBox(height: 30),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('Home', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  title: Text('UserDashboard', style: TextStyle(color: Colors.white, fontSize: 14)),
                   onTap: () {
                     setState(() {
                       _isSidebarOpen = false;
                     });
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => Home(userData: {})),
+                        MaterialPageRoute(builder: (context) => UserDashboard(userData: {})),
                       );
                     });
                   },
@@ -574,10 +575,11 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
                     child: ListTile(
                       leading: Icon(Icons.logout, color: Colors.blue),
                       title: Text('Logout', style: TextStyle(color: Colors.blue, fontSize: 14)),
-                      onTap: () {
+                      onTap: () async {
                         setState(() {
                           _isSidebarOpen = false;
                         });
+                        await AuthService().logout();
                         Future.delayed(const Duration(milliseconds: 300), () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (context) => LoginPage()),

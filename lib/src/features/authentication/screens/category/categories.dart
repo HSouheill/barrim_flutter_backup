@@ -14,6 +14,7 @@ import '../settings/settings.dart';
 import '../login_page.dart';
 import '../../../../services/api_service.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
+import 'package:barrim/src/utils/authService.dart';
 
 class CategoryData {
   final String id;
@@ -200,9 +201,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
       distance: 7.5,
     ),
     CategoryData(
-      id: 'Home_Living',
+      id: 'UserDashboard_Living',
       iconPath: 'assets/icons/home_living.png',
-      title: "Home & Living",
+      title: "UserDashboard & Living",
       color: Colors.blue,
       price: 800,
       rating: 4.9,
@@ -452,7 +453,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const Home(userData: {})),
+                        MaterialPageRoute(builder: (context) => const UserDashboard(userData: {})),
                       );
                     });
                   },
@@ -522,8 +523,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     child: ListTile(
                       leading: Icon(Icons.logout, color: Colors.blue),
                       title: Text('Logout', style: TextStyle(color: Colors.blue)),
-                      onTap: () {
+                      onTap: () async {
                         _toggleSidebar();
+                        await AuthService().logout();
                         Future.delayed(const Duration(milliseconds: 300), () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (context) => const LoginPage()),

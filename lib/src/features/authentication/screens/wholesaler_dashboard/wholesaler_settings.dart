@@ -9,7 +9,7 @@ import 'package:barrim/src/services/api_service.dart';
 import 'package:barrim/src/services/user_provider.dart';
 import 'package:barrim/src/utils/token_manager.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
-
+import 'package:barrim/src/utils/authService.dart';
 
 
 class WholesalerSettings extends StatefulWidget {
@@ -23,7 +23,6 @@ class WholesalerSettings extends StatefulWidget {
 class _WholesalerSettingsState extends State<WholesalerSettings> {
   String? _logoUrl;
   final WholesalerService _wholesalerService = WholesalerService();
-  final TokenManager _tokenManager = TokenManager();
 
   @override
   void initState() {
@@ -95,8 +94,8 @@ class _WholesalerSettingsState extends State<WholesalerSettings> {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       await userProvider.clearUserData(context);
 
-      // Clear token using TokenManager
-      await _tokenManager.clearToken();
+      // Call the logout endpoint and clear token
+      await AuthService().logout();
 
       // Navigate to login page and clear navigation stack
       Navigator.of(context).pushAndRemoveUntil(

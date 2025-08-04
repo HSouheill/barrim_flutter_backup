@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'animated_location_marker.dart';
 
 class MapComponent extends StatefulWidget {
   final MapController mapController;
@@ -135,12 +136,12 @@ class _MapComponentState extends State<MapComponent> with SingleTickerProviderSt
             if (widget.currentLocation != null)
               Marker(
                 point: widget.currentLocation!,
-                width: 60,
-                height: 60,
-                builder: (ctx) => SvgPicture.asset(
-                  'assets/icons/your_icon.svg',
-                  width: 36,
-                  height: 36,
+                width: 40, // Reduced from 60 to 40
+                height: 40, // Reduced from 60 to 40
+                builder: (ctx) => AnimatedLocationMarker(
+                  size: 40, // Reduced from 60 to 40
+                  color: Colors.blue,
+                  isLive: true,
                 ),
               ),
             if (widget.destinationLocation != null)

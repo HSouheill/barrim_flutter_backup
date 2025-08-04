@@ -10,6 +10,7 @@ import '../settings/settings.dart';
 import '../login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../services/api_service.dart';
+import 'package:barrim/src/utils/authService.dart';
 
 class NotificationSettingsPage extends StatefulWidget {
   const NotificationSettingsPage({Key? key}) : super(key: key);
@@ -135,12 +136,12 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 SizedBox(height: 40),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('Home', style: TextStyle(color: Colors.white)),
+                  title: Text('UserDashboard', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const Home(userData: {})),
+                        MaterialPageRoute(builder: (context) => const UserDashboard(userData: {})),
                       );
                     });
                   },
@@ -215,8 +216,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     child: ListTile(
                       leading: Icon(Icons.logout, color: Colors.blue),
                       title: Text('Logout', style: TextStyle(color: Colors.blue)),
-                      onTap: () {
+                      onTap: () async {
                         _toggleSidebar();
+                        await AuthService().logout();
                         Future.delayed(const Duration(milliseconds: 300), () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (context) => const LoginPage()),

@@ -667,7 +667,7 @@ class ApiService {
     try {
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$baseUrl/api/auth/validate-token'),
+        Uri.parse('$baseUrl/api/auth/validate'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

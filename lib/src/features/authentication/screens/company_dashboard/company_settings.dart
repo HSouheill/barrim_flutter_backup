@@ -44,6 +44,8 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
           setState(() {
             logoUrl = data['companyInfo']['logo'];
             userData = data['companyInfo'];
+            // Add token to userData so it can be passed to other screens
+            userData['token'] = token;
             companyEmail = email;
           });
         }
@@ -87,8 +89,8 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       await userProvider.clearUserData(context);
 
-      // Clear token using TokenManager
-      await _tokenManager.clearToken();
+      // Call the logout endpoint and clear token
+      await _authService.logout();
 
       // Navigate to login page and clear navigation stack
       Navigator.of(context).pushAndRemoveUntil(

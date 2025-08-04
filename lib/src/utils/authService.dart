@@ -79,7 +79,12 @@ class AuthService {
       // Remove token regardless of server response
       await removeToken();
 
-      return responseData;
+      // Return the server response with proper status handling
+      return {
+        'status': response.statusCode,
+        'message': responseData['message'] ?? 'Logout completed',
+        'data': responseData['data'] ?? {},
+      };
     } catch (e) {
       // Handle any exceptions and still clear the token
       await removeToken();

@@ -46,8 +46,8 @@ class UserProvider extends ChangeNotifier {
         
         if (token != null && userData != null) {
           _token = token;
-          _user = User.fromJson(userData);
-          _userData = userData;
+          _user = User.fromJson(json.decode(userData));
+          _userData = json.decode(userData);
           print('Session restored successfully for user: ${_user?.id}');
           
           // Update last activity
@@ -93,14 +93,20 @@ class UserProvider extends ChangeNotifier {
   // Save token to storage
   Future<void> _saveToken(String token) async {
     if (_userData != null) {
-      await SessionManager.saveSession(token, _userData!);
+      await SessionManager.saveSession(
+        token: token,
+        userData: json.encode(_userData!),
+      );
     }
   }
 
   // Save user data to storage
   Future<void> _saveUserData(Map<String, dynamic> userData) async {
     if (_token != null) {
-      await SessionManager.saveSession(_token!, userData);
+      await SessionManager.saveSession(
+        token: _token!,
+        userData: json.encode(userData),
+      );
     }
   }
 
@@ -138,7 +144,10 @@ class UserProvider extends ChangeNotifier {
   void setUserAndToken(User user, String token) {
     _user = user;
     _token = token;
-    SessionManager.saveSession(token, user.toJson());
+    SessionManager.saveSession(
+      token: token,
+      userData: json.encode(user.toJson()),
+    );
     notifyListeners();
   }
 
@@ -175,13 +184,89 @@ class UserProvider extends ChangeNotifier {
       final isValid = await SessionManager.isSessionValid();
       
       if (!isValid) {
-        await clearUserData(null);
-        return false;
+        // Try to refresh the session using the refresh token
+        final refreshResult = await SessionManager.refreshSession();
+        
+        if (refreshResult.success && refreshResult.newToken != null) {
+          // Update the token and user data
+          _token = refreshResult.newToken;
+          if (refreshResult.newRefreshToken != null) {
+            // Update refresh token if provided
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('refresh_token', refreshResult.newRefreshToken!);
+          }
+          
+          // Get updated user data from server
+          final sessionInfo = await SessionManager.getSessionInfoFromServer(_token!);
+          if (sessionInfo != null && sessionInfo['valid'] == true && sessionInfo['user'] != null) {
+            _user = User.fromJson(sessionInfo['user']);
+            _userData = sessionInfo['user'];
+          }
+          
+          notifyListeners();
+          return true;
+        } else {
+          // Session refresh failed, clear user data
+          await clearUserData(null);
+          return false;
+        }
       }
       return true;
     } catch (e) {
       print('Error refreshing session: $e');
       return false;
+    }
+  }
+
+  // Auto-refresh session if it's about to expire
+  Future<bool> autoRefreshSessionIfNeeded() async {
+    if (!isLoggedIn) return false;
+    
+    try {
+      final isExpiringSoon = await SessionManager.isSessionExpiringSoon();
+      
+      if (isExpiringSoon) {
+        print('Session is expiring soon, attempting auto-refresh...');
+        return await refreshSession();
+      }
+      
+      return true;
+    } catch (e) {
+      print('Error in auto-refresh: $e');
+      return false;
+    }
+  }
+
+  // Check session status and handle accordingly
+  Future<bool> checkAndHandleSession() async {
+    if (!isLoggedIn) return false;
+    
+    try {
+      // First check if session is valid
+      final isValid = await SessionManager.isSessionValid();
+      
+      if (!isValid) {
+        // Try to refresh the session
+        return await refreshSession();
+      }
+      
+      // Check if session is about to expire and auto-refresh if needed
+      return await autoRefreshSessionIfNeeded();
+    } catch (e) {
+      print('Error checking and handling session: $e');
+      return false;
+    }
+  }
+
+  // Get detailed session information
+  Future<Map<String, dynamic>?> getSessionInfo() async {
+    if (!isLoggedIn || _token == null) return null;
+    
+    try {
+      return await SessionManager.getSessionInfoFromServer(_token!);
+    } catch (e) {
+      print('Error getting session info: $e');
+      return null;
     }
   }
 }

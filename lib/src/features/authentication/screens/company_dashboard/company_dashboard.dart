@@ -1248,4 +1248,3 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 }
-

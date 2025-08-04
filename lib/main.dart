@@ -10,7 +10,6 @@ import 'package:barrim/src/features/authentication/screens/signup.dart';
 import 'package:provider/provider.dart';
 import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
-import '../src/components/auth_wrapper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -90,17 +89,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (userProvider.isLoggedIn && userProvider.token != null && userProvider.user != null) {
       print('App resumed - validating session and reconnecting WebSocket');
       
-      // Validate session before reconnecting
-      final isValid = await userProvider.refreshSession();
+      // Use the new comprehensive session check
+      final sessionValid = await userProvider.checkAndHandleSession();
       
-      if (isValid) {
+      if (sessionValid) {
         notificationProvider.initWebSocket(
           userProvider.token!,
           userProvider.user!.id,
         );
         print('Session validated and WebSocket reconnected');
       } else {
-        print('Session expired, user will need to login again');
+        print('Session expired or refresh failed, user will need to login again');
+        // Optionally show a message to the user about session expiration
       }
     } else {
       print('No valid session found on app resume');
@@ -111,7 +111,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) => ChangeNotifierProvider(
     create: (context) => GoogleSignInProvider(),
     child: MaterialApp(
-      title: 'Barrim App',
+      title: 'Barrim',
+      home: const MyHomePage(), // Add this line
       theme: ThemeData.light().copyWith(
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
@@ -120,7 +121,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           },
         ),
       ),
-      home: const AuthWrapper(),
     ),
   );
 }
@@ -166,18 +166,18 @@ class _MyHomePageState extends State<MyHomePage> {
         userProvider.user != null) {
       print('Session found - initializing WebSocket for user: ${userProvider.user!.id}');
       
-      // Validate session before initializing WebSocket
-      final isValid = await userProvider.refreshSession();
+      // Use the new comprehensive session check
+      final sessionValid = await userProvider.checkAndHandleSession();
       
-      if (isValid && !_websocketInitialized) {
+      if (sessionValid && !_websocketInitialized) {
         notificationProvider.initWebSocket(
           userProvider.token!,
           userProvider.user!.id,
         );
         _websocketInitialized = true;
         print('WebSocket initialized successfully');
-      } else if (!isValid) {
-        print('Session expired during initialization');
+      } else if (!sessionValid) {
+        print('Session expired or refresh failed during initialization');
       }
     } else {
       print('No valid session found - user needs to login');

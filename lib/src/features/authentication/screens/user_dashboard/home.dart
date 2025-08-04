@@ -29,15 +29,15 @@ import '../settings/settings.dart';
 import '../login_page.dart';
 import '../category/categories.dart';
 
-class Home extends StatefulWidget {
+class UserDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
 
-  const Home({super.key, required this.userData});
+  const UserDashboard({super.key, required this.userData});
   @override
-  _HomeState createState() => _HomeState();
+  _UserDashboardState createState() => _UserDashboardState();
 }
 
-class _HomeState extends State<Home> {
+class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserver {
   bool _isSidebarOpen = false;
   bool _isMapExpanded = true;
   Map<String, dynamic>? _selectedPlace;
@@ -88,6 +88,9 @@ class _HomeState extends State<Home> {
 
   // Track if location is denied
   bool _locationDenied = false;
+  
+  // Track location accuracy
+  double _locationAccuracy = 0.0;
 
   // Add a variable to track marker size based on zoom
   double _companyMarkerSize = 40;
@@ -1110,6 +1113,7 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initLocationOrFallback();
     _fetchUserData(); // Add this line to fetch user data
     if (_allCompanies.isEmpty) {
@@ -1154,6 +1158,13 @@ class _HomeState extends State<Home> {
         }
       }
     });
+
+    // Ensure location tracking is always active
+    Timer.periodic(Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _ensureLocationTracking();
+      }
+    });
   }
 
   void _initLocationOrFallback() async {
@@ -1171,11 +1182,13 @@ class _HomeState extends State<Home> {
     if (status.isGranted) {
       try {
         await _getCurrentLocation();
+        // Start continuous location tracking immediately
         _startLocationTracking();
         setState(() {
           _locationDenied = false;
         });
       } catch (e) {
+        print('Error getting initial location: $e');
         setState(() {
           _currentLocation = _defaultLocation;
           _initialLocationSet = true;
@@ -1184,24 +1197,54 @@ class _HomeState extends State<Home> {
         _mapController.move(_defaultLocation, _defaultZoom);
       }
     } else {
-      // Not granted, use default
-      setState(() {
-        _currentLocation = _defaultLocation;
-        _initialLocationSet = true;
-        _locationDenied = true;
-      });
-      _mapController.move(_defaultLocation, _defaultZoom);
+      // Request permission if not granted
+      var permissionStatus = await Permission.location.request();
+      if (permissionStatus.isGranted) {
+        try {
+          await _getCurrentLocation();
+          _startLocationTracking();
+          setState(() {
+            _locationDenied = false;
+          });
+        } catch (e) {
+          print('Error getting location after permission: $e');
+          setState(() {
+            _currentLocation = _defaultLocation;
+            _initialLocationSet = true;
+            _locationDenied = true;
+          });
+          _mapController.move(_defaultLocation, _defaultZoom);
+        }
+      } else {
+        // Permission denied, use default
+        setState(() {
+          _currentLocation = _defaultLocation;
+          _initialLocationSet = true;
+          _locationDenied = true;
+        });
+        _mapController.move(_defaultLocation, _defaultZoom);
+      }
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _locationSubscription?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     _searchDebounceTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Restart location tracking when app comes back to foreground
+      _ensureLocationTracking();
+    }
   }
 
 
@@ -1434,7 +1477,7 @@ class _HomeState extends State<Home> {
       if (mounted) {
         setState(() {
           _currentLocation = LatLng(location.latitude!, location.longitude!);
-          print('INITIAL USER LOCATION: Lat=\u007Flocation.latitude}, Lng=${location.longitude}');
+          print('INITIAL USER LOCATION: Lat=${location.latitude}, Lng=${location.longitude}');
           if (!_initialLocationSet && _mapController != null) {
             _mapController.move(_currentLocation!, 15.0);
             _initialLocationSet = true;
@@ -1479,19 +1522,25 @@ class _HomeState extends State<Home> {
   }
 
   void _startLocationTracking() {
-    bool _autoFollowUser = false;
-
     _locationSubscription?.cancel();
+
+    // Configure location settings for better accuracy
+    _locationTracker.changeSettings(
+      accuracy: LocationAccuracy.high,
+      interval: 3000, // Update every 3 seconds
+      distanceFilter: 10, // Update when moved 10 meters
+    );
 
     _locationSubscription = _locationTracker.onLocationChanged.listen((location) {
       if (mounted) {
         setState(() {
           _currentLocation = LatLng(location.latitude!, location.longitude!);
+          _locationAccuracy = location.accuracy ?? 0.0;
         });
-        print('USER LIVE LOCATION: Lat=${location.latitude}, Lng=${location.longitude}');
+        print('USER LIVE LOCATION: Lat=${location.latitude}, Lng=${location.longitude}, Accuracy: ${location.accuracy}m');
 
-
-        if (_autoFollowUser && _isNavigating && _destinationLocation != null) {
+        // Auto-follow user when navigating
+        if (_isNavigating && _destinationLocation != null) {
           _mapController.move(_currentLocation!, 15.0);
 
           double distanceToDestination = _calculateDistance(
@@ -1539,6 +1588,35 @@ class _HomeState extends State<Home> {
     setState(() {
       _isTracking = false;
     });
+  }
+
+  // Method to ensure location tracking is always active
+  void _ensureLocationTracking() {
+    if (!_isTracking && !_locationDenied) {
+      _startLocationTracking();
+    }
+  }
+
+  // Method to recenter map to user's current location
+  void _recenterToUserLocation() {
+    if (_currentLocation != null) {
+      _mapController.move(_currentLocation!, 15.0);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Map centered to your location'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to get your current location'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -2130,6 +2208,23 @@ class _HomeState extends State<Home> {
                         onMapTap: _setDestination,
                       ),
 
+                      // Recenter button
+                      Positioned(
+                        bottom: 200,
+                        right: 16,
+                        child: FloatingActionButton(
+                          heroTag: "recenter",
+                          onPressed: _recenterToUserLocation,
+                          backgroundColor: Colors.white,
+                          child: Icon(
+                            Icons.my_location,
+                            color: Colors.blue,
+                            size: 24,
+                          ),
+                          mini: true,
+                        ),
+                      ),
+
                       Positioned(
                         bottom: 120,
                         left: 0,
@@ -2452,4 +2547,3 @@ class _HomeState extends State<Home> {
   // Helper to always get a valid user location
   LatLng get _userLocation => _currentLocation ?? _defaultLocation;
 }
-

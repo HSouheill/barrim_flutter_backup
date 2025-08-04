@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../../../utils/token_manager.dart';
 import '../screens/wholesaler_dashboard/wholesaler_settings.dart';
 import '../screens/wholesaler_dashboard/wholesaler_dashboard.dart';
 
@@ -38,11 +38,26 @@ class WholesalerHeader extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
-            onTap: onLogoTap ?? () {
+            onTap: onLogoTap ?? () async {
+              // Ensure userData has token before navigating
+              Map<String, dynamic> updatedUserData = Map<String, dynamic>.from(userData ?? {});
+              if (!updatedUserData.containsKey('token') || updatedUserData['token'] == null) {
+                // Try to get token from TokenManager
+                try {
+                  final tokenManager = TokenManager();
+                  final token = await tokenManager.getToken();
+                  if (token.isNotEmpty) {
+                    updatedUserData['token'] = token;
+                  }
+                } catch (e) {
+                  print('Error getting token: $e');
+                }
+              }
+              
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => WholesalerDashboard(userData: userData ?? {}),
+                  builder: (context) => WholesalerDashboard(userData: updatedUserData),
                 ),
               );
             },
@@ -52,7 +67,22 @@ class WholesalerHeader extends StatelessWidget {
 
           // Make CircleAvatar clickable to navigate to Settings
           GestureDetector(
-            onTap: onAvatarTap ?? () {
+            onTap: onAvatarTap ?? () async {
+              // Ensure userData has token before navigating
+              Map<String, dynamic> updatedUserData = Map<String, dynamic>.from(userData ?? {});
+              if (!updatedUserData.containsKey('token') || updatedUserData['token'] == null) {
+                // Try to get token from TokenManager
+                try {
+                  final tokenManager = TokenManager();
+                  final token = await tokenManager.getToken();
+                  if (token.isNotEmpty) {
+                    updatedUserData['token'] = token;
+                  }
+                } catch (e) {
+                  print('Error getting token: $e');
+                }
+              }
+              
               // Navigate directly to SettingsPage
               Navigator.push(
                 context,

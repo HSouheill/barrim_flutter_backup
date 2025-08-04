@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/service_provider.dart';
 import '../../../services/api_service.dart';
+import '../../../utils/token_manager.dart';
 import '../../../components/secure_network_image.dart';
 import '../screens/serviceProvider_dashboard/sp_settings.dart';
 import '../screens/serviceprovider_dashboard/serviceprovider_dashboard.dart';
@@ -56,12 +57,27 @@ class ServiceProviderHeader extends StatelessWidget {
           children: [
             // Logo on the left
             GestureDetector(
-              onTap: onLogoTap ?? () {
+              onTap: onLogoTap ?? () async {
                 if (serviceProvider != null) {
+                  // Ensure userData has token before navigating
+                  Map<String, dynamic> updatedUserData = Map<String, dynamic>.from(serviceProvider!.toJson());
+                  if (!updatedUserData.containsKey('token') || updatedUserData['token'] == null) {
+                    // Try to get token from TokenManager
+                    try {
+                      final tokenManager = TokenManager();
+                      final token = await tokenManager.getToken();
+                      if (token.isNotEmpty) {
+                        updatedUserData['token'] = token;
+                      }
+                    } catch (e) {
+                      print('Error getting token: $e');
+                    }
+                  }
+                  
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ServiceproviderDashboard(userData: serviceProvider!.toJson()),
+                      builder: (context) => ServiceproviderDashboard(userData: updatedUserData),
                     ),
                   );
                 }
@@ -79,7 +95,25 @@ class ServiceProviderHeader extends StatelessWidget {
             
             // Make CircleAvatar clickable to navigate to Settings
             GestureDetector(
-              onTap: onAvatarTap ?? () {
+              onTap: onAvatarTap ?? () async {
+                // Ensure userData has token before navigating
+                Map<String, dynamic> updatedUserData = {};
+                if (serviceProvider != null) {
+                  updatedUserData = Map<String, dynamic>.from(serviceProvider!.toJson());
+                }
+                if (!updatedUserData.containsKey('token') || updatedUserData['token'] == null) {
+                  // Try to get token from TokenManager
+                  try {
+                    final tokenManager = TokenManager();
+                    final token = await tokenManager.getToken();
+                    if (token.isNotEmpty) {
+                      updatedUserData['token'] = token;
+                    }
+                  } catch (e) {
+                    print('Error getting token: $e');
+                  }
+                }
+                
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const SPSettingsPage()),

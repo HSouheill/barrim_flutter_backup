@@ -10,7 +10,7 @@ import '../custom_header.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../login_page.dart';
 import '../welcome_page.dart';
-import '../../../../data/lebanon_locations.dart';
+import '../../../../data/global_locations.dart';
 import '../verification_code.dart';
 import 'package:barrim/src/features/authentication/screens/white_headr.dart';
 
@@ -385,6 +385,10 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
           color: Colors.white,
           fontSize: fontSize,
         ),
+        searchTextStyle: GoogleFonts.nunito(
+          color: Colors.white,
+          fontSize: fontSize,
+        ),
       ),
       onSelect: (Country country) {
         setState(() {
@@ -402,6 +406,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
     final constraints = MediaQuery.of(context).size;
     final fontSize = constraints.width < 360.0 ? 16.0 : (constraints.width >= 360.0 && constraints.width < 600.0 ? 22.0 : 26.0);
     
+    // Get governments for the selected country
+    final governments = getGovernmentsForCountry(_countryController.text);
+    
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -418,11 +425,11 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
             width: double.maxFinite,
             child: ListView.builder(
               shrinkWrap: true,
-              itemCount: lebanonDistricts.length,
+              itemCount: governments.length,
               itemBuilder: (context, index) {
                 return ListTile(
                   title: Text(
-                    lebanonDistricts[index].name,
+                    governments[index].name,
                     style: GoogleFonts.nunito(
                       color: Colors.white,
                       fontSize: fontSize * 0.9,
@@ -430,8 +437,8 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
                   ),
                   onTap: () {
                     setState(() {
-                      _districtController.text = lebanonDistricts[index].name;
-                      _availableCities = lebanonDistricts[index].cities;
+                      _districtController.text = governments[index].name;
+                      _availableCities = governments[index].cities.map((city) => city.name).toList();
                       _cityController.clear();
                     });
                     Navigator.pop(context);

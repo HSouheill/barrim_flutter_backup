@@ -62,7 +62,8 @@ class _SPProfileSettingsState extends State<SPProfileSettings> {
 
       // Fetch user email separately since it might not be in the service provider model
       print('SPProfileSettings: Fetching user email');
-      final userEmail = await _authService.getUserEmail();
+      final userData = await ApiService.getUserData();
+      final userEmail = userData['email'] ?? '';
       print('SPProfileSettings: User email fetched: $userEmail');
 
       setState(() {

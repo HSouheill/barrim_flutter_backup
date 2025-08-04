@@ -8,6 +8,7 @@ import '../booking/myboooking.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
 import 'user_referral.dart';
+import 'package:barrim/src/utils/authService.dart';
 
 class RewardsPage extends StatefulWidget {
   const RewardsPage({Key? key}) : super(key: key);
@@ -85,12 +86,12 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                 SizedBox(height: 40),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('Home', style: TextStyle(color: Colors.white)),
+                  title: Text('UserDashboard', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const Home(userData: {})),
+                        MaterialPageRoute(builder: (context) => const UserDashboard(userData: {})),
                       );
                     });
                   },
@@ -165,8 +166,9 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                     child: ListTile(
                       leading: Icon(Icons.logout, color: Colors.blue),
                       title: Text('Logout', style: TextStyle(color: Colors.blue)),
-                      onTap: () {
+                      onTap: () async {
                         _toggleSidebar();
+                        await AuthService().logout();
                         Future.delayed(const Duration(milliseconds: 300), () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (context) => const LoginPage()),

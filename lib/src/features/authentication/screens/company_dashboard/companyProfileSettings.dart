@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import '../../../../models/company_model.dart';
 import '../../../../services/company_service.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../utils/token_manager.dart';
 import '../../headers/company_header.dart';
 import '../../../../services/api_service.dart';
 import '../login_page.dart'; // Adjust the path as needed
@@ -60,10 +63,51 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
       print('CompanyProfileSettings: Company data fetched: ${company.businessName}');
       print('CompanyProfileSettings: Raw company data: ${company.toJson()}');
 
-      // Fetch user email separately since it's not in the company model
-      print('CompanyProfileSettings: Fetching user email');
-      final userEmail = await _authService.getUserEmail();
-      print('CompanyProfileSettings: User email fetched: $userEmail');
+      // Get user email from the company data response
+      print('CompanyProfileSettings: Getting user email from company data');
+      String userEmail = '';
+      
+      // Try to get email from the raw company data response
+      try {
+        // Get the raw response from the company service to access additional fields
+        final tokenManager = TokenManager();
+        final token = await tokenManager.getToken();
+        final url = '${ApiService.baseUrl}/api/companies/data';
+        final response = await http.get(
+          Uri.parse(url),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+        
+        if (response.statusCode == 200) {
+          final responseData = json.decode(response.body);
+          print('CompanyProfileSettings: Raw company response: $responseData');
+          
+          // Check if email is in the response data
+          userEmail = responseData['data']?['email'] ?? 
+                     responseData['data']?['user']?['email'] ?? 
+                     responseData['data']?['companyInfo']?['email'] ?? '';
+          
+          print('CompanyProfileSettings: User email from company data: $userEmail');
+          
+          // If email is still empty, try to get it from the user profile
+          if (userEmail.isEmpty) {
+            print('CompanyProfileSettings: Email not found in company data, trying user profile');
+            try {
+              final userProfile = await ApiService.getUserProfile(token);
+              userEmail = userProfile['email'] ?? '';
+              print('CompanyProfileSettings: User email from user profile: $userEmail');
+            } catch (profileError) {
+              print('CompanyProfileSettings: Error getting user profile: $profileError');
+            }
+          }
+        }
+      } catch (e) {
+        print('CompanyProfileSettings: Error getting email from company data: $e');
+        userEmail = '';
+      }
 
       setState(() {
         _companyData = company;
@@ -658,7 +702,7 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
                       ),
                     ),
 
-                    SizedBox(height: 50),
+                    SizedBox(height: 20),
                     
 
                     // Delete Account Button

@@ -13,6 +13,7 @@ import 'favorite.dart';
 import 'notification_settings.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 import 'dart:typed_data';
+import 'package:barrim/src/services/auth_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -129,12 +130,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 SizedBox(height: 40),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('Home', style: TextStyle(color: Colors.white)),
+                  title: Text('UserDashboard', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const Home(userData: {})),
+                        MaterialPageRoute(builder: (context) => const UserDashboard(userData: {})),
                       );
                     });
                   },
@@ -204,13 +205,28 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: ListTile(
                       leading: Icon(Icons.logout, color: Colors.blue),
                       title: Text('Logout', style: TextStyle(color: Colors.blue)),
-                      onTap: () {
-                        _toggleSidebar();
-                        Future.delayed(const Duration(milliseconds: 300), () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (context) => const LoginPage()),
-                          );
-                        });
+                      onTap: () async {
+                        try {
+                          // Import and use AuthService for proper logout
+                          final authService = AuthService();
+                          await authService.logout();
+                          
+                          _toggleSidebar();
+                          Future.delayed(const Duration(milliseconds: 300), () {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (context) => const LoginPage()),
+                            );
+                          });
+                        } catch (e) {
+                          print('Error during logout: $e');
+                          // Force logout anyway
+                          _toggleSidebar();
+                          Future.delayed(const Duration(milliseconds: 300), () {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (context) => const LoginPage()),
+                            );
+                          });
+                        }
                       },
                     ),
                   ),

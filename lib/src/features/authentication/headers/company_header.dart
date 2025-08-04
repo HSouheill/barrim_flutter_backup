@@ -3,6 +3,7 @@ import '../screens/company_dashboard/company_settings.dart';
 import '../screens/company_dashboard/company_dashboard.dart';
 import '../screens/company_dashboard/company_notification_settings.dart';
 import '../../../services/api_service.dart';
+import '../../../utils/token_manager.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 
 class CompanyAppHeader extends StatelessWidget {
@@ -46,11 +47,26 @@ class CompanyAppHeader extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
-            onTap: onLogoTap ?? () {
+            onTap: onLogoTap ?? () async {
+              // Ensure userData has token before navigating
+              Map<String, dynamic> updatedUserData = Map<String, dynamic>.from(userData);
+              if (!updatedUserData.containsKey('token') || updatedUserData['token'] == null) {
+                // Try to get token from TokenManager
+                try {
+                  final tokenManager = TokenManager();
+                  final token = await tokenManager.getToken();
+                  if (token.isNotEmpty) {
+                    updatedUserData['token'] = token;
+                  }
+                } catch (e) {
+                  print('Error getting token: $e');
+                }
+              }
+              
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CompanyDashboard(userData: userData),
+                  builder: (context) => CompanyDashboard(userData: updatedUserData),
                 ),
               );
             },
@@ -59,7 +75,22 @@ class CompanyAppHeader extends StatelessWidget {
           Spacer(),
 
           InkWell(
-            onTap: onAvatarTap ?? () {
+            onTap: onAvatarTap ?? () async {
+              // Ensure userData has token before navigating
+              Map<String, dynamic> updatedUserData = Map<String, dynamic>.from(userData);
+              if (!updatedUserData.containsKey('token') || updatedUserData['token'] == null) {
+                // Try to get token from TokenManager
+                try {
+                  final tokenManager = TokenManager();
+                  final token = await tokenManager.getToken();
+                  if (token.isNotEmpty) {
+                    updatedUserData['token'] = token;
+                  }
+                } catch (e) {
+                  print('Error getting token: $e');
+                }
+              }
+              
               // Navigate directly to SettingsPage
               Navigator.push(
                 context,

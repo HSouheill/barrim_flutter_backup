@@ -163,7 +163,7 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => Home(userData: userData),
+            builder: (context) => UserDashboard(userData: userData),
           ),
         );
         break;
@@ -195,7 +195,7 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => Home(userData: userData),
+            builder: (context) => UserDashboard(userData: userData),
           ),
         );
     }

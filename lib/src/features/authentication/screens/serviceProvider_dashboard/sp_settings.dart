@@ -9,6 +9,7 @@ import 'package:barrim/src/services/user_provider.dart';
 import 'package:barrim/src/utils/token_manager.dart';
 import 'package:barrim/src/features/authentication/screens/serviceProvider_dashboard/serviceprovider_dashboard.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
+import 'package:barrim/src/utils/authService.dart';
 
 class SPSettingsPage extends StatefulWidget {
   const SPSettingsPage({Key? key}) : super(key: key);
@@ -90,8 +91,8 @@ class _SPSettingsPageState extends State<SPSettingsPage> {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       await userProvider.clearUserData(context);
 
-      // Clear token using TokenManager
-      await _tokenManager.clearToken();
+      // Call the logout endpoint and clear token
+      await AuthService().logout();
 
       // Navigate to login page and clear navigation stack
       Navigator.of(context).pushAndRemoveUntil(

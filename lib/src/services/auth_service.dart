@@ -215,6 +215,30 @@ class AuthService extends ChangeNotifier {
   // Logout user
   Future<void> logout() async {
     try {
+      // Get the current token
+      final token = await getToken();
+      
+      if (token != null) {
+        // Call the logout endpoint to blacklist the token
+        try {
+          final response = await _makeRequest(
+            'POST',
+            Uri.parse('$baseUrl/api/auth/logout'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          );
+          
+          // Log the response for debugging
+          print('Logout endpoint response: ${response.statusCode}');
+        } catch (e) {
+          // Don't fail logout if server call fails, just log it
+          print('Error calling logout endpoint: $e');
+        }
+      }
+
+      // Clear local data regardless of server response
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('auth_token');
       await prefs.remove('user_data');

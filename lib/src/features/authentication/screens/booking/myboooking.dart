@@ -7,6 +7,7 @@ import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
 import '../../../../models/booking.dart';
+import 'package:barrim/src/utils/authService.dart';
 
 class MyBookingsPage extends StatefulWidget {
   const MyBookingsPage({Key? key}) : super(key: key);
@@ -79,12 +80,12 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                 SizedBox(height: 40),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('Home', style: TextStyle(color: Colors.white)),
+                  title: Text('UserDashboard', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const Home(userData: {})),
+                        MaterialPageRoute(builder: (context) => const UserDashboard(userData: {})),
                       );
                     });
                   },
@@ -154,8 +155,9 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                     child: ListTile(
                       leading: Icon(Icons.logout, color: Colors.blue),
                       title: Text('Logout', style: TextStyle(color: Colors.blue)),
-                      onTap: () {
+                      onTap: () async {
                         _toggleSidebar();
+                        await AuthService().logout();
                         Future.delayed(const Duration(milliseconds: 300), () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (context) => const LoginPage()),

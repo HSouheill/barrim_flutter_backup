@@ -37,48 +37,24 @@ class Sidebar extends StatelessWidget {
         print('Error clearing user data during logout: $e');
       }
 
+      // Call the logout endpoint and clear token using the improved AuthService
       final Map<String, dynamic> response = await authService.logout();
 
-      if (response['status'] == 200 || response['status'] == 401) {
-        // Close sidebar
-        onCollapse();
+      // Close sidebar
+      onCollapse();
 
-        // Navigate to LoginPage
-        Navigator.of(parentContext).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-        );
+      // Navigate to LoginPage regardless of response status
+      Navigator.of(parentContext).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
 
-        // Show success message
-        // ScaffoldMessenger.of(parentContext).showSnackBar(
-        //   const SnackBar(
-        //     content: Text('Logged out successfully'),
-        //     backgroundColor: Colors.green,
-        //   ),
-        // );
-      } else {
-        // Show error message but still attempt to navigate to login
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text('Logout failed: ${response['message']}'),
-        //     backgroundColor: Colors.red,
-        //   ),
-        // );
-
-        // Force logout anyway by navigating to login page
-        onCollapse();
-        Navigator.of(parentContext).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-        );
-      }
+      // Log the response for debugging
+      print('Logout response: ${response['status']} - ${response['message']}');
+      
     } catch (e) {
-      // Handle exceptions
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('Error during logout: $e'),
-      //     backgroundColor: Colors.red,
-      //   ),
-      // );
-
+      // Handle exceptions - still force logout
+      print('Error during logout: $e');
+      
       // Force logout anyway by navigating to login page
       onCollapse();
       Navigator.of(parentContext).pushReplacement(

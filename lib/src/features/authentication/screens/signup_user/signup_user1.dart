@@ -187,7 +187,7 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => Home(userData: userData),
+            builder: (context) => UserDashboard(userData: userData),
           ),
         );
         break;
@@ -219,7 +219,7 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => Home(userData: userData),
+            builder: (context) => UserDashboard(userData: userData),
           ),
         );
     }
