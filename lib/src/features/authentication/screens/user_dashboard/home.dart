@@ -4,7 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:http/http.dart' as http;
-import 'package:permission_handler/permission_handler.dart';
+import 'package:permission_handler/permission_handler.dart' as permission;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -700,23 +700,23 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
     });
   }
 
-  void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
-    setState(() {
-      _wayPointMarkers = companies.map((company) {
-        final location = company['location'];
-        final companyInfo = company['companyInfo'];
-        final logoUrl = companyInfo?['logo'];
+void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
+  setState(() {
+    _wayPointMarkers = companies.map((company) {
+      final location = company['location'];
+      final companyInfo = company['companyInfo'];
+      final logoUrl = companyInfo?['logo'];
+      final category = companyInfo?['category']?.toString().toLowerCase() ?? '';
 
-        return Marker(
-          point: LatLng(
-            location['lat'].toDouble(),
-            location['lng'].toDouble(),
-          ),
-          width: _companyMarkerSize,
-          height: _companyMarkerSize,
-          // Update the marker tap handler in home.dart
-          builder: (ctx) => GestureDetector(
-            onTap: () async {
+      return Marker(
+        point: LatLng(
+          location['lat'].toDouble(),
+          location['lng'].toDouble(),
+        ),
+        width: _companyMarkerSize,
+        height: _companyMarkerSize,
+        builder: (ctx) => GestureDetector(
+          onTap: () async {
               try {
                 // Fetch branches for this company
                 final prefs = await SharedPreferences.getInstance();
@@ -802,32 +802,62 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                 });
               }
             },
-            child: logoUrl != null && logoUrl.isNotEmpty
-                ? ClipRRect(
-              borderRadius: BorderRadius.circular(_companyMarkerSize / 2),
-              child: Image.network(
-                logoUrl,
-                width: _companyMarkerSize,
-                height: _companyMarkerSize,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.business,
-                    color: Colors.blue,
-                    size: _companyMarkerSize,
-                  );
-                },
-              ),
-            )
-                : Icon(
-              Icons.business,
-              color: Colors.blue,
-              size: _companyMarkerSize,
-            ),
-          ),
-        );
-      }).where((marker) => marker != null).cast<Marker>().toList();
-    });
+            child:  category == 'restaurant'
+              ? Image.asset(
+                  'assets/icons/restaurant_icon.png',
+                  width: _companyMarkerSize,
+                  height: _companyMarkerSize,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Error loading restaurant icon: $error');
+                    return Icon(
+                      Icons.restaurant,
+                      color: Colors.blue,
+                      size: _companyMarkerSize,
+                    );
+                  },
+                )
+                 : category == 'hotel'
+                  ? Image.asset(
+                      'assets/icons/hotel_icon.png',
+                      width: _companyMarkerSize,
+                      height: _companyMarkerSize,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Error loading hotel icon: $error');
+                        return Icon(
+                          Icons.hotel,
+                          color: Colors.blue,
+                          size: _companyMarkerSize,
+                        );
+                      },
+                    )
+           : logoUrl != null && logoUrl.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(_companyMarkerSize / 2),
+                      child: Image.network(
+                        logoUrl,
+                        width: _companyMarkerSize,
+                        height: _companyMarkerSize,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.business,
+                            color: Colors.blue,
+                            size: _companyMarkerSize,
+                          );
+                        },
+                      ),
+                    )
+                  : Icon(
+                      Icons.business,
+                      color: Colors.blue,
+                      size: _companyMarkerSize,
+                    ),
+        ),
+      );
+    }).where((marker) => marker != null).cast<Marker>().toList();
+  });
 
     print('Number of markers created: ${_wayPointMarkers.length}');
   }
@@ -1168,7 +1198,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   }
 
   void _initLocationOrFallback() async {
-    var status = await Permission.location.status;
+    var status = await permission.Permission.location.status;
     if (status.isDenied || status.isPermanentlyDenied) {
       // Permission denied, use default location
       setState(() {
@@ -1198,8 +1228,9 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       }
     } else {
       // Request permission if not granted
-      var permissionStatus = await Permission.location.request();
-      if (permissionStatus.isGranted) {
+      
+      var permissionStatus = await _locationTracker.requestPermission();
+      if (permissionStatus == PermissionStatus.granted) {
         try {
           await _getCurrentLocation();
           _startLocationTracking();
@@ -1598,92 +1629,88 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   }
 
   // Method to recenter map to user's current location
-  void _recenterToUserLocation() {
-    if (_currentLocation != null) {
+  // Replace the existing _recenterToUserLocation method with this updated version
+Future<void> _recenterToUserLocation() async {
+  try {
+    // Get fresh location data
+    final location = await _locationTracker.getLocation();
+    
+    if (location.latitude != null && location.longitude != null) {
+      setState(() {
+        _currentLocation = LatLng(location.latitude!, location.longitude!);
+      });
+      
+      // Move map to new location
       _mapController.move(_currentLocation!, 15.0);
+      
+      // Optional: Show accuracy indicator
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Map centered to your location'),
+          content: Row(
+            children: [
+              Icon(Icons.location_on, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Location updated (Accuracy: ${location.accuracy?.toStringAsFixed(2)}m)'),
+            ],
+          ),
           duration: Duration(seconds: 2),
           backgroundColor: Colors.blue,
         ),
       );
     } else {
+      throw Exception('Could not get location coordinates');
+    }
+  } catch (e) {
+    print('Error getting current location: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Could not get your current location'),
+          ],
+        ),
+        duration: Duration(seconds: 2),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    
+    // Check if location services are enabled
+    if (!await _locationTracker.serviceEnabled()) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Unable to get your current location'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.orange,
+          content: Text('Please enable location services'),
+          action: SnackBarAction(
+            label: 'SETTINGS',
+            onPressed: () {
+              _locationTracker.requestService();
+            },
+          ),
         ),
       );
     }
-  }
-
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double earthRadius = 6371;
-    double dLat = _toRadians(lat2 - lat1);
-    double dLon = _toRadians(lon2 - lon1);
-
-    double a =
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(_toRadians(lat1)) * Math.cos(_toRadians(lat2)) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-
-    double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    double distance = earthRadius * c;
-
-    return distance;
-  }
-
-  double _toRadians(double degree) {
-    return degree * (Math.pi / 180);
-  }
-
-  void _setDestination(LatLng point) async {
-    if (_isNavigating) {
-      bool shouldContinue = await _showChangeDestinationDialog();
-      if (!shouldContinue) return;
-    }
-
-    setState(() {
-      _destinationLocation = point;
-      _isNavigating = true;
-      _wayPointMarkers = [];
-      _primaryRouteCoordinates = [];
-      _alternativeRouteCoordinates = [];
-      _wayPointMarkers.add(
-          Marker(
-            point: point,
-            width: 40,
-            height: 40,
-            builder: (ctx) => Icon(
-              Icons.location_on,
-              color: Colors.red,
-              size: 40,
+    
+    // Check if permissions are granted
+    var locationPermission = await _locationTracker.hasPermission();
+    if (locationPermission == PermissionStatus.denied) {
+      locationPermission = await _locationTracker.requestPermission();
+      if (locationPermission != PermissionStatus.granted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location permission is required'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async {
+                await permission.openAppSettings();
+              },
             ),
-          )
-      );
-    });
-
-    await _getRouteDirections();
-
-    if (!_isTracking) {
-      _startLocationTracking();
-    }
-
-    setState(() {
-      if (_currentLocation != null) {
-        _fitBounds();
+          ),
+        );
       }
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Navigation started. Follow the blue route.'),
-        duration: Duration(seconds: 3),
-      ),
-    );
+    }
   }
+}
 
   Future<bool> _showChangeDestinationDialog() async {
     return await showDialog<bool>(
@@ -2210,7 +2237,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
                       // Recenter button
                       Positioned(
-                        bottom: 200,
+                        top: 0,
                         right: 16,
                         child: FloatingActionButton(
                           heroTag: "recenter",
@@ -2546,4 +2573,36 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
   // Helper to always get a valid user location
   LatLng get _userLocation => _currentLocation ?? _defaultLocation;
+
+  // Calculate distance between two points using Haversine formula
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371.0; // Earth's radius in kilometers
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+    final a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(_toRadians(lat1)) * Math.cos(_toRadians(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    final c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  // Convert degrees to radians
+  double _toRadians(double degree) {
+    return degree * Math.pi / 180;
+  }
+
+  Future<void> _setDestination(LatLng destination) async {
+    if (_isNavigating) {
+      // If already navigating, ask user if they want to change destination
+      final shouldChange = await _showChangeDestinationDialog();
+      if (!shouldChange) return;
+    }
+
+    setState(() {
+      _destinationLocation = destination;
+      _isNavigating = true;
+    });
+
+    await _getRouteDirections();
+  }
 }
