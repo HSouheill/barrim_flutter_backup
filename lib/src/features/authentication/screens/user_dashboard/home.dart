@@ -700,13 +700,64 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
     });
   }
 
+// Test widget to verify restaurant icon is loading
+  Widget _buildTestRestaurantIcon() {
+    return Positioned(
+      top: 100,
+      right: 20,
+      child: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Test Restaurant Icon', style: TextStyle(fontSize: 12)),
+            Image.asset(
+              'assets/icons/restaurant_icon.png',
+              width: 40,
+              height: 40,
+              errorBuilder: (context, error, stackTrace) {
+                print('Test widget - Error loading restaurant icon: $error');
+                return Icon(Icons.error, color: Colors.red, size: 40);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
+  print('Creating markers for ${companies.length} companies');
   setState(() {
     _wayPointMarkers = companies.map((company) {
       final location = company['location'];
       final companyInfo = company['companyInfo'];
       final logoUrl = companyInfo?['logo'];
-      final category = companyInfo?['category']?.toString().toLowerCase() ?? '';
+      final category = companyInfo?['category']?.toString().toLowerCase().trim() ?? '';
+      
+      // Debug print for company info
+      print('--- Company Debug Info ---');
+      print('Name: ${companyInfo?['name']}');
+      print('Category: "$category" (length: ${category.length})');
+      print('Location: ${location?['lat']}, ${location?['lng']}');
+      print('Logo URL: $logoUrl');
+      print('Company Info: $companyInfo');
+      print('--------------------------');
+
+      print('Processing company: ${companyInfo?['name']}');
+      print('Company category: "$category" (type: ${category.runtimeType})');
+      print('Location: ${location?['lat']}, ${location?['lng']}');
 
       return Marker(
         point: LatLng(
@@ -803,18 +854,32 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
               }
             },
             child:  category == 'restaurant'
-              ? Image.asset(
-                  'assets/icons/restaurant_icon.png',
-                  width: _companyMarkerSize,
-                  height: _companyMarkerSize,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    print('Error loading restaurant icon: $error');
-                    return Icon(
-                      Icons.restaurant,
-                      color: Colors.blue,
-                      size: _companyMarkerSize,
-                    );
+              ? Builder(
+                  builder: (context) {
+                    print('Creating restaurant marker with category: $category');
+                    try {
+                      return Image.asset(
+                        'assets/icons/restaurant_icon.png',
+                        width: _companyMarkerSize,
+                        height: _companyMarkerSize,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          print('Error loading restaurant icon: $error');
+                          return Icon(
+                            Icons.restaurant,
+                            color: Colors.red, // Changed to red to make it more visible if fallback is used
+                            size: _companyMarkerSize,
+                          );
+                        },
+                      );
+                    } catch (e) {
+                      print('Exception loading restaurant icon: $e');
+                      return Icon(
+                        Icons.error,
+                        color: Colors.red,
+                        size: _companyMarkerSize,
+                      );
+                    }
                   },
                 )
                  : category == 'hotel'
@@ -2102,6 +2167,9 @@ Future<void> _recenterToUserLocation() async {
         child: Stack(
 
           children: [
+            // Test widget to verify restaurant icon loading
+            _buildTestRestaurantIcon(),
+            
             if (_locationDenied)
               Positioned(
                 top: 0,
