@@ -205,28 +205,58 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                   };
                 });
               },
-              child: logoUrl != null && logoUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Image.network(
-                        logoUrl,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.store,
-                            color: Colors.green,
-                            size: 40,
-                          );
-                        },
-                      ),
+              child: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
+                  ? Image.asset(
+                      'assets/icons/restaurant_icon.png',
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Error loading restaurant icon for branch: $error');
+                        return Icon(
+                          Icons.restaurant,
+                          color: Colors.red,
+                          size: 40,
+                        );
+                      },
                     )
-                  : Icon(
-                      Icons.store,
-                      color: Colors.green,
-                      size: 40,
-                    ),
+                  : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
+                      ? Image.asset(
+                          'assets/icons/hotel_icon.png',
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            print('Error loading hotel icon for branch: $error');
+                            return Icon(
+                              Icons.hotel,
+                              color: Colors.blue,
+                              size: 40,
+                            );
+                          },
+                        )
+                      : logoUrl != null && logoUrl.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Image.network(
+                            logoUrl,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                Icons.store,
+                                color: Colors.green,
+                                size: 40,
+                              );
+                            },
+                          ),
+                        )
+                      : Icon(
+                          Icons.store,
+                          color: Colors.green,
+                          size: 40,
+                        ),
             ),
           );
         }).where((marker) => marker != null).cast<Marker>().toList();
@@ -352,28 +382,58 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                   };
                 });
               },
-              child: logoUrl != null && logoUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Image.network(
-                        logoUrl,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.store,
-                            color: Colors.green,
-                            size: 40,
-                          );
-                        },
-                      ),
+              child: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
+                  ? Image.asset(
+                      'assets/icons/restaurant_icon.png',
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Error loading restaurant icon for branch: $error');
+                        return Icon(
+                          Icons.restaurant,
+                          color: Colors.red,
+                          size: 40,
+                        );
+                      },
                     )
-                  : Icon(
-                      Icons.store,
-                      color: Colors.green,
-                      size: 40,
-                    ),
+                  : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
+                      ? Image.asset(
+                          'assets/icons/hotel_icon.png',
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            print('Error loading hotel icon for branch: $error');
+                            return Icon(
+                              Icons.hotel,
+                              color: Colors.blue,
+                              size: 40,
+                            );
+                          },
+                        )
+                      : logoUrl != null && logoUrl.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Image.network(
+                                logoUrl,
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(
+                                    Icons.store,
+                                    color: Colors.green,
+                                    size: 40,
+                                  );
+                                },
+                              ),
+                            )
+                          : Icon(
+                              Icons.store,
+                              color: Colors.green,
+                              size: 40,
+                            ),
             ),
           );
         }).where((marker) => marker != null).cast<Marker>().toList();
@@ -718,21 +778,21 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Test Restaurant Icon', style: TextStyle(fontSize: 12)),
-            Image.asset(
-              'assets/icons/restaurant_icon.png',
-              width: 40,
-              height: 40,
-              errorBuilder: (context, error, stackTrace) {
-                print('Test widget - Error loading restaurant icon: $error');
-                return Icon(Icons.error, color: Colors.red, size: 40);
-              },
-            ),
-          ],
-        ),
+        // child: Column(
+        //   mainAxisSize: MainAxisSize.min,
+        //   children: [
+        //     Text('Test Restaurant Icon', style: TextStyle(fontSize: 12)),
+        //     Image.asset(
+        //       'assets/icons/restaurant_icon.png',
+        //       width: 40,
+        //       height: 40,
+        //       errorBuilder: (context, error, stackTrace) {
+        //         print('Test widget - Error loading restaurant icon: $error');
+        //         return Icon(Icons.error, color: Colors.red, size: 40);
+        //       },
+        //     ),
+        //   ],
+        // ),
       ),
     );
   }
@@ -853,7 +913,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 });
               }
             },
-            child:  category == 'restaurant'
+            child:  _isRestaurantCategory(category)
               ? Builder(
                   builder: (context) {
                     print('Creating restaurant marker with category: $category');
@@ -882,19 +942,33 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                     }
                   },
                 )
-                 : category == 'hotel'
-                  ? Image.asset(
-                      'assets/icons/hotel_icon.png',
-                      width: _companyMarkerSize,
-                      height: _companyMarkerSize,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        print('Error loading hotel icon: $error');
-                        return Icon(
-                          Icons.hotel,
-                          color: Colors.blue,
-                          size: _companyMarkerSize,
-                        );
+                 : _isHotelCategory(category)
+                  ? Builder(
+                      builder: (context) {
+                        print('Creating hotel marker with category: $category');
+                        try {
+                          return Image.asset(
+                            'assets/icons/hotel_icon.png',
+                            width: _companyMarkerSize,
+                            height: _companyMarkerSize,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              print('Error loading hotel icon: $error');
+                              return Icon(
+                                Icons.hotel,
+                                color: Colors.blue,
+                                size: _companyMarkerSize,
+                              );
+                            },
+                          );
+                        } catch (e) {
+                          print('Exception loading hotel icon: $e');
+                          return Icon(
+                            Icons.error,
+                            color: Colors.blue,
+                            size: _companyMarkerSize,
+                          );
+                        }
                       },
                     )
            : logoUrl != null && logoUrl.isNotEmpty
@@ -2051,28 +2125,58 @@ Future<void> _recenterToUserLocation() async {
                 };
               });
             },
-            child: logoUrl != null && logoUrl.isNotEmpty
-                ? ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.network(
-                logoUrl,
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.business,
-                    color: Colors.blue,
-                    size: 40,
-                  );
-                },
-              ),
-            )
-                : Icon(
-              Icons.business,
-              color: Colors.blue, 
-              size: 40,
-            ),
+            child: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
+                ? Image.asset(
+                    'assets/icons/restaurant_icon.png',
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Error loading restaurant icon for search result: $error');
+                      return Icon(
+                        Icons.restaurant,
+                        color: Colors.red,
+                        size: 40,
+                      );
+                    },
+                  )
+                : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
+                    ? Image.asset(
+                        'assets/icons/hotel_icon.png',
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          print('Error loading hotel icon for search result: $error');
+                          return Icon(
+                            Icons.hotel,
+                            color: Colors.blue,
+                            size: 40,
+                          );
+                        },
+                      )
+                    : logoUrl != null && logoUrl.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.network(
+                          logoUrl,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.business,
+                              color: Colors.blue,
+                              size: 40,
+                            );
+                          },
+                        ),
+                      )
+                    : Icon(
+                        Icons.business,
+                        color: Colors.blue, 
+                        size: 40,
+                      ),
           ),
         );
       }).where((marker) => marker != null).cast<Marker>().toList();
@@ -2641,6 +2745,47 @@ Future<void> _recenterToUserLocation() async {
 
   // Helper to always get a valid user location
   LatLng get _userLocation => _currentLocation ?? _defaultLocation;
+
+  // Helper method to check if a category is restaurant-related
+  bool _isRestaurantCategory(String category) {
+    if (category.isEmpty) return false;
+    
+    final categoryLower = category.toLowerCase().trim();
+    
+    // Check for various restaurant-related category values
+    return categoryLower == 'restaurant' ||
+           categoryLower == 'food_dining' ||
+           categoryLower == 'food & dining' ||
+           categoryLower == 'food and dining' ||
+           categoryLower == 'dining' ||
+           categoryLower == 'cafe' ||
+           categoryLower == 'fast food' ||
+           categoryLower == 'fine dining' ||
+           categoryLower == 'casual dining' ||
+           categoryLower == 'bistro' ||
+           categoryLower == 'bakery' ||
+           categoryLower == 'dessert';
+  }
+
+  // Helper method to check if a category is hotel-related
+  bool _isHotelCategory(String category) {
+    if (category.isEmpty) return false;
+    
+    final categoryLower = category.toLowerCase().trim();
+    
+    // Check for various hotel-related category values
+    return categoryLower == 'hotel' ||
+           categoryLower == 'hotels' ||
+           categoryLower == 'hospitality' ||
+           categoryLower == 'accommodation' ||
+           categoryLower == 'lodging' ||
+           categoryLower == 'resort' ||
+           categoryLower == 'motel' ||
+           categoryLower == 'inn' ||
+           categoryLower == 'guesthouse' ||
+           categoryLower == 'bed and breakfast' ||
+           categoryLower == 'bnb';
+  }
 
   // Calculate distance between two points using Haversine formula
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {

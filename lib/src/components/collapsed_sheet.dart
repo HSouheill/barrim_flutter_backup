@@ -99,8 +99,62 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         return status == 'active';
       }).toList();
       
+      // Filter companies by distance if user location is available
+      List<dynamic> nearbyCompanies = [];
+      if (_currentUserLocation != null) {
+        const double maxDistance = 10.0; // 10 km radius
+        
+        nearbyCompanies = filteredCompanies.where((company) {
+          final location = company['location'];
+          if (location == null || location['lat'] == null || location['lng'] == null) {
+            return false;
+          }
+          
+          final companyLocation = LatLng(
+            location['lat'].toDouble(),
+            location['lng'].toDouble(),
+          );
+          
+          final distance = _calculateDistance(
+            _currentUserLocation!.latitude,
+            _currentUserLocation!.longitude,
+            companyLocation.latitude,
+            companyLocation.longitude,
+          );
+          
+          return distance <= maxDistance;
+        }).toList();
+        
+        // Sort companies by distance (closest first)
+        nearbyCompanies.sort((a, b) {
+          final locationA = a['location'];
+          final locationB = b['location'];
+          
+          if (locationA == null || locationB == null) return 0;
+          
+          final distanceA = _calculateDistance(
+            _currentUserLocation!.latitude,
+            _currentUserLocation!.longitude,
+            locationA['lat'].toDouble(),
+            locationA['lng'].toDouble(),
+          );
+          
+          final distanceB = _calculateDistance(
+            _currentUserLocation!.latitude,
+            _currentUserLocation!.longitude,
+            locationB['lat'].toDouble(),
+            locationB['lng'].toDouble(),
+          );
+          
+          return distanceA.compareTo(distanceB);
+        });
+      } else {
+        // If no user location, show all active companies
+        nearbyCompanies = filteredCompanies.cast<Map<String, dynamic>>();
+      }
+      
       setState(() {
-        _companies = List<Map<String, dynamic>>.from(filteredCompanies);
+        _companies = nearbyCompanies.cast<Map<String, dynamic>>();
       });
     } catch (e) {
       if (!kReleaseMode) {
@@ -130,15 +184,59 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
       }).toList();
 
       // Convert the filtered data to Branch objects
-      final branches = filteredBranchesData.map((data) {
+      final allBranches = filteredBranchesData.map((data) {
         return Branch.fromJson(data);
       }).toList();
 
+      // Filter branches by distance if user location is available
+      List<Branch> nearbyBranches = [];
+      if (_currentUserLocation != null) {
+        const double maxDistance = 10.0; // 10 km radius
+        
+        nearbyBranches = allBranches.where((branch) {
+          final branchLocation = LatLng(
+            branch.location.lat,
+            branch.location.lng,
+          );
+          
+          final distance = _calculateDistance(
+            _currentUserLocation!.latitude,
+            _currentUserLocation!.longitude,
+            branchLocation.latitude,
+            branchLocation.longitude,
+          );
+          
+          return distance <= maxDistance;
+        }).toList();
+        
+        // Sort branches by distance (closest first)
+        nearbyBranches.sort((a, b) {
+          final distanceA = _calculateDistance(
+            _currentUserLocation!.latitude,
+            _currentUserLocation!.longitude,
+            a.location.lat,
+            a.location.lng,
+          );
+          
+          final distanceB = _calculateDistance(
+            _currentUserLocation!.latitude,
+            _currentUserLocation!.longitude,
+            b.location.lat,
+            b.location.lng,
+          );
+          
+          return distanceA.compareTo(distanceB);
+        });
+      } else {
+        // If no user location, show all branches
+        nearbyBranches = allBranches;
+      }
+
       setState(() {
-        _branches = branches;
+        _branches = nearbyBranches;
         _isLoading = false;
-        if (branches.isEmpty) {
-          _errorMessage = 'No branches found';
+        if (nearbyBranches.isEmpty) {
+          _errorMessage = 'No branches found nearby';
         }
       });
     } catch (e) {
@@ -544,9 +642,9 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                                       : _errorMessage != null
                                           ? ''
                                           : (_companies.isNotEmpty
-                                              ? 'Companies Near You'
+                                              ? 'Companies Near You (${_companies.length})'
                                               : (_branches.isNotEmpty
-                                                  ? 'Branches Near You'
+                                                  ? 'Branches Near You (${_branches.length})'
                                                   : '')),
                                   style: TextStyle(
                                     fontSize: 20,
@@ -563,7 +661,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                                   padding: const EdgeInsets.all(32.0),
                                   child: Center(
                                     child: Text(
-                                      'No companies found',
+                                      'No companies found nearby',
                                       style: TextStyle(
                                         color: Colors.black,
                                         fontSize: 18,
@@ -582,7 +680,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                                   child: Padding(
                                     padding: const EdgeInsets.all(16.0),
                                     child: Text(
-                                      'No companies or branches found nearby.',
+                                      'No companies or branches found within 10km.',
                                       textAlign: TextAlign.center,
                                     ),
                                   ),
@@ -629,7 +727,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'No companies found nearby.',
+            'No companies found within 10km.',
             textAlign: TextAlign.center,
           ),
         ),
@@ -656,7 +754,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'No branches found nearby.',
+            'No branches found within 10km.',
             textAlign: TextAlign.center,
           ),
         ),
