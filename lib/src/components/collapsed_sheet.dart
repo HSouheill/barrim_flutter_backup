@@ -12,6 +12,7 @@ import '../services/api_service.dart';
 import '../utils/api_constants.dart';
 import 'package:flutter/foundation.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
+import '../features/authentication/screens/user_dashboard/notification.dart';
 
 class CollapsedSheet extends StatefulWidget {
   final ScrollController? controller;
@@ -102,7 +103,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
       // Filter companies by distance if user location is available
       List<dynamic> nearbyCompanies = [];
       if (_currentUserLocation != null) {
-        const double maxDistance = 10.0; // 10 km radius
+        const double maxDistance = 20.0; // 10 km radius
         
         nearbyCompanies = filteredCompanies.where((company) {
           final location = company['location'];
@@ -614,6 +615,39 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
             return Stack(
               clipBehavior: Clip.none,
               children: [
+                Positioned(
+                  top: 16,
+                  right: 24,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => NotificationsPage(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.notifications,
+                        color: Colors.blue,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                ),
                 Positioned.fill(
                   top: 21,
                   child: CustomPaint(

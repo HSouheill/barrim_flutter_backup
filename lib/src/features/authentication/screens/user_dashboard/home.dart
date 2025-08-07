@@ -236,27 +236,27 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                           },
                         )
                       : logoUrl != null && logoUrl.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Image.network(
-                            logoUrl,
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.store,
-                                color: Colors.green,
-                                size: 40,
-                              );
-                            },
-                          ),
-                        )
-                      : Icon(
-                          Icons.store,
-                          color: Colors.green,
-                          size: 40,
-                        ),
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.network(
+                        logoUrl,
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.store,
+                            color: Colors.green,
+                            size: 40,
+                          );
+                        },
+                      ),
+                    )
+                  : Icon(
+                      Icons.store,
+                      color: Colors.green,
+                      size: 40,
+                    ),
             ),
           );
         }).where((marker) => marker != null).cast<Marker>().toList();
@@ -413,27 +413,27 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                           },
                         )
                       : logoUrl != null && logoUrl.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: Image.network(
-                                logoUrl,
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Icon(
-                                    Icons.store,
-                                    color: Colors.green,
-                                    size: 40,
-                                  );
-                                },
-                              ),
-                            )
-                          : Icon(
-                              Icons.store,
-                              color: Colors.green,
-                              size: 40,
-                            ),
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.network(
+                        logoUrl,
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.store,
+                            color: Colors.green,
+                            size: 40,
+                          );
+                        },
+                      ),
+                    )
+                  : Icon(
+                      Icons.store,
+                      color: Colors.green,
+                      size: 40,
+                    ),
             ),
           );
         }).where((marker) => marker != null).cast<Marker>().toList();
@@ -948,17 +948,17 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                         print('Creating hotel marker with category: $category');
                         try {
                           return Image.asset(
-                            'assets/icons/hotel_icon.png',
-                            width: _companyMarkerSize,
-                            height: _companyMarkerSize,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) {
-                              print('Error loading hotel icon: $error');
-                              return Icon(
-                                Icons.hotel,
-                                color: Colors.blue,
-                                size: _companyMarkerSize,
-                              );
+                      'assets/icons/hotel_icon.png',
+                      width: _companyMarkerSize,
+                      height: _companyMarkerSize,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Error loading hotel icon: $error');
+                        return Icon(
+                          Icons.hotel,
+                          color: Colors.blue,
+                          size: _companyMarkerSize,
+                        );
                             },
                           );
                         } catch (e) {
@@ -1283,7 +1283,10 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initLocationOrFallback();
+    
+    // Prioritize getting user location immediately upon login
+    _getUserLocationOnLogin();
+    
     _fetchUserData(); // Add this line to fetch user data
     if (_allCompanies.isEmpty) {
       _fetchCompanies().then((_) {
@@ -1334,6 +1337,105 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         _ensureLocationTracking();
       }
     });
+  }
+
+  // New method to get user location immediately upon login
+  Future<void> _getUserLocationOnLogin() async {
+    print('Getting user location on login...');
+    
+    // First check if location services are enabled
+    bool serviceEnabled = await _locationTracker.serviceEnabled();
+    if (!serviceEnabled) {
+      print('Location services are disabled');
+      serviceEnabled = await _locationTracker.requestService();
+      if (!serviceEnabled) {
+        print('User denied location service request');
+        _setDefaultLocation();
+        return;
+      }
+    }
+
+    // Check location permission
+    var permissionStatus = await _locationTracker.hasPermission();
+    if (permissionStatus == PermissionStatus.denied) {
+      print('Requesting location permission...');
+      permissionStatus = await _locationTracker.requestPermission();
+      if (permissionStatus != PermissionStatus.granted) {
+        print('Location permission denied');
+        _setDefaultLocation();
+        return;
+      }
+    }
+
+    // Get current location with high accuracy
+    try {
+      print('Getting current location with high accuracy...');
+      var location = await _locationTracker.getLocation();
+      
+      if (location.latitude != null && location.longitude != null) {
+        print('Successfully got user location: ${location.latitude}, ${location.longitude}');
+        
+        setState(() {
+          _currentLocation = LatLng(location.latitude!, location.longitude!);
+          _initialLocationSet = true;
+          _locationDenied = false;
+        });
+        
+        // Move map to user's location immediately
+        _mapController.move(_currentLocation!, 15.0);
+        
+        // Start continuous location tracking
+        _startLocationTracking();
+        
+        // Show nearby companies after getting location
+        _showNearbyCompanies();
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Location found! Showing nearby places.'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception('Location coordinates are null');
+      }
+    } catch (e) {
+      print('Error getting user location on login: $e');
+      _setDefaultLocation();
+    }
+  }
+
+  void _setDefaultLocation() {
+    print('Setting default location (Beirut)');
+    setState(() {
+      _currentLocation = _defaultLocation;
+      _initialLocationSet = true;
+      _locationDenied = true;
+    });
+    _mapController.move(_defaultLocation, _defaultZoom);
+    
+    // Show message about using default location
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Using default location. Enable location services for better experience.'),
+          ],
+        ),
+        duration: Duration(seconds: 3),
+        backgroundColor: Colors.orange,
+      ),
+    );
   }
 
   void _initLocationOrFallback() async {
@@ -1643,6 +1745,13 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
 
   Future<void> _getCurrentLocation() async {
     try {
+      // Configure location settings for better accuracy
+      _locationTracker.changeSettings(
+        accuracy: LocationAccuracy.high,
+        interval: 1000, // Update every 1 second for faster response
+        distanceFilter: 5, // Update when moved 5 meters
+      );
+      
       var location = await _locationTracker.getLocation();
       if (mounted) {
         setState(() {
@@ -1694,11 +1803,11 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   void _startLocationTracking() {
     _locationSubscription?.cancel();
 
-    // Configure location settings for better accuracy
+    // Configure location settings for better accuracy and responsiveness
     _locationTracker.changeSettings(
       accuracy: LocationAccuracy.high,
-      interval: 3000, // Update every 3 seconds
-      distanceFilter: 10, // Update when moved 10 meters
+      interval: 2000, // Update every 2 seconds for better responsiveness
+      distanceFilter: 5, // Update when moved 5 meters for more precise tracking
     );
 
     _locationSubscription = _locationTracker.onLocationChanged.listen((location) {
@@ -1771,6 +1880,35 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   // Replace the existing _recenterToUserLocation method with this updated version
 Future<void> _recenterToUserLocation() async {
   try {
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 8),
+            Text('Getting your location...'),
+          ],
+        ),
+        duration: Duration(seconds: 3),
+        backgroundColor: Colors.blue,
+      ),
+    );
+    
+    // Configure location for high accuracy
+    _locationTracker.changeSettings(
+      accuracy: LocationAccuracy.high,
+      interval: 1000,
+      distanceFilter: 1, // Update when moved 1 meter for precise location
+    );
+    
     // Get fresh location data
     final location = await _locationTracker.getLocation();
     
@@ -1779,23 +1917,26 @@ Future<void> _recenterToUserLocation() async {
         _currentLocation = LatLng(location.latitude!, location.longitude!);
       });
       
-      // Move map to new location
+      // Move map to new location with smooth animation
       _mapController.move(_currentLocation!, 15.0);
       
-      // Optional: Show accuracy indicator
+      // Show success message with accuracy
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
               Icon(Icons.location_on, color: Colors.white),
               SizedBox(width: 8),
-              Text('Location updated (Accuracy: ${location.accuracy?.toStringAsFixed(2)}m)'),
+              Text('Location updated (Accuracy: ${location.accuracy?.toStringAsFixed(1)}m)'),
             ],
           ),
           duration: Duration(seconds: 2),
-          backgroundColor: Colors.blue,
+          backgroundColor: Colors.green,
         ),
       );
+      
+      // Show nearby companies after recentering
+      _showNearbyCompanies();
     } else {
       throw Exception('Could not get location coordinates');
     }
@@ -2156,27 +2297,27 @@ Future<void> _recenterToUserLocation() async {
                         },
                       )
                     : logoUrl != null && logoUrl.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          logoUrl,
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.business,
-                              color: Colors.blue,
-                              size: 40,
-                            );
-                          },
-                        ),
-                      )
-                    : Icon(
-                        Icons.business,
-                        color: Colors.blue, 
-                        size: 40,
-                      ),
+                ? ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.network(
+                logoUrl,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    Icons.business,
+                    color: Colors.blue,
+                    size: 40,
+                  );
+                },
+              ),
+            )
+                : Icon(
+              Icons.business,
+              color: Colors.blue, 
+              size: 40,
+            ),
           ),
         );
       }).where((marker) => marker != null).cast<Marker>().toList();
