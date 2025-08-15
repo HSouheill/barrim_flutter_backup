@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as google_maps;
+import 'package:latlong2/latlong.dart' as latlong;
 import 'package:location/location.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +12,7 @@ import 'dart:math' as Math;
 import '../../../../components/category_circle_button.dart';
 import '../../../../components/collapsed_sheet.dart';
 import '../../../../components/map_component.dart';
+import '../../../../components/google_maps_wrapper.dart';
 import '../../../../components/place_details_overlay.dart';
 import '../../../../components/search_results_overlay.dart';
 import '../../../../services/api_service.dart';
@@ -50,16 +51,16 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   // Add profile image path variable
   String? _profileImagePath;
 
-  // OpenStreetMap related variables
-  final MapController _mapController = MapController();
+  // Google Maps related variables
+  final GoogleMapsWrapper _mapController = GoogleMapsWrapper();
   final Location _locationTracker = Location();
   final PolylinePoints _polylinePoints = PolylinePoints();
   StreamSubscription<LocationData>? _locationSubscription;
 
-  LatLng? _currentLocation;
-  LatLng? _destinationLocation;
-  List<LatLng> _primaryRouteCoordinates = [];
-  List<LatLng> _alternativeRouteCoordinates = [];
+  latlong.LatLng? _currentLocation;
+  latlong.LatLng? _destinationLocation;
+  List<latlong.LatLng> _primaryRouteCoordinates = [];
+  List<latlong.LatLng> _alternativeRouteCoordinates = [];
   bool _isTracking = false;
   bool _isNavigating = false;
   String _routeInstructions = '';
@@ -71,7 +72,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   double _alternativeDuration = 0;
   List<Map<String, dynamic>> _steps = [];
   bool _usingPrimaryRoute = true;
-  List<Marker> _wayPointMarkers = [];
+  List<google_maps.Marker> _wayPointMarkers = [];
   final Color primaryRouteColor = Colors.blue;
   final Color alternativeRouteColor = Colors.purple;
   List<Map<String, dynamic>> _allBranches = [];
@@ -83,7 +84,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   String _selectedCategory = '';
 
   Wholesaler? _myWholesaler;
-  Marker? _myWholesalerMarker;
+  google_maps.Marker? _myWholesalerMarker;
   final WholesalerService _wholesalerService = WholesalerService();
 
   // Track if location is denied
@@ -177,89 +178,39 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
           
           print('Creating marker for branch: ${branch['name']} at lat: ${location['lat']}, lng: ${location['lng']}');
 
-          return Marker(
-            point: LatLng(
+          return google_maps.Marker(
+            markerId: google_maps.MarkerId('branch_${branch['id']}'),
+            position: google_maps.LatLng(
               location['lat'].toDouble(),
               location['lng'].toDouble(),
             ),
-            width: 40,
-            height: 40,
-            builder: (ctx) => GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedPlace = {
-                    'name': branch['name'] ?? 'Unnamed Branch',
-                    '_id': branch['id'],
-                    'latitude': location['lat'].toDouble(),
-                    'longitude': location['lng'].toDouble(),
-                    'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                    'phone': branch['phone'] ?? '',
-                    'description': branch['description'] ?? '',
-                    'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                    'logoUrl': logoUrl,
-                    'companyName': company['businessName'] ?? 'Unknown Company',
-                    'companyId': company['id'],
-                    'images': branch['images'] ?? [],
-                    'category': branch['category'] ?? 'Unknown Category',
-                    'company': company,
-                  };
-                });
-              },
-              child: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
-                  ? Image.asset(
-                      'assets/icons/restaurant_icon.png',
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        print('Error loading restaurant icon for branch: $error');
-                        return Icon(
-                          Icons.restaurant,
-                          color: Colors.red,
-                          size: 40,
-                        );
-                      },
-                    )
-                  : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
-                      ? Image.asset(
-                          'assets/icons/hotel_icon.png',
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            print('Error loading hotel icon for branch: $error');
-                            return Icon(
-                              Icons.hotel,
-                              color: Colors.blue,
-                              size: 40,
-                            );
-                          },
-                        )
-                      : logoUrl != null && logoUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Image.network(
-                        logoUrl,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.store,
-                            color: Colors.green,
-                            size: 40,
-                          );
-                        },
-                      ),
-                    )
-                  : Icon(
-                      Icons.store,
-                      color: Colors.green,
-                      size: 40,
-                    ),
-            ),
+            onTap: () {
+              setState(() {
+                _selectedPlace = {
+                  'name': branch['name'] ?? 'Unnamed Branch',
+                  '_id': branch['id'],
+                  'latitude': location['lat'].toDouble(),
+                  'longitude': location['lng'].toDouble(),
+                  'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                  'phone': branch['phone'] ?? '',
+                  'description': branch['description'] ?? '',
+                  'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                  'logoUrl': logoUrl,
+                  'companyName': company['businessName'] ?? 'Unknown Company',
+                  'companyId': company['id'],
+                  'images': branch['images'] ?? [],
+                  'category': branch['category'] ?? 'Unknown Category',
+                  'company': company,
+                };
+              });
+            },
+            icon: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
+                ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
+                : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
+                    ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
+                    : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
           );
-        }).where((marker) => marker != null).cast<Marker>().toList();
+        }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
 
         print('Created ${branchMarkers.length} branch markers');
 
@@ -268,18 +219,37 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
           final testBranch = filteredBranches.first;
           final testLocation = testBranch['location'];
           if (testLocation != null && testLocation['lat'] != null && testLocation['lng'] != null) {
-            final testMarker = Marker(
-              point: LatLng(
+            final testMarker = google_maps.Marker(
+              markerId: google_maps.MarkerId('test_marker'),
+              position: google_maps.LatLng(
                 testLocation['lat'].toDouble(),
                 testLocation['lng'].toDouble(),
               ),
-              width: 40,
-              height: 40,
-              builder: (ctx) => Icon(
-                Icons.location_on,
-                color: Colors.red,
-                size: 40,
-              ),
+              onTap: () {
+                setState(() {
+                  _selectedPlace = {
+                    'name': testBranch['name'] ?? 'Unnamed Branch',
+                    '_id': testBranch['id'],
+                    'latitude': testLocation['lat'].toDouble(),
+                    'longitude': testLocation['lng'].toDouble(),
+                    'address': '${testLocation['street'] ?? ''}, ${testLocation['city'] ?? ''}',
+                    'phone': testBranch['phone'] ?? '',
+                    'description': testBranch['description'] ?? '',
+                    'image': testBranch['logoUrl'] ?? 'assets/images/company_placeholder.png',
+                    'logoUrl': testBranch['logoUrl'],
+                    'companyName': testBranch['company']?['businessName'] ?? 'Unknown Company',
+                    'companyId': testBranch['company']?['id'],
+                    'images': testBranch['images'] ?? [],
+                    'category': testBranch['category'] ?? 'Unknown Category',
+                    'company': testBranch['company'],
+                  };
+                });
+              },
+              icon: _isRestaurantCategory(testBranch['category']?.toString() ?? '') || _isRestaurantCategory(testBranch['company']?['category']?.toString() ?? '')
+                  ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
+                  : _isHotelCategory(testBranch['category']?.toString() ?? '') || _isHotelCategory(testBranch['company']?['category']?.toString() ?? '')
+                      ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
+                      : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
             );
             _wayPointMarkers.add(testMarker);
             print('Added test marker for branch: ${testBranch['name']}');
@@ -293,7 +263,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
       // Move camera to the first marker if exists
       if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-        _mapController.move(_wayPointMarkers[0].point, 15.0);
+        _mapController.move(_wayPointMarkers[0].position, 15.0);
       }
     } catch (e) {
       print('Error fetching branches: $e');
@@ -354,94 +324,44 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
             return null;
           }
 
-          return Marker(
-            point: LatLng(
+          return google_maps.Marker(
+            markerId: google_maps.MarkerId('branch_${branch['id']}'),
+            position: google_maps.LatLng(
               location['lat'].toDouble(),
               location['lng'].toDouble(),
             ),
-            width: 40,
-            height: 40,
-            builder: (ctx) => GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedPlace = {
-                    'name': branch['name'] ?? 'Unnamed Branch',
-                    '_id': branch['id'],
-                    'latitude': location['lat'].toDouble(),
-                    'longitude': location['lng'].toDouble(),
-                    'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                    'phone': branch['phone'] ?? '',
-                    'description': branch['description'] ?? '',
-                    'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                    'logoUrl': logoUrl,
-                    'companyName': company['businessName'] ?? 'Unknown Company',
-                    'companyId': company['id'],
-                    'images': branch['images'] ?? [],
-                    'category': branch['category'] ?? 'Unknown Category',
-                    'company': company,
-                  };
-                });
-              },
-              child: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
-                  ? Image.asset(
-                      'assets/icons/restaurant_icon.png',
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        print('Error loading restaurant icon for branch: $error');
-                        return Icon(
-                          Icons.restaurant,
-                          color: Colors.red,
-                          size: 40,
-                        );
-                      },
-                    )
-                  : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
-                      ? Image.asset(
-                          'assets/icons/hotel_icon.png',
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            print('Error loading hotel icon for branch: $error');
-                            return Icon(
-                              Icons.hotel,
-                              color: Colors.blue,
-                              size: 40,
-                            );
-                          },
-                        )
-                      : logoUrl != null && logoUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Image.network(
-                        logoUrl,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.store,
-                            color: Colors.green,
-                            size: 40,
-                          );
-                        },
-                      ),
-                    )
-                  : Icon(
-                      Icons.store,
-                      color: Colors.green,
-                      size: 40,
-                    ),
-            ),
+            onTap: () {
+              setState(() {
+                _selectedPlace = {
+                  'name': branch['name'] ?? 'Unnamed Branch',
+                  '_id': branch['id'],
+                  'latitude': location['lat'].toDouble(),
+                  'longitude': location['lng'].toDouble(),
+                  'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                  'phone': branch['phone'] ?? '',
+                  'description': branch['description'] ?? '',
+                  'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                  'logoUrl': logoUrl,
+                  'companyName': company['businessName'] ?? 'Unknown Company',
+                  'companyId': company['id'],
+                  'images': branch['images'] ?? [],
+                  'category': branch['category'] ?? 'Unknown Category',
+                  'company': company,
+                };
+              });
+            },
+            icon: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
+                ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
+                : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
+                    ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
+                    : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
           );
-        }).where((marker) => marker != null).cast<Marker>().toList();
+        }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
       });
 
       // Move camera to the first filtered marker if exists
       if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-        _mapController.move(_wayPointMarkers[0].point, 15.0);
+        _mapController.move(_wayPointMarkers[0].position, 15.0);
       }
     } catch (e) {
       print('Error filtering branches: $e');
@@ -487,82 +407,61 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
             // Add company headquarters marker with a distinct style
             _wayPointMarkers.add(
-              Marker(
-                point: LatLng(
+              google_maps.Marker(
+                markerId: google_maps.MarkerId('company_${company['_id']}'),
+                position: google_maps.LatLng(
                   location['lat'].toDouble(),
                   location['lng'].toDouble(),
                 ),
-                width: 50, // Slightly larger for company headquarters
-                height: 50,
-                builder: (ctx) => GestureDetector(
-                  onTap: () async {
-                    try {
-                      // Fetch branches for this company
-                      final prefs = await SharedPreferences.getInstance();
-                      final token = prefs.getString('auth_token');
-                      if (token != null) {
-                        final branches = await ApiService.getCompanyBranches(token);
-                        // Filter branches for this specific company and check status
-                        final companyBranches = branches.where((b) {
-                          // First check if this branch belongs to the current company
-                          if (b['companyId'] != company['_id']) return false;
-                          
-                          // Then check if the branch is active
-                          final branchStatus = b['status'];
-                          if (branchStatus != 'active') {
-                            return false; // Skip branches that are not active
-                          }
-                          
-                          return true;
-                        }).toList();
+                onTap: () async {
+                  try {
+                    // Fetch branches for this company
+                    final prefs = await SharedPreferences.getInstance();
+                    final token = prefs.getString('auth_token');
+                    if (token != null) {
+                      final branches = await ApiService.getCompanyBranches(token);
+                      // Filter branches for this specific company and check status
+                      final companyBranches = branches.where((b) {
+                        // First check if this branch belongs to the current company
+                        if (b['companyId'] != company['_id']) return false;
+                        
+                        // Then check if the branch is active
+                        final branchStatus = b['status'];
+                        if (branchStatus != 'active') {
+                          return false; // Skip branches that are not active
+                        }
+                        
+                        return true;
+                      }).toList();
 
-                        // Process branch data
-                        final processedBranches = companyBranches.map((branch) {
-                          final branchImages = branch['images'];
-                          List<String> processedImages = [];
+                      // Process branch data
+                      final processedBranches = companyBranches.map((branch) {
+                        final branchImages = branch['images'];
+                        List<String> processedImages = [];
 
-                          if (branchImages != null && branchImages is List && branchImages.isNotEmpty) {
-                            processedImages = branchImages.map((img) {
-                              if (img is String) {
-                                if (img.startsWith('http')) {
-                                  return img;
-                                }
-                                return '${ApiService.baseUrl}/$img';
+                        if (branchImages != null && branchImages is List && branchImages.isNotEmpty) {
+                          processedImages = branchImages.map((img) {
+                            if (img is String) {
+                              if (img.startsWith('http')) {
+                                return img;
                               }
-                              return '';
-                            }).where((img) => img.isNotEmpty).toList();
-                          }
+                              return '${ApiService.baseUrl}/$img';
+                            }
+                            return '';
+                          }).where((img) => img.isNotEmpty).toList();
+                        }
 
-                          return {
-                            ...branch,
-                            'name': branch['name'] ?? 'Unnamed Branch',
-                            'description': branch['description'] ?? 'No description available',
-                            'location': branch['location'] ?? 'No address available',
-                            'images': processedImages,
-                            'latitude': branch['latitude'] ?? location['lat'].toDouble(),
-                            'longitude': branch['longitude'] ?? location['lng'].toDouble(),
-                          };
-                        }).toList();
+                        return {
+                          ...branch,
+                          'name': branch['name'] ?? 'Unnamed Branch',
+                          'description': branch['description'] ?? 'No description available',
+                          'location': branch['location'] ?? 'No address available',
+                          'images': processedImages,
+                          'latitude': branch['latitude'] ?? location['lat'].toDouble(),
+                          'longitude': branch['longitude'] ?? location['lng'].toDouble(),
+                        };
+                      }).toList();
 
-                        setState(() {
-                          _selectedPlace = {
-                            'name': companyInfo?['name'] ?? 'Unknown Company',
-                            '_id': company['_id'],
-                            'latitude': location['lat'].toDouble(),
-                            'longitude': location['lng'].toDouble(),
-                            'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                            'phone': company['phone'] ?? '',
-                            'description': companyInfo?['description'] ?? '',
-                            'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                            'logoUrl': logoUrl,
-                            'branches': processedBranches,
-                            'type': 'company', // Add type to distinguish company from branch
-                            'category': companyInfo?['category'] ?? 'Unknown Category',
-                          };
-                        });
-                      }
-                    } catch (e) {
-                      print('Error fetching branches: $e');
                       setState(() {
                         _selectedPlace = {
                           'name': companyInfo?['name'] ?? 'Unknown Company',
@@ -574,75 +473,33 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                           'description': companyInfo?['description'] ?? '',
                           'image': logoUrl ?? 'assets/images/company_placeholder.png',
                           'logoUrl': logoUrl,
-                          'branches': [],
+                          'branches': processedBranches,
                           'type': 'company', // Add type to distinguish company from branch
                           'category': companyInfo?['category'] ?? 'Unknown Category',
                         };
                       });
                     }
-                  },
-                  child: Stack(
-                    children: [
-                      // Company logo
-                      logoUrl != null && logoUrl.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(25),
-                              child: Image.network(
-                                logoUrl,
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  print('Error loading company logo: $error');
-                                  return Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue,
-                                      borderRadius: BorderRadius.circular(25),
-                                    ),
-                                    child: Icon(
-                                      Icons.business,
-                                      color: Colors.white,
-                                      size: 30,
-                                    ),
-                                  );
-                                },
-                              ),
-                            )
-                          : Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: Colors.blue,
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              child: Icon(
-                                Icons.business,
-                                color: Colors.white,
-                                size: 30,
-                              ),
-                            ),
-                      // Company indicator
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          padding: EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.star,
-                            color: Colors.white,
-                            size: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                  } catch (e) {
+                    print('Error fetching branches: $e');
+                    setState(() {
+                      _selectedPlace = {
+                        'name': companyInfo?['name'] ?? 'Unknown Company',
+                        '_id': company['_id'],
+                        'latitude': location['lat'].toDouble(),
+                        'longitude': location['lng'].toDouble(),
+                        'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                        'phone': company['phone'] ?? '',
+                        'description': companyInfo?['description'] ?? '',
+                        'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                        'logoUrl': logoUrl,
+                        'branches': [],
+                        'type': 'company', // Add type to distinguish company from branch
+                        'category': companyInfo?['category'] ?? 'Unknown Category',
+                      };
+                    });
+                  }
+                },
+                icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
               ),
             );
           } else {
@@ -664,67 +521,38 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                 print('Branch location: lat=${branchLocation['lat']}, lng=${branchLocation['lng']}'); // Debug log
 
                 _wayPointMarkers.add(
-                  Marker(
-                    point: LatLng(
+                  google_maps.Marker(
+                    markerId: google_maps.MarkerId('branch_${branch['id']}'),
+                    position: google_maps.LatLng(
                       branchLocation['lat'].toDouble(),
                       branchLocation['lng'].toDouble(),
                     ),
-                    width: 40,
-                    height: 40,
-                    builder: (ctx) => GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedPlace = {
-                            'name': branch['name'] ?? 'Unnamed Branch',
-                            '_id': branch['id'],
-                            'latitude': branchLocation['lat'].toDouble(),
-                            'longitude': branchLocation['lng'].toDouble(),
-                            'address': '${branchLocation['street'] ?? ''}, ${branchLocation['city'] ?? ''}',
-                            'phone': branch['phone'] ?? '',
-                            'description': branch['description'] ?? '',
-                            'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                            'logoUrl': logoUrl,
-                            'companyName': companyInfo?['name'] ?? 'Unknown Company',
-                            'companyId': company['_id'],
-                            'images': branch['images'] ?? [],
-                            'type': 'branch', // Add type to distinguish branch from company
-                            'category': branch['category'] ?? 'Unknown Category',
-                            'company': companyInfo,
-                          };
-                        });
-                      },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.blue, width: 2),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: logoUrl != null && logoUrl.isNotEmpty
-                              ? Image.network(
-                                  logoUrl,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    print('Error loading branch logo: $error');
-                                    return Icon(
-                                      Icons.store,
-                                      color: Colors.blue,
-                                      size: 30,
-                                    );
-                                  },
-                                )
-                              : Icon(
-                                  Icons.store,
-                                  color: Colors.blue,
-                                  size: 30,
-                                ),
-                        ),
-                      ),
-                    ),
+                    onTap: () {
+                      setState(() {
+                        _selectedPlace = {
+                          'name': branch['name'] ?? 'Unnamed Branch',
+                          '_id': branch['id'],
+                          'latitude': branchLocation['lat'].toDouble(),
+                          'longitude': branchLocation['lng'].toDouble(),
+                          'address': '${branchLocation['street'] ?? ''}, ${branchLocation['city'] ?? ''}',
+                          'phone': branch['phone'] ?? '',
+                          'description': branch['description'] ?? '',
+                          'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                          'logoUrl': logoUrl,
+                          'companyName': companyInfo?['name'] ?? 'Unknown Company',
+                          'companyId': company['_id'],
+                          'images': branch['images'] ?? [],
+                          'type': 'branch', // Add type to distinguish branch from company
+                          'category': branch['category'] ?? 'Unknown Category',
+                          'company': companyInfo,
+                        };
+                      });
+                    },
+                    icon: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
+                        ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
+                        : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
+                            ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
+                            : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
                   ),
                 );
               } else {
@@ -740,7 +568,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       // Move camera to the first marker if exists
       if (_wayPointMarkers.isNotEmpty && _mapController != null) {
         print('Moving camera to first marker'); // Debug log
-        _mapController.move(_wayPointMarkers[0].point, 15.0);
+        _mapController.move(_wayPointMarkers[0].position, 15.0);
       } else {
         print('No markers to move camera to'); // Debug log
       }
@@ -819,183 +647,101 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       print('Company category: "$category" (type: ${category.runtimeType})');
       print('Location: ${location?['lat']}, ${location?['lng']}');
 
-      return Marker(
-        point: LatLng(
+      return google_maps.Marker(
+        markerId: google_maps.MarkerId('company_${company['_id']}'),
+        position: google_maps.LatLng(
           location['lat'].toDouble(),
           location['lng'].toDouble(),
         ),
-        width: _companyMarkerSize,
-        height: _companyMarkerSize,
-        builder: (ctx) => GestureDetector(
-          onTap: () async {
-              try {
-                // Fetch branches for this company
-                final prefs = await SharedPreferences.getInstance();
-                final token = prefs.getString('auth_token');
-                if (token != null) {
-                  final branches = await ApiService.getCompanyBranches(token);
-                  // Filter branches for this specific company and check status
-                  final companyBranches = branches.where((b) {
-                    // First check if this branch belongs to the current company
-                    if (b['companyId'] != company['_id']) return false;
-                    
-                    // Then check if the branch is active
-                    final branchStatus = b['status'];
-                    if (branchStatus != 'active') {
-                      return false; // Skip branches that are not active
-                    }
-                    
-                    return true;
-                  }).toList();
-
-                  // Process branch data to ensure it has all required fields
-                  final processedBranches = companyBranches.map((branch) {
-                    // Handle branch images
-                    final branchImages = branch['images'];
-                    List<String> processedImages = [];
-
-                    if (branchImages != null && branchImages is List && branchImages.isNotEmpty) {
-                      processedImages = branchImages.map((img) {
-                        if (img is String) {
-                          // If it's already a full URL, use it as is
-                          if (img.startsWith('http')) {
-                            return img;
-                          }
-                          // Otherwise, construct the full URL using the base URL
-                          return '${ApiService.baseUrl}/$img';
-                        }
-                        return '';
-                      }).where((img) => img.isNotEmpty).toList();
-                    }
-
-                    return {
-                      ...branch,
-                      'name': branch['name'] ?? 'Unnamed Branch',
-                      'description': branch['description'] ?? 'No description available',
-                      'location': branch['location'] ?? 'No address available',
-                      'images': processedImages,
-                      'latitude': branch['latitude'] ?? location['lat'].toDouble(),
-                      'longitude': branch['longitude'] ?? location['lng'].toDouble(),
-                    };
-                  }).toList();
-
-                  setState(() {
-                    _selectedPlace = {
-                      'name': companyInfo?['name'] ?? 'Unknown Company',
-                      '_id': company['_id'],
-                      'latitude': location['lat'].toDouble(),
-                      'longitude': location['lng'].toDouble(),
-                      'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                      'phone': company['phone'] ?? '',
-                      'description': companyInfo?['description'] ?? '',
-                      'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                      'logoUrl': logoUrl,
-                      'branches': processedBranches,
-                    };
-                  });
+        onTap: () async {
+          try {
+            // Fetch branches for this company
+            final prefs = await SharedPreferences.getInstance();
+            final token = prefs.getString('auth_token');
+            if (token != null) {
+              final branches = await ApiService.getCompanyBranches(token);
+              // Filter branches for this specific company and check status
+              final companyBranches = branches.where((b) {
+                // First check if this branch belongs to the current company
+                if (b['companyId'] != company['_id']) return false;
+                
+                // Then check if the branch is active
+                final branchStatus = b['status'];
+                if (branchStatus != 'active') {
+                  return false; // Skip branches that are not active
                 }
-              } catch (e) {
-                print('Error fetching branches: $e');
-                setState(() {
-                  // Fallback to showing just company info if branch fetch fails
-                  _selectedPlace = {
-                    'name': companyInfo?['name'] ?? 'Unknown Company',
-                    '_id': company['_id'],
-                    'latitude': location['lat'].toDouble(),
-                    'longitude': location['lng'].toDouble(),
-                    'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                    'phone': company['phone'] ?? '',
-                    'description': companyInfo?['description'] ?? '',
-                    'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                    'logoUrl': logoUrl,
-                    'branches': [],
-                  };
-                });
-              }
-            },
-            child:  _isRestaurantCategory(category)
-              ? Builder(
-                  builder: (context) {
-                    print('Creating restaurant marker with category: $category');
-                    try {
-                      return Image.asset(
-                        'assets/icons/restaurant_icon.png',
-                        width: _companyMarkerSize,
-                        height: _companyMarkerSize,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          print('Error loading restaurant icon: $error');
-                          return Icon(
-                            Icons.restaurant,
-                            color: Colors.red, // Changed to red to make it more visible if fallback is used
-                            size: _companyMarkerSize,
-                          );
-                        },
-                      );
-                    } catch (e) {
-                      print('Exception loading restaurant icon: $e');
-                      return Icon(
-                        Icons.error,
-                        color: Colors.red,
-                        size: _companyMarkerSize,
-                      );
+                
+                return true;
+              }).toList();
+
+              // Process branch data to ensure it has all required fields
+              final processedBranches = companyBranches.map((branch) {
+                // Handle branch images
+                final branchImages = branch['images'];
+                List<String> processedImages = [];
+
+                if (branchImages != null && branchImages is List && branchImages.isNotEmpty) {
+                  processedImages = branchImages.map((img) {
+                    if (img is String) {
+                      // If it's already a full URL, use it as is
+                      if (img.startsWith('http')) {
+                        return img;
+                      }
+                      // Otherwise, construct the full URL using the base URL
+                      return '${ApiService.baseUrl}/$img';
                     }
-                  },
-                )
-                 : _isHotelCategory(category)
-                  ? Builder(
-                      builder: (context) {
-                        print('Creating hotel marker with category: $category');
-                        try {
-                          return Image.asset(
-                      'assets/icons/hotel_icon.png',
-                      width: _companyMarkerSize,
-                      height: _companyMarkerSize,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        print('Error loading hotel icon: $error');
-                        return Icon(
-                          Icons.hotel,
-                          color: Colors.blue,
-                          size: _companyMarkerSize,
-                        );
-                            },
-                          );
-                        } catch (e) {
-                          print('Exception loading hotel icon: $e');
-                          return Icon(
-                            Icons.error,
-                            color: Colors.blue,
-                            size: _companyMarkerSize,
-                          );
-                        }
-                      },
-                    )
-           : logoUrl != null && logoUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(_companyMarkerSize / 2),
-                      child: Image.network(
-                        logoUrl,
-                        width: _companyMarkerSize,
-                        height: _companyMarkerSize,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.business,
-                            color: Colors.blue,
-                            size: _companyMarkerSize,
-                          );
-                        },
-                      ),
-                    )
-                  : Icon(
-                      Icons.business,
-                      color: Colors.blue,
-                      size: _companyMarkerSize,
-                    ),
-        ),
+                    return '';
+                  }).where((img) => img.isNotEmpty).toList();
+                }
+
+                return {
+                  ...branch,
+                  'name': branch['name'] ?? 'Unnamed Branch',
+                  'description': branch['description'] ?? 'No description available',
+                  'location': branch['location'] ?? 'No address available',
+                  'images': processedImages,
+                  'latitude': branch['latitude'] ?? location['lat'].toDouble(),
+                  'longitude': branch['longitude'] ?? location['lng'].toDouble(),
+                };
+              }).toList();
+
+              setState(() {
+                _selectedPlace = {
+                  'name': companyInfo?['name'] ?? 'Unknown Company',
+                  '_id': company['_id'],
+                  'latitude': location['lat'].toDouble(),
+                  'longitude': location['lng'].toDouble(),
+                  'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                  'phone': company['phone'] ?? '',
+                  'description': companyInfo?['description'] ?? '',
+                  'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                  'logoUrl': logoUrl,
+                  'branches': processedBranches,
+                };
+              });
+            }
+          } catch (e) {
+            print('Error fetching branches: $e');
+            setState(() {
+              // Fallback to showing just company info if branch fetch fails
+              _selectedPlace = {
+                'name': companyInfo?['name'] ?? 'Unknown Company',
+                '_id': company['_id'],
+                'latitude': location['lat'].toDouble(),
+                'longitude': location['lng'].toDouble(),
+                'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                'phone': company['phone'] ?? '',
+                'description': companyInfo?['description'] ?? '',
+                'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                'logoUrl': logoUrl,
+                'branches': [],
+              };
+            });
+          }
+        },
+        icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
       );
-    }).where((marker) => marker != null).cast<Marker>().toList();
+    }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
   });
 
     print('Number of markers created: ${_wayPointMarkers.length}');
@@ -1091,57 +837,43 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
           address = '${wholesaler.address!.street}, ${wholesaler.address!.city}';
         }
         if (lat == 0.0 && lng == 0.0) return null;
-        return Marker(
-          point: LatLng(lat, lng),
-          width: 40,
-          height: 40,
-          builder: (ctx) => GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedPlace = {
-                  'name': wholesaler.businessName,
-                  '_id': wholesaler.id,
-                  'latitude': lat,
-                  'longitude': lng,
-                  'address': address,
-                  'phone': wholesaler.phone,
-                  'description': 'Wholesaler',
-                  'image': wholesaler.logoUrl ?? 'assets/images/company_placeholder.png',
+        return google_maps.Marker(
+          markerId: google_maps.MarkerId('wholesaler_${wholesaler.id}'),
+          position: google_maps.LatLng(lat, lng),
+          onTap: () {
+            setState(() {
+              _selectedPlace = {
+                'name': wholesaler.businessName,
+                '_id': wholesaler.id,
+                'latitude': lat,
+                'longitude': lng,
+                'address': address,
+                'phone': wholesaler.phone,
+                'description': 'Wholesaler',
+                'image': wholesaler.logoUrl ?? 'assets/images/company_placeholder.png',
+                'logoUrl': wholesaler.logoUrl,
+                'companyName': wholesaler.businessName,
+                'companyId': wholesaler.id,
+                'images': wholesaler.branches.isNotEmpty ? wholesaler.branches.first.images : [],
+                'category': wholesaler.category,
+                'company': {
+                  'businessName': wholesaler.businessName,
                   'logoUrl': wholesaler.logoUrl,
-                  'companyName': wholesaler.businessName,
-                  'companyId': wholesaler.id,
-                  'images': activeBranch != null ? activeBranch.images : [],
-                  'category': wholesaler.category,
-                  'company': {
-                    'businessName': wholesaler.businessName,
-                    'logoUrl': wholesaler.logoUrl,
-                    'id': wholesaler.id,
-                  },
-                };
-              });
-            },
-            child: Image.asset(
-              'assets/icons/wholesaler.png',
-              width: 40,
-              height: 40,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  Icons.store,
-                  color: Colors.blue,
-                  size: 40,
-                );
-              },
-            ),
-          ),
+                  'id': wholesaler.id,
+                },
+              };
+            });
+          },
+          icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
         );
-      }).where((marker) => marker != null).cast<Marker>().toList();
+      }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
 
       setState(() {
         _wayPointMarkers = wholesalerMarkers;
       });
 
       if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-        _mapController.move(_wayPointMarkers[0].point, 15.0);
+        _mapController.move(_wayPointMarkers[0].position, 15.0);
       }
 
       // if (filteredWholesalers.isEmpty) {
@@ -1244,7 +976,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     _createMarkers(filteredBranches);
 
     if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-      _mapController.move(_wayPointMarkers[0].point, 15.0);
+      _mapController.move(_wayPointMarkers[0].position, 15.0);
     }
 
     // if (filteredBranches.isEmpty) {
@@ -1257,22 +989,15 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   void _createMarkers(List<Map<String, dynamic>> places) {
     setState(() {
       _wayPointMarkers = places.map((place) {
-        return Marker(
-          point: LatLng(place['latitude'], place['longitude']),
-          width: 40,
-          height: 40,
-          builder: (ctx) => GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedPlace = place;
-              });
-            },
-            child: Icon(
-              Icons.location_on,
-              color: Colors.red,
-              size: 40,
-            ),
-          ),
+        return google_maps.Marker(
+          markerId: google_maps.MarkerId('branch_${place['id']}'),
+          position: google_maps.LatLng(place['latitude'], place['longitude']),
+          onTap: () {
+            setState(() {
+              _selectedPlace = place;
+            });
+          },
+          icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed),
         );
         print('Number of markers created: ${_wayPointMarkers.length}');
       }).toList();
@@ -1357,10 +1082,10 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
 
     // Check location permission
     var permissionStatus = await _locationTracker.hasPermission();
-    if (permissionStatus == PermissionStatus.denied) {
+    if (permissionStatus == permission.PermissionStatus.denied) {
       print('Requesting location permission...');
       permissionStatus = await _locationTracker.requestPermission();
-      if (permissionStatus != PermissionStatus.granted) {
+      if (permissionStatus != permission.PermissionStatus.granted) {
         print('Location permission denied');
         _setDefaultLocation();
         return;
@@ -1373,37 +1098,45 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       var location = await _locationTracker.getLocation();
       
       if (location.latitude != null && location.longitude != null) {
-        print('Successfully got user location: ${location.latitude}, ${location.longitude}');
-        
-        setState(() {
-          _currentLocation = LatLng(location.latitude!, location.longitude!);
-          _initialLocationSet = true;
-          _locationDenied = false;
-        });
-        
-        // Move map to user's location immediately
-        _mapController.move(_currentLocation!, 15.0);
-        
-        // Start continuous location tracking
-        _startLocationTracking();
-        
-        // Show nearby companies after getting location
-        _showNearbyCompanies();
-        
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.location_on, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Location found! Showing nearby places.'),
-              ],
+        // Validate that the location is reasonable (not in the middle of the ocean)
+        if (location.latitude! >= -90 && location.latitude! <= 90 && 
+            location.longitude! >= -180 && location.longitude! <= 180) {
+          
+          print('Successfully got user location: ${location.latitude}, ${location.longitude}');
+          
+          setState(() {
+            _currentLocation = latlong.LatLng(location.latitude!, location.longitude!);
+            _initialLocationSet = true;
+            _locationDenied = false;
+          });
+          
+          // Move map to user's location immediately
+          _mapController.move(_currentLocation!, 15.0);
+          
+          // Start continuous location tracking
+          _startLocationTracking();
+          
+          // Show nearby companies after getting location
+          _showNearbyCompanies();
+          
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.location_on, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Location found! Showing nearby places.'),
+                ],
+              ),
+              duration: Duration(seconds: 2),
+              backgroundColor: Colors.green,
             ),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.green,
-          ),
-        );
+          );
+        } else {
+          print('Invalid location coordinates received, using default Lebanon location');
+          _setDefaultLocation();
+        }
       } else {
         throw Exception('Location coordinates are null');
       }
@@ -1414,13 +1147,18 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   }
 
   void _setDefaultLocation() {
-    print('Setting default location (Beirut)');
+    print('Setting default location (Beirut, Lebanon)');
     setState(() {
       _currentLocation = _defaultLocation;
       _initialLocationSet = true;
       _locationDenied = true;
     });
-    _mapController.move(_defaultLocation, _defaultZoom);
+    
+    // Ensure map controller is ready before moving
+    if (_mapController != null) {
+      _mapController.move(_defaultLocation, _defaultZoom);
+      print('Map moved to Lebanon default location: ${_defaultLocation.latitude}, ${_defaultLocation.longitude}');
+    }
     
     // Show message about using default location
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1429,7 +1167,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
           children: [
             Icon(Icons.info_outline, color: Colors.white),
             SizedBox(width: 8),
-            Text('Using default location. Enable location services for better experience.'),
+            Text('Showing Lebanon. Enable location services for your current location.'),
           ],
         ),
         duration: Duration(seconds: 3),
@@ -1471,7 +1209,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       // Request permission if not granted
       
       var permissionStatus = await _locationTracker.requestPermission();
-      if (permissionStatus == PermissionStatus.granted) {
+      if (permissionStatus == permission.PermissionStatus.granted) {
         try {
           await _getCurrentLocation();
           _startLocationTracking();
@@ -1739,9 +1477,9 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     }
   }
 
-  // Default location: Beirut, Lebanon
-  static const LatLng _defaultLocation = LatLng(33.8938, 35.5018);
-  static const double _defaultZoom = 15.0; // Default zoom level for MapTiler high resolution
+  // Default location: Beirut, Lebanon - more centered in the country
+  static const latlong.LatLng _defaultLocation = latlong.LatLng(33.8938, 35.5018);
+  static const double _defaultZoom = 12.0; // Zoomed out to show more of Lebanon
 
   Future<void> _getCurrentLocation() async {
     try {
@@ -1752,11 +1490,11 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         distanceFilter: 5, // Update when moved 5 meters
       );
       
-      var location = await _locationTracker.getLocation();
+      var locationData = await _locationTracker.getLocation();
       if (mounted) {
         setState(() {
-          _currentLocation = LatLng(location.latitude!, location.longitude!);
-          print('INITIAL USER LOCATION: Lat=${location.latitude}, Lng=${location.longitude}');
+          _currentLocation = latlong.LatLng(locationData.latitude!, locationData.longitude!);
+          print('INITIAL USER LOCATION: Lat=${locationData.latitude}, Lng=${locationData.longitude}');
           if (!_initialLocationSet && _mapController != null) {
             _mapController.move(_currentLocation!, 15.0);
             _initialLocationSet = true;
@@ -1787,16 +1525,16 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     if (_allCompanies.isEmpty || _userLocation == null) return;
     const double maxDistance = 5.0; // km
     final List<Map<String, dynamic>> nearbyCompanies = _allCompanies.where((company) {
-      final location = company['location'];
-      if (location == null || location['lat'] == null || location['lng'] == null) return false;
-      final double lat = location['lat'].toDouble();
-      final double lng = location['lng'].toDouble();
+      final companyLocation = company['location'];
+      if (companyLocation == null || companyLocation['lat'] == null || companyLocation['lng'] == null) return false;
+      final double lat = companyLocation['lat'].toDouble();
+      final double lng = companyLocation['lng'].toDouble();
       final double distance = _calculateDistance(_userLocation.latitude, _userLocation.longitude, lat, lng);
       return distance <= maxDistance;
     }).toList();
     _createMarkersFromCompanies(nearbyCompanies);
     if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-      _mapController.move(_wayPointMarkers[0].point, 15.0);
+      _mapController.move(_wayPointMarkers[0].position, 15.0);
     }
   }
 
@@ -1810,13 +1548,13 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       distanceFilter: 5, // Update when moved 5 meters for more precise tracking
     );
 
-    _locationSubscription = _locationTracker.onLocationChanged.listen((location) {
+    _locationSubscription = _locationTracker.onLocationChanged.listen((locationData) {
       if (mounted) {
         setState(() {
-          _currentLocation = LatLng(location.latitude!, location.longitude!);
-          _locationAccuracy = location.accuracy ?? 0.0;
+          _currentLocation = latlong.LatLng(locationData.latitude!, locationData.longitude!);
+          _locationAccuracy = locationData.accuracy ?? 0.0;
         });
-        print('USER LIVE LOCATION: Lat=${location.latitude}, Lng=${location.longitude}, Accuracy: ${location.accuracy}m');
+        print('USER LIVE LOCATION: Lat=${locationData.latitude}, Lng=${locationData.longitude}, Accuracy: ${locationData.accuracy}m');
 
         // Auto-follow user when navigating
         if (_isNavigating && _destinationLocation != null) {
@@ -1877,120 +1615,154 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   }
 
   // Method to recenter map to user's current location
-  // Replace the existing _recenterToUserLocation method with this updated version
-Future<void> _recenterToUserLocation() async {
-  try {
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 8),
-            Text('Getting your location...'),
-          ],
-        ),
-        duration: Duration(seconds: 3),
-        backgroundColor: Colors.blue,
-      ),
-    );
-    
-    // Configure location for high accuracy
-    _locationTracker.changeSettings(
-      accuracy: LocationAccuracy.high,
-      interval: 1000,
-      distanceFilter: 1, // Update when moved 1 meter for precise location
-    );
-    
-    // Get fresh location data
-    final location = await _locationTracker.getLocation();
-    
-    if (location.latitude != null && location.longitude != null) {
-      setState(() {
-        _currentLocation = LatLng(location.latitude!, location.longitude!);
-      });
+  Future<void> _recenterToUserLocation() async {
+    try {
+      print('Recenter button pressed - getting current location...');
       
-      // Move map to new location with smooth animation
-      _mapController.move(_currentLocation!, 15.0);
+      // Check if map controller is ready
+      if (_mapController == null) {
+        print('Map controller is null, cannot recenter');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Map not ready yet. Please wait...'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
       
-      // Show success message with accuracy
+      // Show loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              Icon(Icons.location_on, color: Colors.white),
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
               SizedBox(width: 8),
-              Text('Location updated (Accuracy: ${location.accuracy?.toStringAsFixed(1)}m)'),
+              Text('Getting your location...'),
             ],
           ),
           duration: Duration(seconds: 2),
-          backgroundColor: Colors.green,
+          backgroundColor: Colors.blue,
         ),
       );
       
-      // Show nearby companies after recentering
-      _showNearbyCompanies();
-    } else {
-      throw Exception('Could not get location coordinates');
-    }
-  } catch (e) {
-    print('Error getting current location: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Could not get your current location'),
-          ],
-        ),
-        duration: Duration(seconds: 2),
-        backgroundColor: Colors.orange,
-      ),
-    );
-    
-    // Check if location services are enabled
-    if (!await _locationTracker.serviceEnabled()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please enable location services'),
-          action: SnackBarAction(
-            label: 'SETTINGS',
-            onPressed: () {
-              _locationTracker.requestService();
-            },
-          ),
-        ),
+      // Configure location for high accuracy
+      _locationTracker.changeSettings(
+        accuracy: LocationAccuracy.high,
+        interval: 1000,
+        distanceFilter: 1, // Update when moved 1 meter for precise location
       );
-    }
-    
-    // Check if permissions are granted
-    var locationPermission = await _locationTracker.hasPermission();
-    if (locationPermission == PermissionStatus.denied) {
-      locationPermission = await _locationTracker.requestPermission();
-      if (locationPermission != PermissionStatus.granted) {
+      
+      // Get fresh location data
+      final locationData = await _locationTracker.getLocation();
+      
+      if (locationData.latitude != null && locationData.longitude != null) {
+        print('Got location: ${locationData.latitude}, ${locationData.longitude}');
+        
+        setState(() {
+          _currentLocation = latlong.LatLng(locationData.latitude!, locationData.longitude!);
+        });
+        
+        // Move map to new location with smooth animation
+        print('Moving map to user location...');
+        _mapController.move(_currentLocation!, 15.0);
+        
+        // Wait a bit for the map to move, then show success message
+        await Future.delayed(Duration(milliseconds: 500));
+        
+        // Show success message with accuracy
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.location_on, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Location updated (Accuracy: ${locationData.accuracy?.toStringAsFixed(1)}m)'),
+                ],
+              ),
+              duration: Duration(seconds: 2),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        
+        // Show nearby companies after recentering
+        _showNearbyCompanies();
+        
+        print('Recenter completed successfully');
+      } else {
+        throw Exception('Could not get location coordinates');
+      }
+    } catch (e) {
+      print('Error getting current location: $e');
+      
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Location permission is required'),
-            action: SnackBarAction(
-              label: 'SETTINGS',
-              onPressed: () async {
-                await permission.openAppSettings();
-              },
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Could not get your current location: ${e.toString()}'),
+              ],
             ),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.orange,
           ),
         );
       }
+      
+      // Check if location services are enabled
+      try {
+        if (!await _locationTracker.serviceEnabled()) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Please enable location services'),
+                action: SnackBarAction(
+                  label: 'SETTINGS',
+                  onPressed: () {
+                    _locationTracker.requestService();
+                  },
+                ),
+              ),
+            );
+          }
+        }
+        
+        // Check if permissions are granted
+        var locationPermission = await _locationTracker.hasPermission();
+        if (locationPermission == permission.PermissionStatus.denied) {
+          locationPermission = await _locationTracker.requestPermission();
+          if (locationPermission != permission.PermissionStatus.granted) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Location permission is required'),
+                  action: SnackBarAction(
+                    label: 'SETTINGS',
+                    onPressed: () async {
+                      await permission.openAppSettings();
+                    },
+                  ),
+                ),
+              );
+            }
+          }
+        }
+      } catch (permissionError) {
+        print('Error checking permissions: $permissionError');
+      }
     }
   }
-}
 
   Future<bool> _showChangeDestinationDialog() async {
     return await showDialog<bool>(
@@ -2043,7 +1815,7 @@ Future<void> _recenterToUserLocation() async {
 
           final primaryPoints = _polylinePoints.decodePolyline(polyline);
           _primaryRouteCoordinates = primaryPoints
-              .map((point) => LatLng(point.latitude, point.longitude))
+              .map((point) => latlong.LatLng(point.latitude, point.longitude))
               .toList();
 
           _primaryDistance = primaryRoute['distance'] / 1000;
@@ -2062,7 +1834,7 @@ Future<void> _recenterToUserLocation() async {
 
           final alternativePoints = _polylinePoints.decodePolyline(altPolyline);
           _alternativeRouteCoordinates = alternativePoints
-              .map((point) => LatLng(point.latitude, point.longitude))
+              .map((point) => latlong.LatLng(point.latitude, point.longitude))
               .toList();
 
           _alternativeDistance = alternativeRoute['distance'] / 1000;
@@ -2105,11 +1877,10 @@ Future<void> _recenterToUserLocation() async {
         final location = step['maneuver']['location'];
         if (location != null && location.length >= 2) {
           _wayPointMarkers.add(
-            Marker(
-              point: LatLng(location[1], location[0]),
-              width: 30,
-              height: 30,
-              builder: (ctx) => Icon(Icons.adjust, color: Colors.green, size: 20),
+            google_maps.Marker(
+              markerId: google_maps.MarkerId('waypoint_${_wayPointMarkers.length}'),
+              position: google_maps.LatLng(location[1], location[0]),
+              icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
             ),
           );
         }
@@ -2118,7 +1889,7 @@ Future<void> _recenterToUserLocation() async {
   }
 
   void _fitBounds() {
-    List<LatLng> allPoints = [];
+    List<latlong.LatLng> allPoints = [];
 
     if (_primaryRouteCoordinates.isNotEmpty) {
       allPoints.addAll(_primaryRouteCoordinates);
@@ -2135,15 +1906,12 @@ Future<void> _recenterToUserLocation() async {
     double minLng = allPoints.map((p) => p.longitude).reduce(Math.min);
     double maxLng = allPoints.map((p) => p.longitude).reduce(Math.max);
 
-    final LatLngBounds bounds = LatLngBounds(
-      LatLng(minLat - 0.05, minLng - 0.05),
-      LatLng(maxLat + 0.05, maxLng + 0.05),
+    final google_maps.LatLngBounds bounds = google_maps.LatLngBounds(
+      southwest: google_maps.LatLng(minLat - 0.05, minLng - 0.05),
+      northeast: google_maps.LatLng(maxLat + 0.05, maxLng + 0.05),
     );
 
-    _mapController.fitBounds(
-      bounds,
-      options: FitBoundsOptions(padding: EdgeInsets.all(50.0)),
-    );
+    _mapController.fitBounds(bounds, padding: EdgeInsets.all(50.0));
   }
 
   void _toggleRouteType() {
@@ -2239,94 +2007,45 @@ Future<void> _recenterToUserLocation() async {
           return null;
         }
 
-        return Marker(
-          point: LatLng(
+        return google_maps.Marker(
+          markerId: google_maps.MarkerId('branch_${branch['id']}'),
+          position: google_maps.LatLng(
             location['lat'].toDouble(),
             location['lng'].toDouble(),
           ),
-          width: 40,
-          height: 40,
-          builder: (ctx) => GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedPlace = {
-                  'name': branch['name'] ?? 'Unnamed Branch',
-                  '_id': branch['id'],
-                  'latitude': location['lat'].toDouble(),
-                  'longitude': location['lng'].toDouble(),
-                  'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                  'phone': branch['phone'] ?? '',
-                  'description': branch['description'] ?? '',
-                  'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                  'logoUrl': logoUrl,
-                  'companyName': company['businessName'] ?? 'Unknown Company',
-                  'companyId': company['id'],
-                  'images': branch['images'] ?? [],
-
-                };
-              });
-            },
-            child: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
-                ? Image.asset(
-                    'assets/icons/restaurant_icon.png',
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      print('Error loading restaurant icon for search result: $error');
-                      return Icon(
-                        Icons.restaurant,
-                        color: Colors.red,
-                        size: 40,
-                      );
-                    },
-                  )
-                : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
-                    ? Image.asset(
-                        'assets/icons/hotel_icon.png',
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          print('Error loading hotel icon for search result: $error');
-                          return Icon(
-                            Icons.hotel,
-                            color: Colors.blue,
-                            size: 40,
-                          );
-                        },
-                      )
-                    : logoUrl != null && logoUrl.isNotEmpty
-                ? ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.network(
-                logoUrl,
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.business,
-                    color: Colors.blue,
-                    size: 40,
-                  );
-                },
-              ),
-            )
-                : Icon(
-              Icons.business,
-              color: Colors.blue, 
-              size: 40,
-            ),
-          ),
+          onTap: () {
+            setState(() {
+              _selectedPlace = {
+                'name': branch['name'] ?? 'Unnamed Branch',
+                '_id': branch['id'],
+                'latitude': location['lat'].toDouble(),
+                'longitude': location['lng'].toDouble(),
+                'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                'phone': branch['phone'] ?? '',
+                'description': branch['description'] ?? '',
+                'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                'logoUrl': logoUrl,
+                'companyName': company['businessName'] ?? 'Unknown Company',
+                'companyId': company['id'],
+                'images': branch['images'] ?? [],
+                'category': branch['category'] ?? 'Unknown Category',
+                'company': company,
+              };
+            });
+          },
+          icon: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
+              ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
+              : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
+                  ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
+                  : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
         );
-      }).where((marker) => marker != null).cast<Marker>().toList();
+      }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
 
     });
 
     // Move camera to the first match
     if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-      _mapController.move(_wayPointMarkers[0].point, 12.0);
+      _mapController.move(_wayPointMarkers[0].position, 12.0);
     }
   }
 
@@ -2359,7 +2078,7 @@ Future<void> _recenterToUserLocation() async {
 
       // Move camera to the first marker
       if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-        _mapController.move(_wayPointMarkers[0].point, 15.0);
+        _mapController.move(_wayPointMarkers[0].position, 15.0);
       }
     } catch (e) {
       print('Error filtering companies by category: $e');
@@ -2552,16 +2271,63 @@ Future<void> _recenterToUserLocation() async {
                       Positioned(
                         top: 0,
                         right: 16,
-                        child: FloatingActionButton(
-                          heroTag: "recenter",
-                          onPressed: _recenterToUserLocation,
-                          backgroundColor: Colors.white,
-                          child: Icon(
-                            Icons.my_location,
-                            color: Colors.blue,
-                            size: 24,
-                          ),
-                          mini: true,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Debug button to test map controller
+                            FloatingActionButton(
+                              heroTag: "debug",
+                              onPressed: () {
+                                print('Debug button pressed!');
+                                print('Map controller: $_mapController');
+                                // Move to a fixed location (Beirut) to test if controller works
+                                _mapController.move(const latlong.LatLng(33.8938, 35.5018), 15.0);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Debug: Moving to Beirut'),
+                                    backgroundColor: Colors.purple,
+                                  ),
+                                );
+                              },
+                              backgroundColor: Colors.purple,
+                              child: Icon(
+                                Icons.bug_report,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              mini: true,
+                            ),
+                            SizedBox(height: 8),
+                            // Main recenter button
+                            FloatingActionButton(
+                              heroTag: "recenter",
+                              onPressed: () {
+                                print('Recenter button pressed!');
+                                print('Map controller: $_mapController');
+                                print('Current location: $_currentLocation');
+                                
+                                if (_currentLocation == null) {
+                                  print('No current location available');
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('No location available. Please wait...'),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                
+                                _recenterToUserLocation();
+                              },
+                              backgroundColor: Colors.white,
+                              child: Icon(
+                                Icons.my_location,
+                                color: Colors.blue,
+                                size: 24,
+                              ),
+                              mini: true,
+                            ),
+                          ],
                         ),
                       ),
 
@@ -2671,7 +2437,7 @@ Future<void> _recenterToUserLocation() async {
                       _selectedPlace = null;
                     });
                   },
-                  onNavigate: (LatLng destination) {
+                  onNavigate: (latlong.LatLng destination) {
                     _setDestination(destination);
                     if (!_isTracking) {
                       _startLocationTracking();
@@ -2680,7 +2446,7 @@ Future<void> _recenterToUserLocation() async {
                       _selectedPlace = null;
                     });
                   },
-                  onBranchSelect: (LatLng branchLocation, String branchName) {
+                  onBranchSelect: (latlong.LatLng branchLocation, String branchName) {
                     _mapController.move(branchLocation, 15.0);
                   },
                   token: widget.userData['token'],
@@ -2702,7 +2468,7 @@ Future<void> _recenterToUserLocation() async {
 
                     if (place['latitude'] != null && place['longitude'] != null) {
                       _mapController.move(
-                          LatLng(place['latitude'], place['longitude']),
+                          google_maps.LatLng(place['latitude'], place['longitude']),
                           15.0
                       );
                     }
@@ -2814,50 +2580,36 @@ Future<void> _recenterToUserLocation() async {
             
             if (lat == 0.0 && lng == 0.0) return null;
             
-            return Marker(
-              point: LatLng(lat, lng),
-              width: 40,
-              height: 40,
-              builder: (ctx) => GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedPlace = {
-                      'name': branch.name,
-                      '_id': branch.id,
-                      'latitude': lat,
-                      'longitude': lng,
-                      'address': address,
-                      'phone': branch.phone,
-                      'description': 'Wholesaler Branch',
-                      'image': wholesaler.logoUrl ?? 'assets/images/company_placeholder.png',
+            return google_maps.Marker(
+              markerId: google_maps.MarkerId('wholesaler_${wholesaler.id}'),
+              position: google_maps.LatLng(lat, lng),
+              onTap: () {
+                setState(() {
+                  _selectedPlace = {
+                    'name': wholesaler.businessName,
+                    '_id': wholesaler.id,
+                    'latitude': lat,
+                    'longitude': lng,
+                    'address': address,
+                    'phone': wholesaler.phone,
+                    'description': 'Wholesaler',
+                    'image': wholesaler.logoUrl ?? 'assets/images/company_placeholder.png',
+                    'logoUrl': wholesaler.logoUrl,
+                    'companyName': wholesaler.businessName,
+                    'companyId': wholesaler.id,
+                    'images': wholesaler.branches.isNotEmpty ? wholesaler.branches.first.images : [],
+                    'category': wholesaler.category,
+                    'company': {
+                      'businessName': wholesaler.businessName,
                       'logoUrl': wholesaler.logoUrl,
-                      'companyName': wholesaler.businessName,
-                      'companyId': wholesaler.id,
-                      'images': branch.images,
-                      'category': branch.category,
-                      'company': {
-                        'businessName': wholesaler.businessName,
-                        'logoUrl': wholesaler.logoUrl,
-                        'id': wholesaler.id,
-                      },
-                    };
-                  });
-                },
-                child: Image.asset(
-                  'assets/icons/wholesaler.png',
-                  width: 40,
-                  height: 40,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Icon(
-                      Icons.store,
-                      color: Colors.blue,
-                      size: 40,
-                    );
-                  },
-                ),
-              ),
+                      'id': wholesaler.id,
+                    },
+                  };
+                });
+              },
+              icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
             );
-          }).where((marker) => marker != null).cast<Marker>();
+          }).where((marker) => marker != null).cast<google_maps.Marker>();
         }).toList();
 
         print('\nCreated ${wholesalerMarkers.length} markers out of ${filteredWholesalers.length} wholesalers');
@@ -2869,7 +2621,7 @@ Future<void> _recenterToUserLocation() async {
 
         // Move camera to the first marker if no other markers are present
         if (_wayPointMarkers.isNotEmpty && _mapController != null) {
-          _mapController.move(_wayPointMarkers[0].point, 15.0);
+          _mapController.move(_wayPointMarkers[0].position, 15.0);
         }
       } else {
         print('No wholesalers found');
@@ -2885,7 +2637,7 @@ Future<void> _recenterToUserLocation() async {
   }
 
   // Helper to always get a valid user location
-  LatLng get _userLocation => _currentLocation ?? _defaultLocation;
+  latlong.LatLng get _userLocation => _currentLocation ?? _defaultLocation;
 
   // Helper method to check if a category is restaurant-related
   bool _isRestaurantCategory(String category) {
@@ -2945,7 +2697,7 @@ Future<void> _recenterToUserLocation() async {
     return degree * Math.pi / 180;
   }
 
-  Future<void> _setDestination(LatLng destination) async {
+  Future<void> _setDestination(latlong.LatLng destination) async {
     if (_isNavigating) {
       // If already navigating, ask user if they want to change destination
       final shouldChange = await _showChangeDestinationDialog();

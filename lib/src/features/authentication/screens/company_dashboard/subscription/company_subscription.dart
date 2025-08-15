@@ -4,8 +4,10 @@ import '../../../headers/dashboard_headers.dart';
 import '../../../headers/sidebar.dart';
 import '../../../../../../src/services/company_service.dart';
 import '../../../../../../src/services/company_subscription_service.dart';
+import '../../../../../../src/services/sponsorship_service.dart';
 import '../../../../../../src/models/company_model.dart';
 import '../../../../../../src/models/subscription.dart';
+import '../../../../../../src/models/sponsorship.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/gestures.dart';
 import 'dart:async';
@@ -33,11 +35,20 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   late AnimationController _progressAnimationController;
   late Animation<double> _progressAnimation;
   SubscriptionRemainingTimeData? _remainingTimeData; // <-- Add this line
+  
+  // Sponsorship state
+  List<Sponsorship> _sponsorships = [];
+  bool _isLoadingSponsorships = false;
+  String? _sponsorshipError;
+  SponsorshipPagination? _sponsorshipPagination;
+  String? _selectedSponsorshipId;
+  bool _isSubmittingSponsorship = false;
 
   @override
   void initState() {
     super.initState();
     _loadSubscriptionData();
+    _loadSponsorships();
     // Set up periodic refresh for subscription status
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
       _loadSubscriptionData();
@@ -135,6 +146,36 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadSponsorships() async {
+    setState(() {
+      _isLoadingSponsorships = true;
+      _sponsorshipError = null;
+    });
+
+    try {
+      final response = await SponsorshipService.getCompanyWholesalerSponsorships(
+        page: 1,
+        limit: 20,
+      );
+
+      if (mounted) {
+        setState(() {
+          _sponsorships = SponsorshipService.parseSponsorships(response);
+          _sponsorshipPagination = SponsorshipService.parsePagination(response);
+          _sponsorshipError = response['success'] == true ? null : response['message'];
+          _isLoadingSponsorships = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _sponsorshipError = 'Failed to load sponsorships: ${e.toString()}';
+          _isLoadingSponsorships = false;
+        });
+      }
     }
   }
 
@@ -266,6 +307,11 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                         // Subscription Plans Grid
                         _buildSubscriptionPlansGrid(),
 
+                        const SizedBox(height: 40),
+
+                        // Sponsorship Section
+                        _buildSponsorshipSection(),
+
                         // const SizedBox(height: 40),
 
                       ],
@@ -331,6 +377,445 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSponsorshipSection() {
+    return Column(
+      children: [
+        _buildSectionTitle('Sponsorship'),
+        const SizedBox(height: 24),
+        
+              
+            
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sponsor as a Company',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2079C2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Boost your visibility with sponsorship options tailored for companies. Choose your duration, set your budget, and enjoy the flexibility to pause or resume anytime!',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Dynamic sponsorships from API
+              if (_isLoadingSponsorships)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_sponsorshipError != null)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Error loading sponsorships',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                        TextButton(
+                          onPressed: _loadSponsorships,
+                          child: Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_sponsorships.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Text(
+                      'No sponsorships available',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                _buildSponsorshipsGrid(),
+              
+              const SizedBox(height: 24),
+              
+              // Get Sponsored button
+              SizedBox(
+                width: double.infinity,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(70),
+                    gradient: const LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [Color(0xFF0094FF), Color(0xFF05055A), Color(0xFF0094FF)],
+                      stops: [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                  child: ElevatedButton(
+                    onPressed: _selectedSponsorshipId != null 
+                      ? () => _submitSponsorshipRequest()
+                      : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(70),
+                      ),
+                    ),
+                    child: _isSubmittingSponsorship
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Submitting...',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          _selectedSponsorshipId != null 
+                            ? 'Get Sponsored Now!' 
+                            : 'Select a sponsorship first',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showJoinDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Join Barrim'),
+          content: const Text(
+            'Thank you for your interest! Our team will contact you shortly with more details about joining Barrim.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSponsorshipsGrid() {
+    if (_sponsorships.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+
+
+    // Display sponsorships in a row similar to the screenshot
+    return Row(
+      children: _sponsorships.take(4).toList().asMap().entries.map((entry) {
+        final index = entry.key;
+        final sponsorship = entry.value;
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: _buildSponsorshipCard(sponsorship, index: index),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildSponsorshipCard(Sponsorship sponsorship, {bool isFullWidth = false, int? index}) {
+    final price = sponsorship.price ?? 0.0;
+    final duration = sponsorship.duration ?? 0;
+    final sponsorshipId = sponsorship.id ?? '';
+    
+    // Create a unique identifier using both ID and index
+    final uniqueId = '$sponsorshipId-$index';
+    
+    // Determine if this should be highlighted (similar to "1 Year" in screenshot)
+    final bool isHighlighted = duration >= 365; // 1 year or more
+    final bool isSelected = _selectedSponsorshipId == uniqueId;
+    
+
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (_selectedSponsorshipId == uniqueId) {
+            // If clicking the same card, deselect it
+            _selectedSponsorshipId = null;
+          } else {
+            // If clicking a different card, select it
+            _selectedSponsorshipId = uniqueId;
+          }
+        });
+      },
+      child: Container(
+        width: isFullWidth ? double.infinity : null,
+        height: 100,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected 
+            ? const Color(0xFF2079C2) 
+            : (isHighlighted ? const Color(0xFF2079C2) : Colors.white),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected 
+              ? const Color(0xFF2079C2) 
+              : (isHighlighted ? const Color(0xFF2079C2) : Colors.grey.shade300),
+            width: isSelected ? 3 : 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _getDurationText(duration),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: (isSelected || isHighlighted) ? Colors.white : Colors.grey[700],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '\$${price.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: (isSelected || isHighlighted) ? Colors.white : const Color(0xFF2079C2),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getDurationText(int days) {
+    if (days >= 365) {
+      return '1 Year';
+    } else if (days >= 180) {
+      return '6 Months';
+    } else if (days >= 30) {
+      return '1 Month';
+    } else if (days >= 15) {
+      return '15 Days';
+    } else {
+      return '${days} Days';
+    }
+  }
+
+  Widget _buildDurationOption(String duration, String price, bool isSelected) {
+    return Expanded(
+      child: Container(
+        height: 80,
+        width: 220,
+        padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2079C2) : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF2079C2) : Colors.grey.shade300,
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              duration,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : Colors.grey[700],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              price,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : const Color(0xFF2079C2),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitSponsorshipRequest() async {
+    if (_selectedSponsorshipId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a sponsorship first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Extract the original sponsorship ID from the unique ID (remove the index part)
+    final originalSponsorshipId = _selectedSponsorshipId!.split('-')[0];
+
+    setState(() {
+      _isSubmittingSponsorship = true;
+    });
+
+    try {
+      final response = await SponsorshipService.createSponsorshipSubscriptionRequest(
+        sponsorshipId: originalSponsorshipId,
+        entityType: 'company',
+        entityId: widget.branchId ?? '',
+        entityName: widget.userData['companyName'] ?? 'Company',
+      );
+
+      if (mounted) {
+        setState(() {
+          _isSubmittingSponsorship = false;
+        });
+
+        if (response['success'] == true) {
+          _showSponsorshipSuccessDialog();
+          // Reset selection
+          setState(() {
+            _selectedSponsorshipId = null;
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Failed to submit sponsorship request'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmittingSponsorship = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showSponsorshipSuccessDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Sponsorship Request Submitted!'),
+          content: const Text(
+            'Your sponsorship request has been sent to the Barrim team. We will contact you shortly with more details.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSponsorshipDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Sponsorship Request'),
+          content: const Text(
+            'Your sponsorship request has been sent to the Barrim team. We will contact you shortly with more details.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
     );
   }
 
