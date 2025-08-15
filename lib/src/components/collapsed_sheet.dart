@@ -38,9 +38,9 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
   bool _isLoading = true;
   String? _errorMessage;
   LatLng? _currentUserLocation;
-  VideoPlayerController? _videoController;
+  VideoPlayerController? _videoController; // Add this line
   bool _isVideoPlaying = false;
-  String _selectedTab = 'companies'; // Add tab selection
+  String _selectedTab = 'companies';
 
   // Top Listed section state variables
   List<Map<String, dynamic>> _sponsoredCompanies = [];
@@ -82,12 +82,10 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         _errorMessage = null;
       });
 
-      // Load both companies and branches in parallel
-      await Future.wait([
-        _loadCompanies(),
-        _loadBranches(),
-        _loadSponsoredEntities(), // Add this line
-      ]);
+      // Load companies first, then branches (since branches now depend on companies data)
+      await _loadCompanies();
+      await _loadBranches();
+      await _loadSponsoredEntities();
 
       setState(() {
         _isLoading = false;
@@ -133,18 +131,62 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
     }
   }
 
+
   Future<void> _loadSponsoredCompanies() async {
     try {
-      final sponsoredCompanies = await ApiService.getSponsoredCompanies();
+      final companies = await ApiService.getCompaniesWithLocations();
+      
+      // Check company sponsorship (companyInfo.sponsorship: true)
+      final sponsoredCompanies = companies.where((company) {
+        return company['sponsorship'] == true;
+      }).toList();
+      
+      // ALSO check for sponsored branches within companies (branch.sponsorship: true)
+      final sponsoredCompanyBranches = companies.expand((company) {
+        final branches = company['branches'] ?? [];
+        return branches.where((branch) {
+          return branch['sponsorship'] == true;  // Check individual branch sponsorship
+                              }).map((branch) => {
+          // Map branch data with company context
+          'id': branch['id'] ?? branch['_id'],
+          'name': branch['name'],
+          'category': branch['category'],
+          'subCategory': branch['subCategory'],
+          'phone': branch['phone'],
+          'images': branch['images'] ?? [],
+          'status': branch['status'],
+          'sponsorship': branch['sponsorship'],
+          'location': branch['location'],
+          'type': 'company_branch',
+          'companyId': company['_id'],
+          'companyName': company['companyInfo']?['name'],
+          'companyCategory': company['companyInfo']?['category'],
+          'companyLogo': company['companyInfo']?['logo'],
+        });
+      }).toList();
+      
+      if (!kReleaseMode) {
+        print('Found ${sponsoredCompanies.length} sponsored companies');
+        print('Found ${sponsoredCompanyBranches.length} sponsored company branches');
+      }
+      
+      // Combine both company-level and branch-level sponsored entities
+      final allSponsoredCompanyEntities = [
+        ...sponsoredCompanies,
+        ...sponsoredCompanyBranches,
+      ];
+      
       setState(() {
-        _sponsoredCompanies = sponsoredCompanies;
+        _sponsoredCompanies = allSponsoredCompanyEntities.map((entity) => entity as Map<String, dynamic>).toList();
       });
     } catch (e) {
       if (!kReleaseMode) {
         print('Error loading sponsored companies: $e');
       }
+      throw e;
     }
   }
+
 
   Future<void> _loadSponsoredWholesalers() async {
     try {
@@ -201,10 +243,54 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
 
   Future<void> _loadSponsoredBranches() async {
     try {
-      // This would need to be implemented based on your branch API
-      // For now, setting empty list
+      // Get sponsored branches from direct branch API
+      final sponsoredBranches = await ApiService.getSponsoredBranches();
+      
+      // Also check for sponsored branches within wholesalers
+      final wholesalers = await _wholesalerService.getAllWholesalers();
+      
+      // Extract sponsored branches from wholesalers
+      final sponsoredBranchesFromWholesalers = wholesalers.expand((wholesaler) {
+        return wholesaler.branches.where((branch) {
+          // Check if the branch has sponsorship: true
+          return branch.sponsorship == true;
+        }).map((branch) => {
+          'id': branch.id,
+          'name': branch.name,
+          'category': branch.category,
+          'subCategory': branch.subCategory,
+          'phone': branch.phone,
+          'images': branch.images,
+          'status': branch.status,
+          'sponsorship': branch.sponsorship,
+          'location': {
+            'lat': branch.location.lat,
+            'lng': branch.location.lng,
+            'city': branch.location.city,
+            'street': branch.location.street,
+            'district': branch.location.district,
+            'country': branch.location.country,
+            'postalCode': branch.location.postalCode,
+          },
+          'type': 'wholesaler_branch',
+          'wholesalerId': wholesaler.id,
+          'wholesalerName': wholesaler.businessName,
+          'wholesalerCategory': wholesaler.category,
+        });
+      }).toList();
+
+      print('Found ${sponsoredBranchesFromWholesalers.length} sponsored branches from wholesalers');
+      
+      // Combine both sources
+      final allSponsoredBranches = [
+        ...sponsoredBranches,
+        ...sponsoredBranchesFromWholesalers,
+      ];
+
+      print('Total sponsored branches: ${allSponsoredBranches.length}');
+
       setState(() {
-        _sponsoredBranches = [];
+        _sponsoredBranches = allSponsoredBranches;
       });
     } catch (e) {
       if (!kReleaseMode) {
@@ -224,11 +310,16 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
       }).toList();
       
       // Filter companies by distance if user location is available
-      List<dynamic> nearbyCompanies = [];
+      List<Map<String, dynamic>> nearbyCompanies = [];
       if (_currentUserLocation != null) {
-        const double maxDistance = 20.0; // 10 km radius
+        const double maxDistance = 20.0; // 20 km radius
         
         nearbyCompanies = filteredCompanies.where((company) {
+          // Safely cast company to Map<String, dynamic>
+          if (company is! Map<String, dynamic>) {
+            return false;
+          }
+          
           final location = company['location'];
           if (location == null || location['lat'] == null || location['lng'] == null) {
             return false;
@@ -247,7 +338,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
           );
           
           return distance <= maxDistance;
-        }).toList();
+        }).map((company) => company as Map<String, dynamic>).toList();
         
         // Sort companies by distance (closest first)
         nearbyCompanies.sort((a, b) {
@@ -274,11 +365,11 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         });
       } else {
         // If no user location, show all active companies
-        nearbyCompanies = filteredCompanies.cast<Map<String, dynamic>>();
+        nearbyCompanies = filteredCompanies.map((company) => company as Map<String, dynamic>).toList();
       }
       
       setState(() {
-        _companies = nearbyCompanies.cast<Map<String, dynamic>>();
+        _companies = nearbyCompanies;
       });
     } catch (e) {
       if (!kReleaseMode) {
@@ -295,22 +386,64 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         _errorMessage = null;
       });
 
-      final branchesData = await _companyService.getAllBranches();
-
-      // Filter out branches whose companies have 'pending' or 'rejected' status
-      final filteredBranchesData = branchesData.where((branchData) {
-        final company = branchData['company'];
-        if (company == null) return false;
-        // Check branch status
-        final branchStatus = branchData['status'];
-        if (branchStatus != 'active') return false;
-        return true;
-      }).toList();
-
-      // Convert the filtered data to Branch objects
-      final allBranches = filteredBranchesData.map((data) {
-        return company_model.Branch.fromJson(data);
-      }).toList();
+      // Instead of calling getAllBranches, extract branches from the companies data
+      // This ensures we use the same data structure that's working in _loadCompanies
+      List<company_model.Branch> allBranches = [];
+      
+      if (!kReleaseMode) {
+        print('Loading branches from ${_companies.length} companies');
+      }
+      
+      for (var company in _companies) {
+        if (company['branches'] != null) {
+          final branches = company['branches'];
+          if (branches is! List) {
+            if (!kReleaseMode) {
+              print('Company ${company['businessName'] ?? 'Unknown'} has invalid branches data type: ${branches.runtimeType}');
+            }
+            continue;
+          }
+          
+          if (!kReleaseMode) {
+            print('Company ${company['businessName'] ?? 'Unknown'} has ${branches.length} branches');
+          }
+          
+          for (var branchData in branches) {
+            try {
+              if (branchData is! Map<String, dynamic>) {
+                if (!kReleaseMode) {
+                  print('Branch data is not a Map: ${branchData.runtimeType}');
+                }
+                continue;
+              }
+              
+              if (!kReleaseMode) {
+                print('Processing branch: ${branchData['name'] ?? 'No name'}');
+              }
+              
+              // Add company information to branch data for context
+              final enrichedBranchData = Map<String, dynamic>.from(branchData);
+              enrichedBranchData['company'] = company;
+              
+              final branch = company_model.Branch.fromJson(enrichedBranchData);
+              allBranches.add(branch);
+              
+              if (!kReleaseMode) {
+                print('Successfully parsed branch: ${branch.name}');
+              }
+            } catch (e) {
+              if (!kReleaseMode) {
+                print('Error parsing branch: $e');
+                print('Branch data: $branchData');
+              }
+            }
+          }
+        }
+      }
+      
+      if (!kReleaseMode) {
+        print('Total branches loaded: ${allBranches.length}');
+      }
 
       // Filter branches by distance if user location is available
       List<company_model.Branch> nearbyBranches = [];
@@ -1330,7 +1463,21 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
     final companyInfo = company['companyInfo'];
     final location = company['location'];
     final logoUrl = companyInfo?['logo'];
-
+    
+    // For company branches, try to get the branch logo first
+    String? displayLogoUrl = logoUrl;
+    if (company['type'] == 'company_branch' && company['images'] != null && company['images'].isNotEmpty) {
+      // Use the first branch image if available
+      final firstImage = company['images'].first;
+      if (firstImage != null && firstImage.toString().isNotEmpty) {
+        if (firstImage.toString().startsWith('http')) {
+          displayLogoUrl = firstImage.toString();
+        } else {
+          displayLogoUrl = '${ApiConstants.baseUrl}/$firstImage';
+        }
+      }
+    }
+    
     // Calculate distance if user location is available
     String distanceText = 'Distance not available';
     if (userLocation != null && location != null) {
@@ -1378,9 +1525,9 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    if (logoUrl != null && logoUrl.isNotEmpty)
+                    if (displayLogoUrl != null && displayLogoUrl.isNotEmpty)
                       SecureNetworkImage(
-                        imageUrl: logoUrl,
+                        imageUrl: displayLogoUrl,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: 120,
@@ -1428,13 +1575,15 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Company name and distance
+                  // Company/Branch name and distance
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
-                          companyInfo?['name'] ?? 'Unknown Company',
+                          company['type'] == 'company_branch' 
+                              ? (company['name'] ?? 'Unknown Branch')
+                              : (companyInfo?['name'] ?? 'Unknown Company'),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1495,6 +1644,32 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
 
   // Build sponsored wholesaler card
   Widget _buildSponsoredWholesalerCard(Map<String, dynamic> wholesaler, LatLng? userLocation) {
+    // Get wholesaler logo or branch image
+    String? displayLogoUrl = wholesaler['logoUrl'];
+    String? displayName = wholesaler['businessName'];
+    
+    // If wholesaler has branches with images, use the first branch image and name
+    if (wholesaler['branches'] != null && wholesaler['branches'] is List && wholesaler['branches'].isNotEmpty) {
+      final branches = wholesaler['branches'] as List;
+      for (var branch in branches) {
+        if (branch['images'] != null && branch['images'] is List && branch['images'].isNotEmpty) {
+          final firstImage = branch['images'].first;
+          if (firstImage != null && firstImage.toString().isNotEmpty) {
+            if (firstImage.toString().startsWith('http')) {
+              displayLogoUrl = firstImage.toString();
+            } else {
+              displayLogoUrl = '${ApiConstants.baseUrl}/$firstImage';
+            }
+            // Also get the branch name if available
+            if (branch['name'] != null && branch['name'].toString().isNotEmpty) {
+              displayName = branch['name'].toString();
+            }
+            break; // Use the first branch with images
+          }
+        }
+      }
+    }
+    
     // Calculate distance if user location is available
     String distanceText = 'Distance not available';
     if (userLocation != null && wholesaler['address'] != null) {
@@ -1539,9 +1714,9 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    if (wholesaler['logoUrl'] != null && wholesaler['logoUrl'].isNotEmpty)
+                    if (displayLogoUrl != null && displayLogoUrl.isNotEmpty)
                       SecureNetworkImage(
-                        imageUrl: wholesaler['logoUrl'],
+                        imageUrl: displayLogoUrl,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: 120,
@@ -1589,13 +1764,13 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Business name and distance
+                  // Business/Branch name and distance
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
-                          wholesaler['businessName'] ?? 'Unknown Wholesaler',
+                          displayName ?? 'Unknown Wholesaler',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1764,6 +1939,19 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
 
   // Build sponsored branch card
   Widget _buildSponsoredBranchCard(Map<String, dynamic> branch, LatLng? userLocation) {
+    // Get branch logo/image
+    String? branchLogoUrl;
+    if (branch['images'] != null && branch['images'].isNotEmpty) {
+      final firstImage = branch['images'].first;
+      if (firstImage != null && firstImage.toString().isNotEmpty) {
+        if (firstImage.toString().startsWith('http')) {
+          branchLogoUrl = firstImage.toString();
+        } else {
+          branchLogoUrl = '${ApiConstants.baseUrl}/$firstImage';
+        }
+      }
+    }
+    
     // Calculate distance if user location is available
     String distanceText = 'Distance not available';
     if (userLocation != null && branch['location'] != null) {
@@ -1811,7 +1999,19 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _buildSponsoredBranchPlaceholder(),
+                    if (branchLogoUrl != null && branchLogoUrl.isNotEmpty)
+                      SecureNetworkImage(
+                        imageUrl: branchLogoUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: 120,
+                        errorWidget: (context, url, error) {
+                          return _buildSponsoredBranchPlaceholder();
+                        },
+                        placeholder: Center(child: CircularProgressIndicator()),
+                      )
+                    else
+                      _buildSponsoredBranchPlaceholder(),
                     
                     // Sponsorship badge
                     Positioned(
@@ -1922,10 +2122,10 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.star, size: 40, color: Colors.amber),
+            Icon(Icons.business, size: 40, color: Colors.amber),
             SizedBox(height: 8),
             Text(
-              'Sponsored Company',
+              'Company',
               style: TextStyle(
                 color: Colors.amber[700],
                 fontWeight: FontWeight.bold,
@@ -1944,10 +2144,10 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.star, size: 40, color: Colors.green),
+            Icon(Icons.inventory, size: 40, color: Colors.green),
             SizedBox(height: 8),
             Text(
-              'Sponsored Wholesaler',
+              'Wholesaler',
               style: TextStyle(
                 color: Colors.green[700],
                 fontWeight: FontWeight.bold,
@@ -1988,10 +2188,10 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.star, size: 40, color: Colors.orange),
+            Icon(Icons.store, size: 40, color: Colors.orange),
             SizedBox(height: 8),
             Text(
-              'Sponsored Branch',
+              'Branch',
               style: TextStyle(
                 color: Colors.orange[700],
                 fontWeight: FontWeight.bold,

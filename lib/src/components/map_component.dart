@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as google_maps;
 import 'package:latlong2/latlong.dart' as latlong;
 import 'google_maps_wrapper.dart';
+import 'animated_location_marker.dart';
 
 class MapComponent extends StatefulWidget {
   final GoogleMapsWrapper mapController;
@@ -52,17 +53,7 @@ class _MapComponentState extends State<MapComponent> {
   Set<google_maps.Marker> _buildGoogleMarkers() {
     final Set<google_maps.Marker> markers = {};
 
-    // Add current location marker
-    if (widget.currentLocation != null) {
-      markers.add(
-        google_maps.Marker(
-          markerId: google_maps.MarkerId('current_location'),
-          position: google_maps.LatLng(widget.currentLocation!.latitude, widget.currentLocation!.longitude),
-          icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue),
-          infoWindow: google_maps.InfoWindow(title: 'Your Location'),
-        ),
-      );
-    }
+    // Note: Current location marker removed - using AnimatedLocationMarker overlay instead
 
     // Add destination marker
     if (widget.destinationLocation != null) {
@@ -197,9 +188,27 @@ class _MapComponentState extends State<MapComponent> {
           buildingsEnabled: false, // Disable 3D buildings
           indoorViewEnabled: false, // Disable indoor maps
         ),
+        
+        // Animated location marker overlay - positioned at center of map
+        if (widget.currentLocation != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: AnimatedLocationMarker(
+                size: 40.0,
+                color: Colors.blue,
+                isLive: true,
+              ),
+            ),
+          ),
       ],
     );
   }
+
+
 
   void _applyCustomMapStyle(google_maps.GoogleMapController controller) {
     // Soft custom map style with decreased contrast and white streets

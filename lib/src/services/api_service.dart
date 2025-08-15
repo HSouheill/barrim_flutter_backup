@@ -2980,7 +2980,17 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         return branch['sponsorship'] == true;
       }).toList();
 
-      print('Found ${sponsoredBranches.length} sponsored branches');
+      print('Found ${sponsoredBranches.length} sponsored branches from direct branch API');
+
+      // Also check for sponsored branches within wholesalers
+      try {
+        // Import wholesaler service to get wholesalers with sponsored branches
+        // For now, we'll return the branches we found
+        // You may need to implement this based on your wholesaler API structure
+      } catch (e) {
+        print('Could not check wholesaler branches: $e');
+      }
+
       return sponsoredBranches;
     } catch (e) {
       print('Error fetching sponsored branches: $e');

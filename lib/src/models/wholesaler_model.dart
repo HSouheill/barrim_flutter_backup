@@ -23,6 +23,7 @@ class Wholesaler {
   final DateTime createdAt;
   final DateTime updatedAt;
   final Address? address;
+  final bool sponsorship; // Add this field
 
   Wholesaler({
     required this.id,
@@ -46,6 +47,7 @@ class Wholesaler {
     required this.createdAt,
     required this.updatedAt,
     this.address,
+    this.sponsorship = false, // Add this field with default value
   });
 
   factory Wholesaler.fromJson(Map<String, dynamic> json) {
@@ -93,6 +95,7 @@ class Wholesaler {
           ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
       address: address,
+      sponsorship: json['sponsorship'] ?? false, // Add this line
     );
   }
 
@@ -117,6 +120,7 @@ class Wholesaler {
       createdAt: DateTime.now(), // Not provided in the simplified info
       updatedAt: DateTime.now(), // Not provided in the simplified info
       address: json['address'] != null ? Address.fromJson(json['address']) : null,
+      sponsorship: false, // Default value for simplified info
     );
   }
 
@@ -143,6 +147,7 @@ class Wholesaler {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'address': address?.toJson(),
+      'sponsorship': sponsorship, // Add this line
     };
   }
 }
@@ -256,6 +261,7 @@ class Branch {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String status;
+  final bool sponsorship; // Add this field
 
   Branch({
     required this.id,
@@ -270,6 +276,7 @@ class Branch {
     required this.createdAt,
     required this.updatedAt,
     this.status = 'active',
+    this.sponsorship = false, // Add this field with default value
   });
 
   factory Branch.fromJson(Map<String, dynamic> json) {
@@ -300,6 +307,7 @@ class Branch {
           ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
       status: json['status'] ?? 'active',
+      sponsorship: json['sponsorship'] ?? false, // Add this line
     );
   }
 
@@ -317,6 +325,7 @@ class Branch {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'status': status,
+      'sponsorship': sponsorship, // Add this line
     };
   }
 }
