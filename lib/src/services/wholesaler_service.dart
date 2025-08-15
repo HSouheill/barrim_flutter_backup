@@ -20,7 +20,7 @@ class WholesalerService {
     if (_customClient != null) return _customClient!;
     HttpClient httpClient = HttpClient();
     httpClient.badCertificateCallback = (cert, host, port) {
-      return host == '104.131.188.174' || host == 'yourdomain.com';
+      return host == '104.131.188.174' || host == 'barrim.online';
     };
     _customClient = IOClient(httpClient);
     return _customClient!;

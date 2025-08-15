@@ -161,15 +161,39 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         limit: 20,
       );
 
+      print('Sponsorship API Response: $response');
+
       if (mounted) {
+        print('Sponsorship response success: ${response['success']}');
+        print('Sponsorship response data: ${response['data']}');
+        
+        // Debug: Check the raw sponsorships data
+        if (response['data'] != null && response['data']['sponsorships'] != null) {
+          final rawSponsorships = response['data']['sponsorships'] as List;
+          print('Raw sponsorships from API:');
+          for (int i = 0; i < rawSponsorships.length; i++) {
+            final raw = rawSponsorships[i];
+            print('  Sponsorship $i:');
+            print('    Raw JSON: $raw');
+            print('    ID field: ${raw['id']}');
+            print('    _id field: ${raw['_id']}');
+            print('    Title: ${raw['title']}');
+          }
+        }
+        
+        final sponsorships = SponsorshipService.parseSponsorships(response);
+        print('Parsed sponsorships: ${sponsorships.map((s) => s.toJson()).toList()}');
+        print('Number of parsed sponsorships: ${sponsorships.length}');
+        
         setState(() {
-          _sponsorships = SponsorshipService.parseSponsorships(response);
+          _sponsorships = sponsorships;
           _sponsorshipPagination = SponsorshipService.parsePagination(response);
           _sponsorshipError = response['success'] == true ? null : response['message'];
           _isLoadingSponsorships = false;
         });
       }
     } catch (e) {
+      print('Error loading sponsorships: $e');
       if (mounted) {
         setState(() {
           _sponsorshipError = 'Failed to load sponsorships: ${e.toString()}';
@@ -518,10 +542,11 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                       : Text(
                           _selectedSponsorshipId != null 
                             ? 'Get Sponsored Now!' 
-                            : 'Select a sponsorship first',
+                            : 'Select a sponsorship',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                   ),
@@ -558,15 +583,42 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   Widget _buildSponsorshipsGrid() {
+    print('Building sponsorships grid:');
+    print('  Total sponsorships: ${_sponsorships.length}');
+    print('  Sponsorship IDs: ${_sponsorships.map((s) => s.id).toList()}');
+    
     if (_sponsorships.isEmpty) {
+      print('  No sponsorships available');
       return const SizedBox.shrink();
     }
 
+    // Filter out sponsorships with empty IDs
+    final validSponsorships = _sponsorships.where((sponsorship) => 
+      sponsorship.id != null && sponsorship.id!.isNotEmpty
+    ).toList();
+    
+    print('  Valid sponsorships: ${validSponsorships.length}');
+    print('  Valid sponsorship IDs: ${validSponsorships.map((s) => s.id).toList()}');
 
+    if (validSponsorships.isEmpty) {
+      print('  No valid sponsorships available');
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Text(
+            'No valid sponsorships available',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+        ),
+      );
+    }
 
     // Display sponsorships in a row similar to the screenshot
     return Row(
-      children: _sponsorships.take(4).toList().asMap().entries.map((entry) {
+      children: validSponsorships.take(4).toList().asMap().entries.map((entry) {
         final index = entry.key;
         final sponsorship = entry.value;
         return Expanded(
@@ -584,8 +636,18 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     final duration = sponsorship.duration ?? 0;
     final sponsorshipId = sponsorship.id ?? '';
     
+    // Debug logging for sponsorship data
+    print('Building sponsorship card:');
+    print('  sponsorship.id: ${sponsorship.id}');
+    print('  sponsorshipId: $sponsorshipId');
+    print('  index: $index');
+    print('  sponsorship.toJson(): ${sponsorship.toJson()}');
+    
     // Create a unique identifier using both ID and index
     final uniqueId = '$sponsorshipId-$index';
+    print('  uniqueId: $uniqueId');
+    
+
     
     // Determine if this should be highlighted (similar to "1 Year" in screenshot)
     final bool isHighlighted = duration >= 365; // 1 year or more
@@ -725,41 +787,133 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
 
     // Extract the original sponsorship ID from the unique ID (remove the index part)
     final originalSponsorshipId = _selectedSponsorshipId!.split('-')[0];
+    
+    // Validate that we have a valid sponsorship ID
+    if (originalSponsorshipId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid sponsorship selected. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Debug logging
+    print('Submitting sponsorship request with:');
+    print('  sponsorshipId: $originalSponsorshipId');
+    print('  entityType: company_branch');
+    print('  entityId: ${widget.branchId ?? "NULL"}');
+    print('  entityName: ${widget.userData['businessName'] ?? widget.userData['name'] ?? "NULL"}');
+    print('  userData keys: ${widget.userData.keys.toList()}');
 
     setState(() {
       _isSubmittingSponsorship = true;
     });
 
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button from closing dialog
+          child: AlertDialog(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                  ),
+                ),
+                SizedBox(width: 20),
+                Text(
+                  'Sending request to admin...',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
     try {
       final response = await SponsorshipService.createSponsorshipSubscriptionRequest(
         sponsorshipId: originalSponsorshipId,
-        entityType: 'company',
+        entityType: 'company_branch',
         entityId: widget.branchId ?? '',
-        entityName: widget.userData['companyName'] ?? 'Company',
+        entityName: widget.userData['businessName'] ?? widget.userData['name'] ?? 'Company',
       );
 
+      // Debug logging
+      print('API Response: $response');
+
       if (mounted) {
+        // Close loading dialog
+        Navigator.of(context).pop();
+        
         setState(() {
           _isSubmittingSponsorship = false;
         });
 
         if (response['success'] == true) {
-          _showSponsorshipSuccessDialog();
+          // Show success snackbar first
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text('Sponsorship request sent successfully!'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          
+          // Show success dialog with sponsorship details
+          final selectedSponsorship = _sponsorships.firstWhere(
+            (s) => s.id == originalSponsorshipId,
+            orElse: () => Sponsorship(),
+          );
+          _showSponsorshipSuccessDialog(selectedSponsorship);
+          
           // Reset selection
           setState(() {
             _selectedSponsorshipId = null;
           });
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(response['message'] ?? 'Failed to submit sponsorship request'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          print('API Error: ${response['message']}');
+          print('API Error Details: ${response['error']}');
+          
+          // Check if it's an existing request error
+          final errorMessage = response['message']?.toString().toLowerCase() ?? '';
+          if (errorMessage.contains('already') || 
+              errorMessage.contains('pending') || 
+              errorMessage.contains('active') ||
+              errorMessage.contains('exists')) {
+            _showExistingSponsorshipDialog();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(response['message'] ?? 'Failed to submit sponsorship request'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       }
     } catch (e) {
+      print('Exception caught: $e');
       if (mounted) {
+        // Close loading dialog
+        Navigator.of(context).pop();
+        
         setState(() {
           _isSubmittingSponsorship = false;
         });
@@ -773,7 +927,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     }
   }
 
-  void _showSponsorshipSuccessDialog() {
+  void _showSponsorshipSuccessDialog(Sponsorship sponsorship) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -781,14 +935,202 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text('Sponsorship Request Submitted!'),
-          content: const Text(
-            'Your sponsorship request has been sent to the Barrim team. We will contact you shortly with more details.',
+          title: Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 28,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Request Sent Successfully!',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your sponsorship request has been sent to the admin team.',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[700],
+                ),
+              ),
+              SizedBox(height: 12),
+              // Show sponsorship details
+              if (sponsorship.id != null && sponsorship.id!.isNotEmpty)
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Request Details:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.card_giftcard, color: Colors.blue[600], size: 16),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sponsorship.title ?? 'Unknown Package',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.attach_money, color: Colors.green[600], size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            '\$${(sponsorship.price ?? 0).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Icon(Icons.schedule, color: Colors.orange[600], size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            '${sponsorship.duration ?? 0} days',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.blue[700],
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'The admin team will review your request and contact you within 24-48 hours.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue[700],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[700],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showExistingSponsorshipDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Colors.orange,
+                size: 28,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Sponsorship Already Exists',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You already have a pending or active sponsorship request for this package.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+             
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange[700],
+                ),
+              ),
             ),
           ],
         );

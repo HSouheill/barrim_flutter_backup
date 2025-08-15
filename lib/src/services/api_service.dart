@@ -2895,5 +2895,97 @@ static Future<List<NotificationModel>> fetchNotifications() async {
   //         : 'Connection error. Please check your network.');
   //   }
   // }
+
+  // Get sponsored entities (companies, wholesalers, service providers)
+  static Future<List<Map<String, dynamic>>> getSponsoredEntities() async {
+    try {
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/sponsored-entities'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final List<dynamic> sponsoredData = responseData['data'] ?? [];
+        
+        // Filter entities that have sponsorship: true
+        final List<Map<String, dynamic>> sponsoredEntities = sponsoredData
+            .where((entity) => entity['sponsorship'] == true)
+            .map((entity) => Map<String, dynamic>.from(entity))
+            .toList();
+
+        print('Found ${sponsoredEntities.length} sponsored entities');
+        return sponsoredEntities;
+      } else {
+        print('Failed to fetch sponsored entities: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error fetching sponsored entities: $e');
+      return [];
+    }
+  }
+
+  // Get sponsored companies
+  static Future<List<Map<String, dynamic>>> getSponsoredCompanies() async {
+    try {
+      final companies = await getCompaniesWithLocations();
+      
+      // Filter companies that have sponsorship: true
+      final sponsoredCompanies = companies.where((company) {
+        final companyInfo = company['companyInfo'];
+        return companyInfo?['sponsorship'] == true;
+      }).toList();
+
+      print('Found ${sponsoredCompanies.length} sponsored companies');
+      return sponsoredCompanies.cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error fetching sponsored companies: $e');
+      return [];
+    }
+  }
+
+  // Get sponsored wholesalers
+  static Future<List<Map<String, dynamic>>> getSponsoredWholesalers() async {
+    try {
+      // This would need to be implemented based on your wholesaler API structure
+      // For now, returning empty list - you'll need to implement this based on your API
+      return [];
+    } catch (e) {
+      print('Error fetching sponsored wholesalers: $e');
+      return [];
+    }
+  }
+
+  // Get sponsored service providers
+  static Future<List<Map<String, dynamic>>> getSponsoredServiceProviders() async {
+    try {
+      // This would need to be implemented based on your service provider API structure
+      // For now, returning empty list - you'll need to implement this based on your API
+      return [];
+    } catch (e) {
+      print('Error fetching sponsored service providers: $e');
+      return [];
+    }
+  }
+
+  // Get sponsored branches
+  static Future<List<Map<String, dynamic>>> getSponsoredBranches() async {
+    try {
+      final branches = await getAllBranches();
+      
+      // Filter branches that have sponsorship: true
+      final sponsoredBranches = branches.where((branch) {
+        return branch['sponsorship'] == true;
+      }).toList();
+
+      print('Found ${sponsoredBranches.length} sponsored branches');
+      return sponsoredBranches;
+    } catch (e) {
+      print('Error fetching sponsored branches: $e');
+      return [];
+    }
+  }
 }
 

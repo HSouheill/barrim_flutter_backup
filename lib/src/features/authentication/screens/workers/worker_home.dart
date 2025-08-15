@@ -204,7 +204,7 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     // Fallback options if no custom logo was found
     if (provider['logoPath'] != null && provider['logoPath'].toString().isNotEmpty) {
       String logoPath = provider['logoPath'].toString();
-      return logoPath.startsWith('http') ? logoPath : 'http://104.131.188.174$logoPath';
+              return logoPath.startsWith('http') ? logoPath : 'https://104.131.188.174$logoPath';
     }
 
     // If still no logo, return default

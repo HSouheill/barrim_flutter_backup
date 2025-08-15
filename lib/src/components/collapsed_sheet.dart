@@ -6,13 +6,15 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
-import '../models/company_model.dart';
+import '../models/company_model.dart' as company_model;
 import '../services/company_service.dart';
 import '../services/api_service.dart';
 import '../utils/api_constants.dart';
 import 'package:flutter/foundation.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 import '../features/authentication/screens/user_dashboard/notification.dart';
+import '../services/wholesaler_service.dart';
+import '../models/wholesaler_model.dart' as wholesaler_model;
 
 class CollapsedSheet extends StatefulWidget {
   final ScrollController? controller;
@@ -30,7 +32,8 @@ class CollapsedSheet extends StatefulWidget {
 
 class _CollapsedSheetState extends State<CollapsedSheet> {
   final CompanyService _companyService = CompanyService();
-  List<Branch> _branches = [];
+  final WholesalerService _wholesalerService = WholesalerService();
+  List<company_model.Branch> _branches = [];
   List<Map<String, dynamic>> _companies = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -39,11 +42,20 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
   bool _isVideoPlaying = false;
   String _selectedTab = 'companies'; // Add tab selection
 
+  // Top Listed section state variables
+  List<Map<String, dynamic>> _sponsoredCompanies = [];
+  List<Map<String, dynamic>> _sponsoredWholesalers = [];
+  List<Map<String, dynamic>> _sponsoredServiceProviders = [];
+  List<Map<String, dynamic>> _sponsoredBranches = []; // Add this line
+  bool _isLoadingSponsored = true;
+  String? _sponsoredErrorMessage;
+
   @override
   void initState() {
     super.initState();
     _loadData();
     _getUserLocation();
+    _loadSponsoredEntities(); // Add this line to load sponsored entities
   }
 
   @override
@@ -74,6 +86,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
       await Future.wait([
         _loadCompanies(),
         _loadBranches(),
+        _loadSponsoredEntities(), // Add this line
       ]);
 
       setState(() {
@@ -87,6 +100,116 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
           print(_errorMessage);
         }
       });
+    }
+  }
+
+  // Load sponsored entities for Top Listed section
+  Future<void> _loadSponsoredEntities() async {
+    try {
+      setState(() {
+        _isLoadingSponsored = true;
+        _sponsoredErrorMessage = null;
+      });
+
+      // Load sponsored entities in parallel
+      await Future.wait([
+        _loadSponsoredCompanies(),
+        _loadSponsoredWholesalers(),
+        _loadSponsoredServiceProviders(),
+        _loadSponsoredBranches(), // Add this line
+      ]);
+
+      setState(() {
+        _isLoadingSponsored = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingSponsored = false;
+        _sponsoredErrorMessage = 'Failed to load sponsored entities: $e';
+      });
+      if (!kReleaseMode) {
+        print('Error loading sponsored entities: $e');
+      }
+    }
+  }
+
+  Future<void> _loadSponsoredCompanies() async {
+    try {
+      final sponsoredCompanies = await ApiService.getSponsoredCompanies();
+      setState(() {
+        _sponsoredCompanies = sponsoredCompanies;
+      });
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error loading sponsored companies: $e');
+      }
+    }
+  }
+
+  Future<void> _loadSponsoredWholesalers() async {
+    try {
+      final wholesalers = await _wholesalerService.getAllWholesalers();
+      
+      // Filter wholesalers that have sponsorship: true
+      // Since the sponsorship field might not exist in the model yet,
+      // we'll check for it in the raw data or use a different approach
+      final sponsoredWholesalers = wholesalers.where((wholesaler) {
+        // For now, we'll check if the wholesaler has any special indicators
+        // You may need to adjust this based on your actual data structure
+        // or add the sponsorship field to your Wholesaler model
+        
+        // Check if wholesaler has any special status or premium features
+        // This is a placeholder - you'll need to implement based on your API
+        return wholesaler.balance > 0 || wholesaler.points > 100; // Example criteria
+      }).map((wholesaler) => {
+        'id': wholesaler.id,
+        'businessName': wholesaler.businessName,
+        'category': wholesaler.category,
+        'phone': wholesaler.phone,
+        'email': wholesaler.email,
+        'logoUrl': wholesaler.logoUrl,
+        'address': wholesaler.address,
+        'branches': wholesaler.branches,
+        'type': 'wholesaler',
+        'balance': wholesaler.balance,
+        'points': wholesaler.points,
+      }).toList();
+
+      setState(() {
+        _sponsoredWholesalers = sponsoredWholesalers;
+      });
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error loading sponsored wholesalers: $e');
+      }
+    }
+  }
+
+  Future<void> _loadSponsoredServiceProviders() async {
+    try {
+      // This would need to be implemented based on your service provider API
+      // For now, setting empty list
+      setState(() {
+        _sponsoredServiceProviders = [];
+      });
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error loading sponsored service providers: $e');
+      }
+    }
+  }
+
+  Future<void> _loadSponsoredBranches() async {
+    try {
+      // This would need to be implemented based on your branch API
+      // For now, setting empty list
+      setState(() {
+        _sponsoredBranches = [];
+      });
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error loading sponsored branches: $e');
+      }
     }
   }
 
@@ -186,11 +309,11 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
 
       // Convert the filtered data to Branch objects
       final allBranches = filteredBranchesData.map((data) {
-        return Branch.fromJson(data);
+        return company_model.Branch.fromJson(data);
       }).toList();
 
       // Filter branches by distance if user location is available
-      List<Branch> nearbyBranches = [];
+      List<company_model.Branch> nearbyBranches = [];
       if (_currentUserLocation != null) {
         const double maxDistance = 10.0; // 10 km radius
         
@@ -377,7 +500,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
     );
   }
 
-  Widget _buildLocationCard(Branch branch, LatLng? userLocation) {
+  Widget _buildLocationCard(company_model.Branch branch, LatLng? userLocation) {
     // Construct full URLs with proper error handling
     String? imagePath;
     String? videoPath;
@@ -668,6 +791,22 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                             controller: controller,
                             padding: EdgeInsets.only(top: 16),
                             children: [
+                              // Top Listed section
+                              _buildTopListedSection(),
+                              
+                              // Divider between Top Listed and regular content
+                              if (_sponsoredCompanies.isNotEmpty || 
+                                  _sponsoredWholesalers.isNotEmpty || 
+                                  _sponsoredServiceProviders.isNotEmpty ||
+                                  _sponsoredBranches.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                  child: Divider(
+                                    color: Colors.grey[300],
+                                    thickness: 1,
+                                  ),
+                                ),
+                              
                               Padding(
                                 padding: const EdgeInsets.all(16.0),
                                 child: Text(
@@ -976,6 +1115,885 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
               'Company',
               style: TextStyle(
                 color: Colors.blue,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Build Top Listed section
+  Widget _buildTopListedSection() {
+    if (_isLoadingSponsored) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading Top Listed...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_sponsoredErrorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, color: Colors.red, size: 48),
+              SizedBox(height: 16),
+              Text(
+                _sponsoredErrorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.red),
+              ),
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadSponsoredEntities,
+                child: Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final totalSponsored = _sponsoredCompanies.length + 
+                           _sponsoredWholesalers.length + 
+                           _sponsoredServiceProviders.length +
+                           _sponsoredBranches.length; // Add this line
+
+    if (totalSponsored == 0) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'No sponsored entities found',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 16,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top Listed title
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Icon(Icons.star, color: Colors.amber, size: 24),
+              SizedBox(width: 8),
+              Text(
+                'Top Listed (${totalSponsored})',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber[700],
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Sponsored Companies
+        if (_sponsoredCompanies.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text(
+              'Sponsored Companies',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[700],
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (var company in _sponsoredCompanies) ...[
+                  _buildSponsoredCompanyCard(company, _currentUserLocation),
+                  SizedBox(width: 16),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+
+        // Sponsored Wholesalers
+        if (_sponsoredWholesalers.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text(
+              'Sponsored Wholesalers',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.green[700],
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (var wholesaler in _sponsoredWholesalers) ...[
+                  _buildSponsoredWholesalerCard(wholesaler, _currentUserLocation),
+                  SizedBox(width: 16),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+
+        // Sponsored Service Providers
+        if (_sponsoredServiceProviders.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text(
+              'Sponsored Service Providers',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.purple[700],
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (var provider in _sponsoredServiceProviders) ...[
+                  _buildSponsoredServiceProviderCard(provider, _currentUserLocation),
+                  SizedBox(width: 16),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+
+        // Sponsored Branches
+        if (_sponsoredBranches.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text(
+              'Sponsored Branches',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.orange[700],
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (var branch in _sponsoredBranches) ...[
+                  _buildSponsoredBranchCard(branch, _currentUserLocation),
+                  SizedBox(width: 16),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  // Build sponsored company card
+  Widget _buildSponsoredCompanyCard(Map<String, dynamic> company, LatLng? userLocation) {
+    final companyInfo = company['companyInfo'];
+    final location = company['location'];
+    final logoUrl = companyInfo?['logo'];
+
+    // Calculate distance if user location is available
+    String distanceText = 'Distance not available';
+    if (userLocation != null && location != null) {
+      final companyLocation = LatLng(
+        location['lat'].toDouble(),
+        location['lng'].toDouble(),
+      );
+      final distance = _calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        companyLocation.latitude,
+        companyLocation.longitude,
+      );
+      distanceText = '${distance.toStringAsFixed(1)} km away';
+    }
+
+    return GestureDetector(
+      onTap: widget.onLocationCardTap,
+      child: Container(
+        width: 200,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.withOpacity(0.3),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: Colors.amber, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Company logo section with sponsorship badge
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              child: Container(
+                height: 120,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (logoUrl != null && logoUrl.isNotEmpty)
+                      SecureNetworkImage(
+                        imageUrl: logoUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: 120,
+                        errorWidget: (context, url, error) {
+                          return _buildSponsoredCompanyPlaceholder();
+                        },
+                        placeholder: Center(child: CircularProgressIndicator()),
+                      )
+                    else
+                      _buildSponsoredCompanyPlaceholder(),
+                    
+                    // Sponsorship badge
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, color: Colors.white, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'SPONSORED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Company name and distance
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          companyInfo?['name'] ?? 'Unknown Company',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        distanceText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  // Location
+                  if (location != null)
+                    Text(
+                      '${location['city'] ?? ''}, ${location['street'] ?? ''}',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  SizedBox(height: 4),
+                  // Category
+                  if (companyInfo?['category'] != null)
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        companyInfo!['category'],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.amber[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Build sponsored wholesaler card
+  Widget _buildSponsoredWholesalerCard(Map<String, dynamic> wholesaler, LatLng? userLocation) {
+    // Calculate distance if user location is available
+    String distanceText = 'Distance not available';
+    if (userLocation != null && wholesaler['address'] != null) {
+      final address = wholesaler['address'] as wholesaler_model.Address;
+      final distance = _calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        address.lat,
+        address.lng,
+      );
+      distanceText = '${distance.toStringAsFixed(1)} km away';
+    }
+
+    return GestureDetector(
+      onTap: widget.onLocationCardTap,
+      child: Container(
+        width: 200,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.withOpacity(0.3),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: Colors.green, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Wholesaler logo section with sponsorship badge
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              child: Container(
+                height: 120,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (wholesaler['logoUrl'] != null && wholesaler['logoUrl'].isNotEmpty)
+                      SecureNetworkImage(
+                        imageUrl: wholesaler['logoUrl'],
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: 120,
+                        errorWidget: (context, url, error) {
+                          return _buildSponsoredWholesalerPlaceholder();
+                        },
+                        placeholder: Center(child: CircularProgressIndicator()),
+                      )
+                    else
+                      _buildSponsoredWholesalerPlaceholder(),
+                    
+                    // Sponsorship badge
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, color: Colors.white, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'SPONSORED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Business name and distance
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          wholesaler['businessName'] ?? 'Unknown Wholesaler',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        distanceText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  // Location
+                  if (wholesaler['address'] != null)
+                    Text(
+                      '${(wholesaler['address'] as wholesaler_model.Address).city}, ${(wholesaler['address'] as wholesaler_model.Address).street}',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  SizedBox(height: 4),
+                  // Category
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      wholesaler['category'] ?? 'Unknown Category',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Build sponsored service provider card
+  Widget _buildSponsoredServiceProviderCard(Map<String, dynamic> provider, LatLng? userLocation) {
+    return GestureDetector(
+      onTap: widget.onLocationCardTap,
+      child: Container(
+        width: 200,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withOpacity(0.3),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: Colors.purple, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Service provider logo section with sponsorship badge
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              child: Container(
+                height: 120,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.1),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildSponsoredServiceProviderPlaceholder(),
+                    
+                    // Sponsorship badge
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.purple,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, color: Colors.white, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'SPONSORED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Service provider name
+                  Text(
+                    'Service Provider',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4),
+                  // Category
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Professional Services',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.purple[700],
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Build sponsored branch card
+  Widget _buildSponsoredBranchCard(Map<String, dynamic> branch, LatLng? userLocation) {
+    // Calculate distance if user location is available
+    String distanceText = 'Distance not available';
+    if (userLocation != null && branch['location'] != null) {
+      final branchLocation = LatLng(
+        branch['location']['lat'].toDouble(),
+        branch['location']['lng'].toDouble(),
+      );
+      final distance = _calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        branchLocation.latitude,
+        branchLocation.longitude,
+      );
+      distanceText = '${distance.toStringAsFixed(1)} km away';
+    }
+
+    return GestureDetector(
+      onTap: widget.onLocationCardTap,
+      child: Container(
+        width: 200,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: Colors.orange, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Branch logo section with sponsorship badge
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              child: Container(
+                height: 120,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildSponsoredBranchPlaceholder(),
+                    
+                    // Sponsorship badge
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, color: Colors.white, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'SPONSORED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Branch name and distance
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          branch['name'] ?? 'Unknown Branch',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        distanceText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  // Location
+                  if (branch['location'] != null)
+                    Text(
+                      '${(branch['location'] as Map<String, dynamic>)['city'] ?? ''}, ${(branch['location'] as Map<String, dynamic>)['street'] ?? ''}',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  SizedBox(height: 4),
+                  // Category
+                  if (branch['category'] != null)
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        branch['category'] as String,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Placeholder widgets for sponsored entities
+  Widget _buildSponsoredCompanyPlaceholder() {
+    return Container(
+      color: Colors.amber.withOpacity(0.1),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.star, size: 40, color: Colors.amber),
+            SizedBox(height: 8),
+            Text(
+              'Sponsored Company',
+              style: TextStyle(
+                color: Colors.amber[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSponsoredWholesalerPlaceholder() {
+    return Container(
+      color: Colors.green.withOpacity(0.1),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.star, size: 40, color: Colors.green),
+            SizedBox(height: 8),
+            Text(
+              'Sponsored Wholesaler',
+              style: TextStyle(
+                color: Colors.green[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSponsoredServiceProviderPlaceholder() {
+    return Container(
+      color: Colors.purple.withOpacity(0.1),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.star, size: 40, color: Colors.purple),
+            SizedBox(height: 8),
+            Text(
+              'Sponsored Service Provider',
+              style: TextStyle(
+                color: Colors.purple[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSponsoredBranchPlaceholder() {
+    return Container(
+      color: Colors.orange.withOpacity(0.1),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.star, size: 40, color: Colors.orange),
+            SizedBox(height: 8),
+            Text(
+              'Sponsored Branch',
+              style: TextStyle(
+                color: Colors.orange[700],
                 fontWeight: FontWeight.bold,
               ),
             ),

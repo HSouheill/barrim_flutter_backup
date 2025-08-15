@@ -1184,12 +1184,53 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
       return;
     }
 
+    // Extract the original sponsorship ID from the unique ID (remove the index part)
+    final originalSponsorshipId = _selectedSponsorshipId!.split('-')[0];
+    
+    // Validate that we have a valid sponsorship ID
+    if (originalSponsorshipId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid sponsorship selected. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isSubmittingSponsorship = true;
     });
 
-    // Extract the original sponsorship ID from the unique ID (remove the index part)
-    final originalSponsorshipId = _selectedSponsorshipId!.split('-')[0];
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button from closing dialog
+          child: AlertDialog(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                  ),
+                ),
+                SizedBox(width: 20),
+                Text(
+                  'Sending request to admin...',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
 
     try {
       final response = await SponsorshipService.createSponsorshipSubscriptionRequest(
@@ -1200,27 +1241,63 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
       );
 
       if (mounted) {
+        // Close loading dialog
+        Navigator.of(context).pop();
+        
         setState(() {
           _isSubmittingSponsorship = false;
         });
 
         if (response['success'] == true) {
-          _showSponsorshipSuccessDialog();
+          // Show success snackbar first
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text('Sponsorship request sent successfully!'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          
+          // Show success dialog with sponsorship details
+          final selectedSponsorship = _sponsorships.firstWhere(
+            (s) => s.id == originalSponsorshipId,
+            orElse: () => Sponsorship(),
+          );
+          _showSponsorshipSuccessDialog(selectedSponsorship);
+          
           // Reset selection
           setState(() {
             _selectedSponsorshipId = null;
           });
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(response['message'] ?? 'Failed to submit sponsorship request'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          // Check if it's an existing request error
+          final errorMessage = response['message']?.toString().toLowerCase() ?? '';
+          if (errorMessage.contains('already') || 
+              errorMessage.contains('pending') || 
+              errorMessage.contains('active') ||
+              errorMessage.contains('exists')) {
+            _showExistingSponsorshipDialog();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(response['message'] ?? 'Failed to submit sponsorship request'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       }
     } catch (e) {
       if (mounted) {
+        // Close loading dialog
+        Navigator.of(context).pop();
+        
         setState(() {
           _isSubmittingSponsorship = false;
         });
@@ -1234,7 +1311,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
     }
   }
 
-  void _showSponsorshipSuccessDialog() {
+  void _showSponsorshipSuccessDialog(Sponsorship sponsorship) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1242,14 +1319,230 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text('Sponsorship Request Submitted!'),
-          content: const Text(
-            'Your sponsorship request has been sent to the Barrim team. We will contact you shortly with more details.',
+          title: Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 28,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Request Sent Successfully!',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your sponsorship request has been sent to the admin team.',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[700],
+                ),
+              ),
+              SizedBox(height: 12),
+              // Show sponsorship details
+              if (sponsorship.id != null && sponsorship.id!.isNotEmpty)
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Request Details:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.card_giftcard, color: Colors.blue[600], size: 16),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sponsorship.title ?? 'Unknown Package',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.attach_money, color: Colors.green[600], size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            '\$${(sponsorship.price ?? 0).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Icon(Icons.schedule, color: Colors.orange[600], size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            '${sponsorship.duration ?? 0} days',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.blue[700],
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'The admin team will review your request and contact you within 24-48 hours.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue[700],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[700],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showExistingSponsorshipDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Colors.orange,
+                size: 28,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Sponsorship Already Exists',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You already have a pending or active sponsorship request for this package.',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[700],
+                ),
+              ),
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.schedule,
+                      color: Colors.orange[700],
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Please wait for the admin team to review your existing request before submitting a new one.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.orange[700],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange[700],
+                ),
+              ),
             ),
           ],
         );

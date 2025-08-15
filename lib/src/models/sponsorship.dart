@@ -25,7 +25,7 @@ class Sponsorship {
 
   factory Sponsorship.fromJson(Map<String, dynamic> json) {
     return Sponsorship(
-      id: json['_id'],
+      id: json['id'] ?? json['_id'], // Handle both 'id' and '_id' fields
       title: json['title'],
       price: json['price']?.toDouble(),
       duration: json['duration'],
