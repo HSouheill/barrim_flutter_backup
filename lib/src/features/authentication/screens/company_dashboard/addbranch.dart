@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:location/location.dart';
 import 'package:location/location.dart' as loc;
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter/services.dart';  // Add this import for TextInputFormatter
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image/image.dart' as img;
 
 import '../../../../services/api_service.dart';
 
@@ -48,14 +50,63 @@ class _AddBranchPageState extends State<AddBranchPage> {
   double? latitude;
   double? longitude;
 
-  // Sample categories and subcategories - replace with your actual data
-  final List<String> categories = ['Restaurant', 'Hotel', 'Shop', 'Office'];
-  final Map<String, List<String>> subCategories = {
-    'Restaurant': ['Fast Food', 'Fine Dining', 'Cafe'],
-    'Hotel': ['Resort', 'Boutique', 'Business'],
-    'Shop': ['Clothing', 'Electronics', 'Grocery'],
-    'Office': ['Corporate', 'Co-working', 'Agency'],
-  };
+  // Dynamic categories and subcategories loaded from backend
+  List<String> categories = [];
+  Map<String, List<String>> subCategories = {};
+  bool _isLoadingCategories = true;
+  String? _categoriesError;
+
+  // Image compression methods
+  Future<File> _compressAndResizeImage(File imageFile) async {
+    try {
+      // Read the image file
+      final bytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(bytes);
+      
+      if (image == null) {
+        throw Exception('Could not decode image');
+      }
+
+      // Resize image to reasonable dimensions (e.g., 800x800)
+      final resizedImage = img.copyResize(
+        image,
+        width: 800,
+        height: 800,
+        interpolation: img.Interpolation.linear,
+      );
+
+      // Compress the image with quality 85
+      final compressedBytes = img.encodeJpg(resizedImage, quality: 85);
+      
+      // Create a temporary file for the compressed image
+      final tempDir = Directory.systemTemp;
+      final tempFile = File('${tempDir.path}/compressed_branch_image_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      
+      await tempFile.writeAsBytes(compressedBytes);
+      
+      print('Image compressed: Original size: ${bytes.length} bytes, Compressed size: ${compressedBytes.length} bytes');
+      
+      return tempFile;
+    } catch (e) {
+      print('Error compressing image: $e');
+      // If compression fails, return the original image
+      return imageFile;
+    }
+  }
+
+  Future<List<File>> _compressImages(List<File> images) async {
+    List<File> compressedImages = [];
+    for (var image in images) {
+      try {
+        final compressedImage = await _compressAndResizeImage(image);
+        compressedImages.add(compressedImage);
+      } catch (e) {
+        print('Error compressing image: $e');
+        compressedImages.add(image); // Use original if compression fails
+      }
+    }
+    return compressedImages;
+  }
 
   @override
   void dispose() {
@@ -70,9 +121,45 @@ class _AddBranchPageState extends State<AddBranchPage> {
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     // Load existing data if in edit mode
     if (widget.isEditMode && widget.branchData != null) {
       _loadBranchData();
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+        _categoriesError = null;
+      });
+
+      print('AddBranchPage: Loading categories from backend...');
+      final categoriesData = await ApiService.getAllCategories();
+      print('AddBranchPage: Received categories: $categoriesData');
+      
+      if (mounted) {
+        setState(() {
+          categories = categoriesData.keys.toList();
+          subCategories = categoriesData;
+          _isLoadingCategories = false;
+        });
+        print('AddBranchPage: Categories loaded successfully. Count: ${categories.length}');
+        print('AddBranchPage: Categories: $categories');
+        print('AddBranchPage: Subcategories: $subCategories');
+      }
+    } catch (e) {
+      print('AddBranchPage: Error loading categories: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCategories = false;
+          _categoriesError = 'Failed to load categories: $e';
+          // Don't set fallback categories - let the UI handle empty state
+          categories = [];
+          subCategories = {};
+        });
+      }
     }
   }
 
@@ -135,14 +222,36 @@ class _AddBranchPageState extends State<AddBranchPage> {
     try {
       final List<XFile> pickedFiles = await _picker.pickMultiImage();
       if (pickedFiles.isNotEmpty) {
+        List<File> validImages = [];
+        
+        for (var xFile in pickedFiles) {
+          final file = File(xFile.path);
+          final fileSize = await file.length();
+          final maxSize = 10 * 1024 * 1024; // 10MB limit
+          
+          if (fileSize > maxSize) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Image ${xFile.name} is too large (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB). It will be compressed.'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          }
+          validImages.add(file);
+        }
+        
         setState(() {
-          _selectedImages.addAll(pickedFiles.map((xFile) => File(xFile.path)).toList());
+          _selectedImages.addAll(validImages);
         });
       }
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Error picking images: $e")),
-      // );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error picking images: $e")),
+        );
+      }
     }
   }
 
@@ -635,20 +744,27 @@ class _AddBranchPageState extends State<AddBranchPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildFieldLabel("Category"),
-                            _buildDropdown(
-                              value: selectedCategory,
-                              items: categories.map((cat) => DropdownMenuItem(
-                                value: cat,
-                                child: Text(cat),
-                              )).toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  selectedCategory = value as String?;
-                                  selectedSubCategory = null;
-                                });
-                              },
-                              hint: "Category",
-                            ),
+                            if (_isLoadingCategories)
+                              _buildLoadingCategoryField()
+                            else if (_categoriesError != null)
+                              _buildErrorCategoryField()
+                            else if (categories.isEmpty)
+                              _buildEmptyCategoryField()
+                            else
+                              _buildDropdown(
+                                value: selectedCategory,
+                                items: categories.map((cat) => DropdownMenuItem(
+                                  value: cat,
+                                  child: Text(cat),
+                                )).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedCategory = value as String?;
+                                    selectedSubCategory = null;
+                                  });
+                                },
+                                hint: "Category",
+                              ),
                           ],
                         ),
                       ),
@@ -658,22 +774,29 @@ class _AddBranchPageState extends State<AddBranchPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildFieldLabel("Sub Category"),
-                            _buildDropdown(
-                              value: selectedSubCategory,
-                              items: (selectedCategory != null && subCategories.containsKey(selectedCategory))
-                                  ? subCategories[selectedCategory]!.map((subCat) => DropdownMenuItem(
-                                value: subCat,
-                                child: Text(subCat),
-                              )).toList()
-                                  : [],
-                              onChanged: (value) {
-                                setState(() {
-                                  selectedSubCategory = value as String?;
-                                });
-                              },
-                              hint: "Sub Category",
-                              isEnabled: selectedCategory != null,
-                            ),
+                            if (_isLoadingCategories)
+                              _buildLoadingSubCategoryField()
+                            else if (_categoriesError != null)
+                              _buildErrorSubCategoryField()
+                            else if (selectedCategory == null)
+                              _buildDisabledSubCategoryField()
+                            else if (subCategories[selectedCategory]?.isEmpty ?? true)
+                              _buildEmptySubCategoryField()
+                            else
+                              _buildDropdown(
+                                value: selectedSubCategory,
+                                items: subCategories[selectedCategory]!.map((subCat) => DropdownMenuItem(
+                                  value: subCat,
+                                  child: Text(subCat),
+                                )).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedSubCategory = value as String?;
+                                  });
+                                },
+                                hint: "Sub Category",
+                                isEnabled: true,
+                              ),
                           ],
                         ),
                       ),
@@ -861,8 +984,14 @@ class _AddBranchPageState extends State<AddBranchPage> {
     };
 
     try {
-      // Call API service to update branch
-      await ApiService.updateBranch(widget.token, branchId, updatedBranchData, _selectedImages, _selectedVideos);
+      // Compress images before sending to prevent 413 error
+      List<File> compressedImages = [];
+      if (_selectedImages.isNotEmpty) {
+        compressedImages = await _compressImages(_selectedImages);
+      }
+
+      // Call API service to update branch with compressed images
+      await ApiService.updateBranch(widget.token, branchId, updatedBranchData, compressedImages, _selectedVideos);
 
       // ScaffoldMessenger.of(context).showSnackBar(
       //   SnackBar(content: Text("Branch updated successfully!")),
@@ -916,8 +1045,14 @@ class _AddBranchPageState extends State<AddBranchPage> {
     };
 
     try {
-      // Call API to upload branch with images
-      await ApiService.uploadBranchData(branchData, _selectedImages, _selectedVideos);
+      // Compress images before sending to prevent 413 error
+      List<File> compressedImages = [];
+      if (_selectedImages.isNotEmpty) {
+        compressedImages = await _compressImages(_selectedImages);
+      }
+
+      // Call API to upload branch with compressed images
+      await ApiService.uploadBranchData(branchData, compressedImages, _selectedVideos);
 
       // Clear form
       _nameController.clear();
@@ -1013,6 +1148,147 @@ class _AddBranchPageState extends State<AddBranchPage> {
         icon: Icon(Icons.keyboard_arrow_down),
         items: items,
         onChanged: isEnabled ? onChanged : null,
+      ),
+    );
+  }
+
+  Widget _buildLoadingCategoryField() {
+    return Container(
+      width: double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+
+  Widget _buildErrorCategoryField() {
+    return Container(
+      width: double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.red.shade300),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Center(
+              child: Text(
+                "Failed to load categories",
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _loadCategories,
+            child: Text(
+              "Retry",
+              style: TextStyle(color: Colors.blue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyCategoryField() {
+    return Container(
+      width: double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Center(
+        child: Text("No categories available"),
+      ),
+    );
+  }
+
+  Widget _buildLoadingSubCategoryField() {
+    return Container(
+      width: double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+
+  Widget _buildErrorSubCategoryField() {
+    return Container(
+      width: double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.red.shade300),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Center(
+              child: Text(
+                "Failed to load subcategories",
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _loadCategories,
+            child: Text(
+              "Retry",
+              style: TextStyle(color: Colors.blue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDisabledSubCategoryField() {
+    return Container(
+      width: double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Center(
+        child: Text("Select a category first"),
+      ),
+    );
+  }
+
+  Widget _buildEmptySubCategoryField() {
+    return Container(
+      width: double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Center(
+        child: Text(
+          "No subcategories available (backend doesn't provide subcategories yet)",
+          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }

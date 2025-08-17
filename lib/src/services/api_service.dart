@@ -951,22 +951,32 @@ class ApiService {
         final responseData = json.decode(response.body);
         final branches = responseData['data'] ?? [];
         if (!kReleaseMode) {
-          print('Retrieved \\${branches.length} branches');
+          print('ApiService: Retrieved ${branches.length} branches');
+          print('ApiService: Full response: $responseData');
         }
 
-        // Debug print to check video data
+        // Debug print to check branch data structure
         for (var branch in branches) {
           if (!kReleaseMode) {
-            print('Branch \\${branch['name']} videos: \\${branch['videos']}');
+            print('ApiService: Branch ${branch['name']} - Full data: $branch');
+            print('ApiService: Branch ${branch['name']} - images: ${branch['images']}');
+            print('ApiService: Branch ${branch['name']} - videos: ${branch['videos']}');
+            print('ApiService: Branch ${branch['name']} - images type: ${branch['images'].runtimeType}');
+            if (branch['images'] is List) {
+              print('ApiService: Branch ${branch['name']} - images length: ${(branch['images'] as List).length}');
+              for (int i = 0; i < (branch['images'] as List).length; i++) {
+                print('ApiService: Branch ${branch['name']} - image $i: ${(branch['images'] as List)[i]}');
+              }
+            }
           }
         }
 
         return branches;
       } else {
         if (!kReleaseMode) {
-          print('Error response: \\${response.body}');
+          print('Error response: ${response.body}');
         }
-        throw Exception('Failed to load branches: \\${response.statusCode}');
+        throw Exception('Failed to load branches: ${response.statusCode}');
       }
     } catch (e) {
       print('Error getting branches: $e');
@@ -1015,10 +1025,10 @@ class ApiService {
       // Fix the URL to match the backend route
       final uri = Uri.parse('$baseUrl/api/companies/branches/$branchId');
 
-      // Add headers with authentication token
+      // For multipart requests, don't set Content-Type header as it will be set automatically
       Map<String, String> headers = {
         'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
+        // Remove Content-Type for multipart requests
       };
 
       // Format data to match the backend expectations
@@ -1109,11 +1119,13 @@ class ApiService {
       
       var response = await http.Response.fromStream(streamedResponse);
 
-      if (response.statusCode != 200) {
-        throw Exception('Failed to update branch: ${response.body}');
+      if (response.statusCode == 200) {
+        print('Branch updated successfully');
+        return;
+      } else {
+        print('Failed to update branch. Status: ${response.statusCode}, Body: ${response.body}');
+        throw Exception('Failed to update branch: ${response.statusCode} - ${response.body}');
       }
-
-      print('Branch updated successfully');
     } catch (e) {
       print('Error updating branch: $e');
       throw Exception('Failed to update branch: $e');
@@ -2949,11 +2961,30 @@ static Future<List<NotificationModel>> fetchNotifications() async {
   // Get sponsored wholesalers
   static Future<List<Map<String, dynamic>>> getSponsoredWholesalers() async {
     try {
-      // This would need to be implemented based on your wholesaler API structure
-      // For now, returning empty list - you'll need to implement this based on your API
-      return [];
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/wholesalers'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final List<dynamic> wholesalersData = responseData['data'] ?? [];
+        
+        // Filter wholesalers that have sponsorship: true
+        final List<Map<String, dynamic>> sponsoredWholesalers = wholesalersData
+            .where((wholesaler) => wholesaler['sponsorship'] == true)
+            .map((wholesaler) => Map<String, dynamic>.from(wholesaler))
+            .toList();
+
+        print('Found ${sponsoredWholesalers.length} sponsored wholesalers');
+        return sponsoredWholesalers;
+      } else {
+        print('Failed to fetch wholesalers: ${response.statusCode}');
+        return [];
+      }
     } catch (e) {
-      print('Error fetching sponsored wholesalers: $e');
+      print('Error fetching wholesalers: $e');
       return [];
     }
   }
@@ -2995,6 +3026,220 @@ static Future<List<NotificationModel>> fetchNotifications() async {
     } catch (e) {
       print('Error fetching sponsored branches: $e');
       return [];
+    }
+  }
+
+  // Get all categories from backend with logo data
+  static Future<Map<String, Map<String, dynamic>>> getAllCategoriesWithLogos() async {
+    try {
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/categories'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final List<dynamic> categoriesData = responseData['data'] ?? [];
+        
+        // Convert the backend response to include logo data
+        final Map<String, Map<String, dynamic>> categoriesMap = {};
+        
+        for (var category in categoriesData) {
+          if (category['name'] != null) {
+            final String categoryName = category['name'];
+            
+            // Parse subcategories from the backend response
+            List<String> subcategories = [];
+            if (category['subcategories'] != null) {
+              final subcategoriesData = category['subcategories'] as List<dynamic>;
+              subcategories = subcategoriesData.map((sub) => sub.toString()).toList();
+            }
+            
+            // Get logo URL for the category
+            String? logoUrl;
+            if (category['logo'] != null && category['logo'].toString().isNotEmpty) {
+              logoUrl = category['logo'].toString();
+              // Convert relative paths to full URLs
+              if (!logoUrl.startsWith('http')) {
+                logoUrl = logoUrl.startsWith('/') ? '$baseUrl$logoUrl' : '$baseUrl/$logoUrl';
+              }
+            }
+            
+            // Get color from backend, with fallback to default
+            String color = '#2079C2'; // Default fallback color
+            if (category['color'] != null && category['color'].toString().isNotEmpty) {
+              color = category['color'].toString();
+            }
+            
+            // Get description if available
+            String? description;
+            if (category['description'] != null) {
+              description = category['description'].toString();
+            }
+            
+            categoriesMap[categoryName] = {
+              'subcategories': subcategories,
+              'logo': logoUrl,
+              'description': description,
+              'color': color,
+              'id': category['id'],
+              'createdAt': category['createdAt'],
+              'updatedAt': category['updatedAt'],
+            };
+            
+            // Debug logging for each category
+            print('Parsed category: "$categoryName" with ${subcategories.length} subcategories, logo: $logoUrl, color: $color');
+          }
+        }
+
+        print('Successfully fetched ${categoriesMap.length} categories from backend');
+        print('Categories: ${categoriesMap.keys.toList()}');
+        
+        // Debug: Print the final map structure
+        categoriesMap.forEach((category, data) {
+          print('Final map entry: "$category" -> $data');
+        });
+        
+        return categoriesMap;
+      } else {
+        print('Failed to fetch categories: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        // Return empty map on error
+        return {};
+      }
+    } catch (e) {
+      print('Error fetching categories: $e');
+      // Return empty map on error
+      return {};
+    }
+  }
+
+  // Get all categories from backend (legacy method for backward compatibility)
+  static Future<Map<String, List<String>>> getAllCategories() async {
+    try {
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/categories'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final List<dynamic> categoriesData = responseData['data'] ?? [];
+        
+        // Convert the backend response to the expected format
+        final Map<String, List<String>> categoriesMap = {};
+        
+        for (var category in categoriesData) {
+          if (category['name'] != null) {
+            final String categoryName = category['name'];
+            
+            // Parse subcategories from the backend response
+            List<String> subcategories = [];
+            if (category['subcategories'] != null) {
+              final subcategoriesData = category['subcategories'] as List<dynamic>;
+              subcategories = subcategoriesData.map((sub) => sub.toString()).toList();
+            }
+            
+            categoriesMap[categoryName] = subcategories;
+            
+            // Debug logging for each category
+            print('Parsed category: "$categoryName" with ${subcategories.length} subcategories: $subcategories');
+          }
+        }
+
+        print('Successfully fetched ${categoriesMap.length} categories from backend');
+        print('Categories: ${categoriesMap.keys.toList()}');
+        
+        // Debug: Print the final map structure
+        categoriesMap.forEach((category, subs) {
+          print('Final map entry: "$category" -> $subs');
+        });
+        
+        return categoriesMap;
+      } else {
+        print('Failed to fetch categories: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        // Return empty map on error
+        return {};
+      }
+    } catch (e) {
+      print('Error fetching categories: $e');
+      // Return empty map on error
+      return {};
+    }
+  }
+
+  // Get all wholesaler categories from backend
+  static Future<Map<String, List<String>>> getAllWholesalerCategories() async {
+    print('=== WHOLESALER CATEGORIES METHOD CALLED ===');
+    print('Method: getAllWholesalerCategories');
+    print('Return type: Map<String, List<String>>');
+    
+    try {
+      final url = '$baseUrl/api/wholesaler-categories';
+      print('getAllWholesalerCategories: Calling endpoint: $url');
+      
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      print('getAllWholesalerCategories: Response status: ${response.statusCode}');
+      print('getAllWholesalerCategories: Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final List<dynamic> categoriesData = responseData['data'] ?? [];
+        
+        print('getAllWholesalerCategories: Parsed response data: $responseData');
+        print('getAllWholesalerCategories: Categories data: $categoriesData');
+        
+        // Convert the backend response to the expected format
+        final Map<String, List<String>> categoriesMap = {};
+        
+        for (var category in categoriesData) {
+          if (category['name'] != null) {
+            final String categoryName = category['name'];
+            
+            // Parse subcategories from the backend response
+            List<String> subcategories = [];
+            if (category['subcategories'] != null) {
+              final subcategoriesData = category['subcategories'] as List<dynamic>;
+              subcategories = subcategoriesData.map((sub) => sub.toString()).toList();
+            }
+            
+            categoriesMap[categoryName] = subcategories;
+            
+            // Debug logging for each category
+            print('Parsed wholesaler category: "$categoryName" with ${subcategories.length} subcategories: $subcategories');
+          }
+        }
+
+        print('Successfully fetched ${categoriesMap.length} wholesaler categories from backend');
+        print('Wholesaler Categories: ${categoriesMap.keys.toList()}');
+        
+        // Debug: Print the final map structure
+        categoriesMap.forEach((category, subs) {
+          print('Final wholesaler map entry: "$category" -> $subs');
+        });
+        
+        print('=== WHOLESALER CATEGORIES METHOD COMPLETED ===');
+        return categoriesMap;
+      } else {
+        print('Failed to fetch wholesaler categories: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        print('=== WHOLESALER CATEGORIES METHOD FAILED ===');
+        // Return empty map on error
+        return {};
+      }
+    } catch (e) {
+      print('Error fetching wholesaler categories: $e');
+      print('=== WHOLESALER CATEGORIES METHOD ERROR ===');
+      // Return empty map on error
+      return {};
     }
   }
 }

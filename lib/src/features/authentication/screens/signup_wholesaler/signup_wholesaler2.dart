@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../custom_header.dart';
 import '../white_headr.dart';
+import '../../../../services/api_service.dart';
 
 class SignupWholesaler2 extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -22,112 +23,11 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
   final TextEditingController _businessNameController = TextEditingController();
   String? _selectedIndustry;
   String? _selectedSubCategory;
+  bool _isLoadingCategories = true;
+  String? _categoriesError;
 
-  // Map to store subcategories for each industry type
-  final Map<String, List<String>> _subCategoriesMap = {
-    'Food & Beverage': [
-      'Fresh Produce',
-      'Dairy Products',
-      'Meat & Poultry',
-      'Seafood',
-      'Bakery Items',
-      'Beverages',
-      'Frozen Foods',
-      'Canned Goods',
-      'Spices & Condiments',
-      'Snacks & Confectionery'
-    ],
-    'Electronics': [
-      'Consumer Electronics',
-      'Computer Hardware',
-      'Mobile Devices',
-      'Audio Equipment',
-      'TV & Video',
-      'Gaming Consoles',
-      'Accessories',
-      'Office Equipment'
-    ],
-    'Textiles & Clothing': [
-      'Men\'s Apparel',
-      'Women\'s Apparel',
-      'Children\'s Clothing',
-      'Footwear',
-      'Accessories',
-      'Fabrics',
-      'Home Textiles',
-      'Sportswear'
-    ],
-    'Construction & Building': [
-      'Building Materials',
-      'Plumbing Supplies',
-      'Electrical Equipment',
-      'Tools & Hardware',
-      'Paint & Coatings',
-      'Flooring Materials',
-      'Roofing Materials',
-      'Safety Equipment'
-    ],
-    'Automotive': [
-      'Auto Parts',
-      'Tires & Wheels',
-      'Lubricants',
-      'Tools & Equipment',
-      'Accessories',
-      'Batteries',
-      'Filters',
-      'Body Parts'
-    ],
-    'Health & Beauty': [
-      'Cosmetics',
-      'Personal Care',
-      'Hair Products',
-      'Skin Care',
-      'Fragrances',
-      'Health Supplements',
-      'Medical Supplies',
-      'Beauty Tools'
-    ],
-    'Home & Garden': [
-      'Furniture',
-      'Home Decor',
-      'Kitchenware',
-      'Garden Supplies',
-      'Lighting',
-      'Cleaning Supplies',
-      'Storage Solutions',
-      'Outdoor Living'
-    ],
-    'Industrial & Manufacturing': [
-      'Raw Materials',
-      'Industrial Tools',
-      'Machinery Parts',
-      'Safety Equipment',
-      'Packaging Materials',
-      'Chemical Supplies',
-      'Industrial Electronics',
-      'Maintenance Supplies'
-    ],
-    'Office & Stationery': [
-      'Paper Products',
-      'Writing Instruments',
-      'Office Furniture',
-      'Filing Systems',
-      'Art Supplies',
-      'School Supplies',
-      'Desk Accessories',
-      'Presentation Materials'
-    ],
-    'Sports & Recreation': [
-      'Sports Equipment',
-      'Fitness Gear',
-      'Outdoor Recreation',
-      'Team Sports',
-      'Exercise Equipment',
-      'Sports Apparel',
-      'Camping Gear',
-      'Water Sports'
-    ]
-  };
+  // Dynamic categories map that will be populated from backend
+  Map<String, List<String>> _subCategoriesMap = {};
 
   String _countryCode = '+961';
 
@@ -139,6 +39,7 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     // Set initial avatar text based on user's name
     if (widget.userData.containsKey('name') && widget.userData['name'].toString().isNotEmpty) {
       final nameParts = widget.userData['name'].toString().split(' ');
@@ -146,6 +47,103 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
         _avatarText = "${nameParts[0][0]}${nameParts[1][0]}".toUpperCase();
       } else if (nameParts.length == 1) {
         _avatarText = nameParts[0][0].toUpperCase();
+      }
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+        _categoriesError = null;
+      });
+
+      print('SignupWholesaler2: Loading wholesaler categories from backend...');
+      print('SignupWholesaler2: About to call ApiService.getAllWholesalerCategories()');
+      print('=== SIGNUP WHOLESALER2 CALLING WHOLESALER CATEGORIES ===');
+      print('SignupWholesaler2: Method signature check - ApiService.getAllWholesalerCategories exists: ${ApiService.getAllWholesalerCategories != null}');
+      print('SignupWholesaler2: Method type: ${ApiService.getAllWholesalerCategories.runtimeType}');
+      print('SignupWholesaler2: Method name: ${ApiService.getAllWholesalerCategories.toString()}');
+      print('SignupWholesaler2: Method signature: ${ApiService.getAllWholesalerCategories.runtimeType.toString()}');
+      print('SignupWholesaler2: Method hash code: ${ApiService.getAllWholesalerCategories.hashCode}');
+      print('SignupWholesaler2: Method toString: ${ApiService.getAllWholesalerCategories.toString()}');
+      print('SignupWholesaler2: Method runtimeType: ${ApiService.getAllWholesalerCategories.runtimeType}');
+      print('SignupWholesaler2: Method toString: ${ApiService.getAllWholesalerCategories.toString()}');
+      final categories = await ApiService.getAllWholesalerCategories();
+      print('=== SIGNUP WHOLESALER2 RECEIVED WHOLESALER CATEGORIES ===');
+      print('SignupWholesaler2: Received wholesaler categories: $categories');
+      print('SignupWholesaler2: Categories count: ${categories.length}');
+      print('SignupWholesaler2: Categories type: ${categories.runtimeType}');
+      
+      if (mounted) {
+        // Check if we received valid categories
+        if (categories.isEmpty) {
+          setState(() {
+            _isLoadingCategories = false;
+            _categoriesError = 'No categories available from the server. Please try again later.';
+            _subCategoriesMap = {};
+          });
+          return;
+        }
+        
+        // Validate that categories have the expected structure
+        bool hasValidStructure = true;
+        for (var entry in categories.entries) {
+          if (entry.key.isEmpty || entry.value == null) {
+            hasValidStructure = false;
+            break;
+          }
+        }
+        
+        if (!hasValidStructure) {
+          setState(() {
+            _isLoadingCategories = false;
+            _categoriesError = 'Invalid category data received from server. Please try again later.';
+            _subCategoriesMap = {};
+          });
+          return;
+        }
+        
+        setState(() {
+          _subCategoriesMap = categories;
+          _isLoadingCategories = false;
+          
+          // Reset selected industry if it's no longer in the loaded categories
+          if (_selectedIndustry != null && !categories.containsKey(_selectedIndustry)) {
+            _selectedIndustry = null;
+            _selectedSubCategory = null;
+          }
+        });
+        
+        print('SignupWholesaler2: Categories loaded successfully. Count: ${categories.length}');
+        categories.forEach((category, subcategories) {
+          print('SignupWholesaler2: Category "$category" has ${subcategories.length} subcategories: $subcategories');
+        });
+      }
+    } catch (e) {
+      print('SignupWholesaler2: Error loading wholesaler categories: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCategories = false;
+          
+          // Provide more user-friendly error messages
+          String errorMessage;
+          if (e.toString().contains('SocketException') || e.toString().contains('NetworkException')) {
+            errorMessage = 'Network error. Please check your internet connection and try again.';
+          } else if (e.toString().contains('TimeoutException')) {
+            errorMessage = 'Request timed out. Please try again.';
+          } else if (e.toString().contains('HandshakeException')) {
+            errorMessage = 'Connection failed. Please check your internet connection and try again.';
+          } else if (e.toString().contains('FormatException')) {
+            errorMessage = 'Invalid response from server. Please try again.';
+          } else {
+            errorMessage = 'Failed to load categories: $e';
+          }
+          
+          _categoriesError = errorMessage;
+          // No fallback categories - let the UI handle empty state
+          _subCategoriesMap = {};
+        });
       }
     }
   }
@@ -279,12 +277,20 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
                                     _buildIndustryTypeField(labelFontSize, inputTextFontSize),
                                     SizedBox(height: verticalSpacing),
 
-                                    // Sub-Category (Show only when category is selected)
-                                    if (_selectedIndustry != null)
+                                    // Show loading indicator for sub-category if categories are loading
+                                    if (_isLoadingCategories && _selectedIndustry != null)
+                                      _buildSubCategoryLoadingField(labelFontSize, inputTextFontSize),
+
+                                    // Sub-Category (Show only when category is selected and not loading)
+                                    if (_selectedIndustry != null && !_isLoadingCategories)
                                       _buildSubCategoryField(labelFontSize, inputTextFontSize),
 
-                                    if (_selectedIndustry != null)
+                                    if (_selectedIndustry != null && !_isLoadingCategories)
                                       SizedBox(height: verticalSpacing),
+
+                                    // Show error message if categories failed to load
+                                    if (_categoriesError != null)
+                                      _buildErrorMessage(_categoriesError!, labelFontSize),
 
                                     // Referral Code
                                     _buildReferralField(labelFontSize, inputTextFontSize),
@@ -313,6 +319,73 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
   }
 
   Widget _buildIndustryTypeField(double labelFontSize, double textFontSize) {
+    if (_isLoadingCategories) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Category',
+            style: GoogleFonts.nunito(
+              color: const Color(0xFFDBD5D5),
+              fontSize: labelFontSize,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 8),
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Loading categories...',
+                  style: GoogleFonts.nunito(
+                    color: Colors.white,
+                    fontSize: textFontSize,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_subCategoriesMap.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Category',
+            style: GoogleFonts.nunito(
+              color: const Color(0xFFDBD5D5),
+              fontSize: labelFontSize,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 8),
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'No categories available',
+              style: GoogleFonts.nunito(
+                color: Colors.red,
+                fontSize: textFontSize,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return DropdownButtonFormField<String>(
       value: _selectedIndustry,
       style: GoogleFonts.nunito(
@@ -353,6 +426,20 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
           _selectedIndustry = newValue;
           // Reset sub-category when industry changes
           _selectedSubCategory = null;
+          
+          // Show warning if selected category has no subcategories
+          if (newValue != null) {
+            final subCategories = _subCategoriesMap[newValue] ?? [];
+            if (subCategories.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('This category has no sub-categories available.'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          }
         });
       },
       icon: const Icon(Icons.arrow_drop_down, color: Colors.white, size: 38),
@@ -368,6 +455,33 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
   Widget _buildSubCategoryField(double labelFontSize, double textFontSize) {
     // Get the list of subcategories for the selected industry
     final subCategories = _subCategoriesMap[_selectedIndustry] ?? [];
+
+    if (subCategories.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sub-Category',
+            style: GoogleFonts.nunito(
+              color: const Color(0xFFDBD5D5),
+              fontSize: labelFontSize,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 8),
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'No sub-categories available for this category',
+              style: GoogleFonts.nunito(
+                color: Colors.orange,
+                fontSize: textFontSize * 0.9,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return DropdownButtonFormField<String>(
       value: _selectedSubCategory,
@@ -411,10 +525,53 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
       icon: const Icon(Icons.arrow_drop_down, color: Colors.white, size: 38),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please select a sub-category';
+          // Only require sub-category if subcategories are available
+          if (subCategories.isNotEmpty) {
+            return 'Please select a sub-category';
+          }
         }
         return null;
       },
+    );
+  }
+
+  Widget _buildSubCategoryLoadingField(double labelFontSize, double textFontSize) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Sub-Category',
+          style: GoogleFonts.nunito(
+            color: const Color(0xFFDBD5D5),
+            fontSize: labelFontSize,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Loading sub-categories...',
+                style: GoogleFonts.nunito(
+                  color: Colors.white,
+                  fontSize: textFontSize,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -475,6 +632,45 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
     );
   }
 
+  Widget _buildErrorMessage(String errorMessage, double labelFontSize) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            errorMessage,
+            style: GoogleFonts.nunito(
+              color: Colors.red,
+              fontSize: labelFontSize * 0.8,
+            ),
+          ),
+          SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: () {
+              _loadCategories();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Retry',
+              style: GoogleFonts.nunito(
+                fontSize: labelFontSize * 0.7,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNextButton(BoxConstraints constraints, double fontSize) {
     return Center(
       child: Container(
@@ -500,8 +696,124 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
           ],
         ),
         child: ElevatedButton(
-          onPressed: () {
+          onPressed: _isLoadingCategories ? null : () {
+            // Don't proceed if categories are still loading
+            if (_isLoadingCategories) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Please wait while categories are loading...'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+              return;
+            }
+
+            // Don't proceed if no categories are available
+            if (_subCategoriesMap.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('No categories available. Please try again later.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            // Don't proceed if no category is selected
+            if (_selectedIndustry == null || _selectedIndustry!.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Please select a business category.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            // Don't proceed if business name is empty
+            if (_businessNameController.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Please enter your business name.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            // Don't proceed if business name is too short
+            if (_businessNameController.text.trim().length < 2) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Business name must be at least 2 characters long.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            // Don't proceed if business name contains only special characters
+            final businessName = _businessNameController.text.trim();
+            if (businessName.replaceAll(RegExp(r'[^a-zA-Z0-9\s]'), '').isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Business name must contain letters or numbers.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            // Don't proceed if business name is too long
+            if (businessName.length > 100) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Business name must be less than 100 characters long.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            // Validate referral code format if provided
+            final referralCode = _referralController.text.trim();
+            if (referralCode.isNotEmpty) {
+              if (referralCode.length < 3 || referralCode.length > 20) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Referral code must be between 3 and 20 characters long.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              
+              if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(referralCode)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Referral code can only contain letters, numbers, hyphens, and underscores.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+            }
+
             if (_formKey.currentState!.validate()) {
+              // Additional validation for sub-category if subcategories exist
+              if (_selectedIndustry != null) {
+                final subCategories = _subCategoriesMap[_selectedIndustry] ?? [];
+                if (subCategories.isNotEmpty && (_selectedSubCategory == null || _selectedSubCategory!.isEmpty)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please select a sub-category'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                  }
+              }
+
               final updatedUserData = {...widget.userData};
               
               // Add business information
@@ -541,7 +853,7 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
             ),
           ),
           child: Text(
-            'Next',
+            _isLoadingCategories ? 'Loading...' : 'Next',
             style: GoogleFonts.nunito(
               fontSize: fontSize,
               fontWeight: FontWeight.w700,

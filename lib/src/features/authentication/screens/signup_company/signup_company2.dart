@@ -17,7 +17,7 @@ class SignupCompany2 extends StatefulWidget {
   _SignupCompany2State createState() => _SignupCompany2State();
 }
 
-class _SignupCompany2State extends State<SignupCompany2> {
+class _SignupCompany2State extends State<SignupCompany2> with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _businessNameController = TextEditingController();
   final TextEditingController _referralController = TextEditingController();
@@ -26,19 +26,94 @@ class _SignupCompany2State extends State<SignupCompany2> {
   String? _selectedIndustryType;
   String? _selectedSubCategory;
   File? _selectedImage;
+  bool _isLoadingCategories = true;
+  String? _categoriesError;
+  DateTime? _lastCategoriesUpdate;
 
-  // Map of industry types to their subcategories
-  final Map<String, List<String>> _industrySubcategories = {
-    'Hotels': ['Luxury', 'Budget', 'Resort', 'Boutique', 'Business'],
-    'Restaurant': ['Fast Food', 'Fine Dining', 'Casual Dining', 'Café', 'Bistro'],
-    'Technology': ['Software', 'Hardware', 'IT Services', 'Telecommunications', 'E-commerce'],
-    'Shops': ['Retail', 'Department Store', 'Specialty', 'Convenience', 'Online'],
-    'Stations': ['Gas', 'Train', 'Bus', 'Electric Charging', 'Metro'],
-    'Finance': ['Banking', 'Insurance', 'Investment', 'Accounting', 'Fintech'],
-    'Food & Beverage': ['Bakery', 'Beverage', 'Catering', 'Grocery', 'Specialty Food'],
-    'Real Estate': ['Residential', 'Commercial', 'Industrial', 'Property Management', 'Development'],
-    'Other': ['Education', 'Healthcare', 'Entertainment', 'Transportation', 'Miscellaneous'],
-  };
+  // Dynamic categories map that will be populated from backend
+  Map<String, List<String>> _industrySubcategories = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadCategories();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _businessNameController.dispose();
+    _referralController.dispose();
+    _customCategoryController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh categories when app is resumed
+      _loadCategories();
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+        _categoriesError = null;
+      });
+
+      print('SignupCompany2: Loading categories from backend...');
+      final categories = await ApiService.getAllCategories();
+      print('SignupCompany2: Received categories: $categories');
+      print('SignupCompany2: Categories type: ${categories.runtimeType}');
+      print('SignupCompany2: Categories length: ${categories.length}');
+      
+      if (mounted) {
+        setState(() {
+          _industrySubcategories = categories;
+          _isLoadingCategories = false;
+          _lastCategoriesUpdate = DateTime.now();
+        });
+        
+        // Debug logging for subcategories
+        print('SignupCompany2: Categories loaded successfully. Count: ${categories.length}');
+        categories.forEach((category, subcategories) {
+          print('SignupCompany2: Category "$category" has ${subcategories.length} subcategories: $subcategories');
+        });
+        
+        // Additional debug: Check if Hotels category exists and has subcategories
+        if (categories.containsKey('Hotels')) {
+          final hotelsSubs = categories['Hotels'] ?? [];
+          print('SignupCompany2: Hotels category found with ${hotelsSubs.length} subcategories: $hotelsSubs');
+        } else {
+          print('SignupCompany2: Hotels category NOT found in categories map');
+          print('SignupCompany2: Available categories: ${categories.keys.toList()}');
+        }
+      }
+    } catch (e) {
+      print('SignupCompany2: Error loading categories: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCategories = false;
+          _categoriesError = 'Failed to load categories: $e';
+          // Fallback to default categories if backend fails
+          _industrySubcategories = {
+            'Hotels': ['Luxury', 'Budget', 'Resort', 'Boutique', 'Business'],
+            'Restaurant': ['Fast Food', 'Fine Dining', 'Casual Dining', 'Café', 'Bistro'],
+            'Technology': ['Software', 'Hardware', 'IT Services', 'Telecommunications', 'E-commerce'],
+            'Shops': ['Retail', 'Department Store', 'Specialty', 'Convenience', 'Online'],
+            'Stations': ['Gas', 'Train', 'Bus', 'Electric Charging', 'Metro'],
+            'Finance': ['Banking', 'Insurance', 'Investment', 'Accounting', 'Fintech'],
+            'Food & Beverage': ['Bakery', 'Beverage', 'Catering', 'Grocery', 'Specialty Food'],
+            'Real Estate': ['Residential', 'Commercial', 'Industrial', 'Property Management', 'Development'],
+            'Other': ['Education', 'Healthcare', 'Entertainment', 'Transportation', 'Miscellaneous'],
+          };
+        });
+      }
+    }
+  }
 
   Future<void> _pickImage() async {
   final ImagePicker picker = ImagePicker();
@@ -139,16 +214,19 @@ class _SignupCompany2State extends State<SignupCompany2> {
                 Container(
                   color: const Color(0xFF05054F).withOpacity(0.77),
                 ),
-                // WhiteHeader
+                // WhiteHeader with z-index 100
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
                   child: Container(
                     height: 180,
-                    child: WhiteHeader(
-                      title: 'Sign Up',
-                      onBackPressed: () => Navigator.pop(context),
+                    child: Material(
+                      elevation: 100, // This gives it a high z-index effect
+                      child: WhiteHeader(
+                        title: 'Sign Up',
+                        onBackPressed: () => Navigator.pop(context),
+                      ),
                     ),
                   ),
                 ),
@@ -171,6 +249,7 @@ class _SignupCompany2State extends State<SignupCompany2> {
                             key: _formKey,
                             child: Column(
                               children: [
+                                
                                 SizedBox(height: 20),
                                 _buildUploadLogo(),
                                 SizedBox(height: 20),
@@ -259,7 +338,111 @@ class _SignupCompany2State extends State<SignupCompany2> {
   }
 
   Widget _buildIndustryTypeField() {
+    if (_isLoadingCategories) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Industry Type',
+            style: GoogleFonts.nunito(
+              color: Colors.white,
+              fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Loading categories...',
+                style: GoogleFonts.nunito(
+                  color: Colors.white70,
+                  fontSize: ResponsiveUtils.getInputTextFontSize(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    if (_categoriesError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Industry Type',
+            style: GoogleFonts.nunito(
+              color: Colors.white,
+              fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: Colors.orange,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Using fallback categories',
+                  style: GoogleFonts.nunito(
+                    color: Colors.orange,
+                    fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: _loadCategories,
+                child: Text(
+                  'Retry',
+                  style: GoogleFonts.nunito(
+                    color: Colors.blue[200],
+                    fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     final industryTypes = _industrySubcategories.keys.toList();
+
+    if (industryTypes.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Industry Type',
+            style: GoogleFonts.nunito(
+              color: Colors.white,
+              fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No categories available',
+            style: GoogleFonts.nunito(
+              color: Colors.white70,
+              fontSize: ResponsiveUtils.getInputTextFontSize(context),
+            ),
+          ),
+        ],
+      );
+    }
 
     return DropdownButtonFormField<String>(
       value: _selectedIndustryType,
@@ -303,8 +486,110 @@ class _SignupCompany2State extends State<SignupCompany2> {
   }
 
   Widget _buildSubCategoryField() {
+    // Only show subcategory field if an industry type is selected
+    if (_selectedIndustryType == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sub Category',
+            style: GoogleFonts.nunito(
+              color: Colors.white,
+              fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Please select an Industry Type first',
+            style: GoogleFonts.nunito(
+              color: Colors.white70,
+              fontSize: ResponsiveUtils.getInputTextFontSize(context),
+            ),
+          ),
+        ],
+      );
+    }
+
     // Get subcategories based on selected industry type
     final subcategories = _industrySubcategories[_selectedIndustryType] ?? [];
+
+    if (subcategories.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sub Category',
+            style: GoogleFonts.nunito(
+              color: Colors.white,
+              fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange,
+                      size: 16,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'No subcategories available',
+                      style: GoogleFonts.nunito(
+                        color: Colors.orange,
+                        fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.9,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'The backend doesn\'t provide subcategories for "${_selectedIndustryType}" yet. You can proceed without selecting a subcategory.',
+                  style: GoogleFonts.nunito(
+                    color: Colors.orange[700],
+                    fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: _loadCategories,
+                      child: Text(
+                        'Refresh Categories',
+                        style: GoogleFonts.nunito(
+                          color: Colors.blue[600],
+                          fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
+                        ),
+                      ),
+                    ),
+                    Spacer(),
+                    Text(
+                      'Last updated: ${_lastCategoriesUpdate != null ? _lastCategoriesUpdate!.toString().substring(11, 19) : 'Never'}',
+                      style: GoogleFonts.nunito(
+                        color: Colors.grey[600],
+                        fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.7,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return DropdownButtonFormField<String>(
       value: _selectedSubCategory,
@@ -321,6 +606,7 @@ class _SignupCompany2State extends State<SignupCompany2> {
         ),
         enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white)),
         focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+        
       ),
       items: subcategories
           .map((value) => DropdownMenuItem(
@@ -462,13 +748,5 @@ class _SignupCompany2State extends State<SignupCompany2> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _businessNameController.dispose();
-    _referralController.dispose();
-    _customCategoryController.dispose();
-    super.dispose();
   }
 }

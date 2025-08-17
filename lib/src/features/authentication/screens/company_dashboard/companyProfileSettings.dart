@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import '../../../../models/company_model.dart';
 import '../../../../services/company_service.dart';
 import '../../../../services/auth_service.dart';
@@ -266,12 +268,69 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
     );
   }
 
-  void _processSelectedImage(XFile? image) {
+  void _processSelectedImage(XFile? image) async {
     if (image != null) {
-      setState(() {
-        _selectedImage = File(image.path);
-        _isUsingNetworkImage = false;
-      });
+      try {
+        final file = File(image.path);
+        final fileSize = await file.length();
+        final maxSize = 5 * 1024 * 1024; // 5MB limit
+        
+        if (fileSize > maxSize) {
+          setState(() {
+            _errorMessage = 'Image file is too large. Please select a smaller image.';
+          });
+          return;
+        }
+        
+        // Compress and resize the image before setting it
+        final compressedImage = await _compressAndResizeImage(file);
+        setState(() {
+          _selectedImage = compressedImage;
+          _isUsingNetworkImage = false;
+        });
+      } catch (e) {
+        print('Error processing image: $e');
+        setState(() {
+          _errorMessage = 'Error processing image: $e';
+        });
+      }
+    }
+  }
+
+  Future<File> _compressAndResizeImage(File imageFile) async {
+    try {
+      // Read the image file
+      final bytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(bytes);
+      
+      if (image == null) {
+        throw Exception('Could not decode image');
+      }
+
+      // Resize image to reasonable dimensions (e.g., 512x512)
+      final resizedImage = img.copyResize(
+        image,
+        width: 512,
+        height: 512,
+        interpolation: img.Interpolation.linear,
+      );
+
+      // Compress the image with quality 85
+      final compressedBytes = img.encodeJpg(resizedImage, quality: 85);
+      
+      // Create a temporary file for the compressed image
+      final tempDir = Directory.systemTemp;
+      final tempFile = File('${tempDir.path}/compressed_logo_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      
+      await tempFile.writeAsBytes(compressedBytes);
+      
+      print('Image compressed: Original size: ${bytes.length} bytes, Compressed size: ${compressedBytes.length} bytes');
+      
+      return tempFile;
+    } catch (e) {
+      print('Error compressing image: $e');
+      // If compression fails, return the original image
+      return imageFile;
     }
   }
 

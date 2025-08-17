@@ -9,6 +9,7 @@ import 'package:geocoding/geocoding.dart';
 
 import '../../../../models/wholesaler_model.dart';
 import '../../../../services/wholesaler_service.dart';
+import '../../../../services/api_service.dart'; // Added import for ApiService
 
 class AddWholeSalerBranchPage extends StatefulWidget {
   final String token;
@@ -51,14 +52,11 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
   double? latitude;
   double? longitude;
 
-  // Sample categories and subcategories - replace with your actual data
-  final List<String> categories = ['Restaurant', 'Hotel', 'Shop', 'Office'];
-  final Map<String, List<String>> subCategories = {
-    'Restaurant': ['Fast Food', 'Fine Dining', 'Cafe'],
-    'Hotel': ['Resort', 'Boutique', 'Business'],
-    'Shop': ['Clothing', 'Electronics', 'Grocery'],
-    'Office': ['Corporate', 'Co-working', 'Agency'],
-  };
+  // Dynamic categories and subcategories loaded from backend
+  List<String> categories = [];
+  Map<String, List<String>> subCategories = {};
+  bool _isLoadingCategories = true;
+  String? _categoriesError;
 
   void _loadMediaFromExistingBranch() {
     if (widget.isEditMode && widget.branchData != null) {
@@ -86,10 +84,45 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     // Load existing data if in edit mode
     if (widget.isEditMode && widget.branchData != null) {
       _loadBranchData();
       _loadMediaFromExistingBranch();
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+        _categoriesError = null;
+      });
+
+      final categoriesData = await ApiService.getAllCategories();
+      
+      if (mounted) {
+        setState(() {
+          categories = categoriesData.keys.toList();
+          subCategories = categoriesData;
+          _isLoadingCategories = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingCategories = false;
+          _categoriesError = 'Failed to load categories: $e';
+          // Fallback to default categories if backend fails
+          categories = ['Restaurant', 'Hotel', 'Shop', 'Office'];
+          subCategories = {
+            'Restaurant': ['Fast Food', 'Fine Dining', 'Cafe'],
+            'Hotel': ['Resort', 'Boutique', 'Business'],
+            'Shop': ['Clothing', 'Electronics', 'Grocery'],
+            'Office': ['Corporate', 'Co-working', 'Agency'],
+          };
+        });
+      }
     }
   }
 

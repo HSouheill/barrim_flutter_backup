@@ -14,37 +14,17 @@ class FilterPage extends StatefulWidget {
 }
 
 class _FilterPageState extends State<FilterPage> {
-  String? _selectedCategory; // Now represents the industry type
-  String? _selectedSubCategory; // Now represents the subcategory
+  // Selected filter values
+  String? _selectedCategory;
+  String? _selectedSubCategory;
   String? _selectedDistance;
-  String? _selectedSortBy = 'Most Popular'; // Default selected
+  String _selectedSortBy = 'Most Popular';
   String? _profileImagePath;
-  String? _customDistanceValue;
 
-  final List<String> _categoryOptions = [
-    'All',
-    'Hotels',
-    'Restaurant',
-    'Technology',
-    'Shops',
-    'Stations',
-    'Finance',
-    'Food & Beverage',
-    'Real Estate',
-    'Other',
-  ];
-
-  final Map<String, List<String>> _categoryOptionsMap = {
-    'Hotels': ['All', 'Luxury', 'Budget', 'Resort', 'Boutique', 'Business'],
-    'Restaurant': ['All', 'Fast Food', 'Fine Dining', 'Casual Dining', 'Café', 'Bistro'],
-    'Technology': ['All', 'Software', 'Hardware', 'IT Services', 'Telecommunications', 'E-commerce'],
-    'Shops': ['All', 'Retail', 'Department Store', 'Specialty', 'Convenience', 'Online'],
-    'Stations': ['All', 'Gas', 'Train', 'Bus', 'Electric Charging', 'Metro'],
-    'Finance': ['All', 'Banking', 'Insurance', 'Investment', 'Accounting', 'Fintech'],
-    'Food & Beverage': ['All', 'Bakery', 'Beverage', 'Catering', 'Grocery', 'Specialty Food'],
-    'Real Estate': ['All', 'Residential', 'Commercial', 'Industrial', 'Property Management', 'Development'],
-    'Other': ['All', 'Education', 'Healthcare', 'Entertainment', 'Transportation', 'Miscellaneous'],
-  };
+  // Dynamic categories that will be loaded from backend
+  Map<String, List<String>> _categoryOptionsMap = {};
+  bool _isLoadingCategories = true;
+  String? _categoriesError;
 
   final List<String> _distanceOptions = ['1 km', '5 km', '10 km', '20 km', 'Custom...'];
   final List<String> _sortByOptions = [
@@ -58,6 +38,7 @@ class _FilterPageState extends State<FilterPage> {
 
   // Add new state variables
   List<String> _currentSubCategoryOptions = ['All'];
+  String? _customDistanceValue;
 
   void _handleNotificationTap() {
     // Implement notification tap logic
@@ -107,6 +88,49 @@ class _FilterPageState extends State<FilterPage> {
     }
   }
 
+  Future<void> _loadCategories() async {
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+        _categoriesError = null;
+      });
+
+      final categories = await ApiService.getAllCategories();
+      
+      if (mounted) {
+        // Add 'All' option to each category's subcategories
+        final Map<String, List<String>> categoriesWithAll = {};
+        categories.forEach((key, value) {
+          categoriesWithAll[key] = ['All', ...value];
+        });
+        
+        setState(() {
+          _categoryOptionsMap = categoriesWithAll;
+          _isLoadingCategories = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingCategories = false;
+          _categoriesError = 'Failed to load categories: $e';
+          // Fallback to default categories if backend fails
+          _categoryOptionsMap = {
+            'Hotels': ['All', 'Luxury', 'Budget', 'Resort', 'Boutique', 'Business'],
+            'Restaurant': ['All', 'Fast Food', 'Fine Dining', 'Casual Dining', 'Café', 'Bistro'],
+            'Technology': ['All', 'Software', 'Hardware', 'IT Services', 'Telecommunications', 'E-commerce'],
+            'Shops': ['All', 'Retail', 'Department Store', 'Specialty', 'Convenience', 'Online'],
+            'Stations': ['All', 'Gas', 'Train', 'Bus', 'Electric Charging', 'Metro'],
+            'Finance': ['All', 'Banking', 'Insurance', 'Investment', 'Accounting', 'Fintech'],
+            'Food & Beverage': ['All', 'Bakery', 'Beverage', 'Catering', 'Grocery', 'Specialty Food'],
+            'Real Estate': ['All', 'Residential', 'Commercial', 'Industrial', 'Property Management', 'Development'],
+            'Other': ['All', 'Education', 'Healthcare', 'Entertainment', 'Transportation', 'Miscellaneous'],
+          };
+        });
+      }
+    }
+  }
+
   // Helper method to get responsive padding
   double _getResponsivePadding(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -139,6 +163,7 @@ class _FilterPageState extends State<FilterPage> {
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     _fetchUserData();
   }
 
@@ -291,7 +316,7 @@ class _FilterPageState extends State<FilterPage> {
                   Expanded(
                     child: _buildDropdownSection(
                       'Type',
-                      _categoryOptions,
+                      _categoryOptionsMap.keys.toList(),
                       _selectedCategory,
                       (value) {
                         setState(() {
@@ -387,7 +412,7 @@ class _FilterPageState extends State<FilterPage> {
         // Category Dropdown (was Type)
         _buildDropdownSection(
           'Category',
-          _categoryOptions,
+          _categoryOptionsMap.keys.toList(),
           _selectedCategory,
           (value) {
             setState(() {
@@ -719,6 +744,150 @@ class _FilterPageState extends State<FilterPage> {
         ),
       );
     }
+
+    // Special handling for category dropdowns to show loading states
+    if (title == 'Type' || title == 'Category') {
+      if (_isLoadingCategories) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0094FF),
+                ),
+              ),
+              SizedBox(height: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Color(0xFF0094FF).withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF0094FF),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Loading categories...',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: ResponsiveUtils.getInputTextFontSize(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      if (_categoriesError != null) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0094FF),
+                ),
+              ),
+              SizedBox(height: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: Colors.orange,
+                      size: 16,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Using fallback categories',
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.9,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _loadCategories,
+                      child: Text(
+                        'Retry',
+                        style: TextStyle(
+                          color: Color(0xFF0094FF),
+                          fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      if (options.isEmpty) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0094FF),
+                ),
+              ),
+              SizedBox(height: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                ),
+                child: Text(
+                  'No categories available',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: ResponsiveUtils.getInputTextFontSize(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Column(

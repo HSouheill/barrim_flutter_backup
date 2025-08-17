@@ -11,6 +11,7 @@ import '../../../../services/user_provider.dart';
 import 'company_dashboard.dart';
 import '../login_page.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CompanySettingsPage extends StatefulWidget {
   const CompanySettingsPage({Key? key}) : super(key: key);
@@ -25,9 +26,13 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
   final AuthService _authService = AuthService();
   Map<String, dynamic> userData = {};
   String? companyEmail;
+  bool _isLoggingOut = false; // Add loading state for logout
   @override
   void initState() {
     super.initState();
+    print('CompanySettingsPage: initState called');
+    print('CompanySettingsPage: AuthService baseUrl: ${_authService.baseUrl}');
+    print('CompanySettingsPage: ApiService baseUrl: ${ApiService.baseUrl}');
     _loadCompanyData();
   }
 
@@ -56,26 +61,49 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
   }
 
   void _showLogoutConfirmationDialog() {
+    print('CompanySettingsPage: _showLogoutConfirmationDialog called');
     showDialog(
       context: context,
+      barrierDismissible: !_isLoggingOut, // Prevent dismissal while logging out
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Logout'),
           content: const Text('Are you sure you want to logout?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: _isLoggingOut ? null : () {
+                print('CompanySettingsPage: Cancel button pressed');
+                Navigator.pop(context);
+              },
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
+              onPressed: _isLoggingOut ? null : () {
+                print('CompanySettingsPage: Logout button pressed in dialog');
+                Navigator.pop(context);
+                print('CompanySettingsPage: About to call _performLogout()');
                 _performLogout();
               },
-              child: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.red),
-              ),
+              child: _isLoggingOut 
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('Logging out...'),
+                      ],
+                    )
+                  : const Text(
+                      'Logout',
+                      style: TextStyle(color: Colors.red),
+                    ),
             ),
           ],
         );
@@ -85,34 +113,92 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
 
   Future<void> _performLogout() async {
     try {
-      // Get UserProvider and clear user data
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      await userProvider.clearUserData(context);
+      print('CompanySettingsPage: _performLogout called');
+      
+      // Show loading indicator
+      setState(() {
+        _isLoggingOut = true;
+      });
+
+      print('CompanySettingsPage: Loading state set to true');
+
+      // Try to get UserProvider and clear user data
+      try {
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        print('CompanySettingsPage: UserProvider obtained');
+        await userProvider.clearUserData(context);
+        print('CompanySettingsPage: UserProvider data cleared');
+      } catch (e) {
+        print('CompanySettingsPage: Error with UserProvider: $e');
+        print('CompanySettingsPage: Continuing with other logout steps...');
+      }
 
       // Call the logout endpoint and clear token
+      print('CompanySettingsPage: Calling _authService.logout()');
       await _authService.logout();
+      print('CompanySettingsPage: _authService.logout() completed');
+
+      // Clear any stored company data
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('company_data');
+      await prefs.remove('company_contact_data');
+      await prefs.remove('auth_token');
+      await prefs.remove('user_data');
+      print('CompanySettingsPage: All local data cleared');
 
       // Navigate to login page and clear navigation stack
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => LoginPage()),
-        (route) => false,
-      );
+      if (mounted) {
+        print('CompanySettingsPage: Navigating to login page');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => LoginPage()),
+          (route) => false,
+        );
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Logged out successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Logged out successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      print('Error during logout: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error during logout: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('CompanySettingsPage: Error during logout: $e');
+      
+      // Even if there's an error, try to clear local data and navigate
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('company_data');
+        await prefs.remove('company_contact_data');
+        await prefs.remove('auth_token');
+        await prefs.remove('user_data');
+        
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => LoginPage()),
+            (route) => false,
+          );
+        }
+      } catch (clearError) {
+        print('CompanySettingsPage: Error clearing local data: $clearError');
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error during logout: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      // Always reset loading state
+      if (mounted) {
+        setState(() {
+          _isLoggingOut = false;
+        });
+        print('CompanySettingsPage: Loading state reset to false');
+      }
     }
   }
 
@@ -361,24 +447,35 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: ListTile(
-                leading: const Icon(
-                  Icons.exit_to_app, // Exit door icon
-                  color: Colors.white,
-                  size: 22,
-                ),
+                leading: _isLoggingOut
+                    ? SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.exit_to_app, // Exit door icon
+                        color: Colors.white,
+                        size: 22,
+                      ),
                 title: Text(
-                  'Logout',
+                  _isLoggingOut ? 'Logging out...' : 'Logout',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                     fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.7,
                   ),
                 ),
-                trailing: const Icon(
-                  Icons.chevron_right,
-                  color: Colors.white,
-                ),
-                onTap: () {
+                trailing: _isLoggingOut
+                    ? null
+                    : const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white,
+                      ),
+                onTap: _isLoggingOut ? null : () {
                   _showLogoutConfirmationDialog();
                 },
               ),

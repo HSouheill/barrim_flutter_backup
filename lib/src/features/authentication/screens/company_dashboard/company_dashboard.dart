@@ -175,6 +175,17 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
       }
       
       var branchesData = await ApiService.getCompanyBranches(token.toString());
+      
+      if (!kReleaseMode) {
+        print('CompanyDashboard: Loaded ${branchesData.length} branches from API');
+        for (int i = 0; i < branchesData.length; i++) {
+          final branch = branchesData[i];
+          print('CompanyDashboard: Branch $i: ${branch['name']}');
+          print('CompanyDashboard: Branch $i images: ${branch['images']}');
+          print('CompanyDashboard: Branch $i videos: ${branch['videos']}');
+        }
+      }
+      
       setState(() {
         branches = branchesData;
       });
@@ -548,7 +559,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
               crossAxisCount: 2,
               crossAxisSpacing: 12.0,
               mainAxisSpacing: 12.0,
-              childAspectRatio: 0.8,
+              childAspectRatio: 0.85, // Adjusted to prevent overflow
             ),
             itemCount: branches.length,
             itemBuilder: (context, index) {
@@ -559,101 +570,115 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                 print('Branch $index videos: ${branch['videos']}');
               }
 
-              return Stack(
-                children: [
-                  Column(
-                    children: [
-                      Container(
-                        height: 100,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          color: Colors.grey[200],
-                        ),
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: _buildBranchImage(branch),
-                            ),
-                            // Video indicator if videos exist
-                            if (branch['videos'] != null &&
-                                (branch['videos'] as List).isNotEmpty)
+              return Container(
+                constraints: BoxConstraints(
+                  maxHeight: 200, // Add max height constraint
+                ),
+                child: Stack(
+                  children: [
+                    Column(
+                      mainAxisSize: MainAxisSize.min, // Prevent column from expanding too much
+                      children: [
+                        Container(
+                          height: 100,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: Colors.grey[200],
+                          ),
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: _buildBranchImage(branch),
+                              ),
+                              // Video indicator if videos exist
+                              if (branch['videos'] != null &&
+                                  (branch['videos'] as List).isNotEmpty)
+                                Positioned(
+                                  bottom: 5,
+                                  right: 5,
+                                  child: Container(
+                                    padding: EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.7),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.videocam,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
                               Positioned(
-                                bottom: 5,
-                                right: 5,
-                                child: Container(
-                                  padding: EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.7),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.videocam,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                ),
-                              ),
-                            Positioned(
-                              top: 5,
-                              left: 5,
-                              child: GestureDetector(
-                                onTap: () => _navigateToEditBranch(branch),
-                                child: Container(
-                                  padding: EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.7),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.edit,
-                                    color: Colors.blue,
-                                    size: 16,
+                                top: 5,
+                                left: 5,
+                                child: GestureDetector(
+                                  onTap: () => _navigateToEditBranch(branch),
+                                  child: Container(
+                                    padding: EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.7),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.edit,
+                                      color: Colors.blue,
+                                      size: 16,
+                                    ),
                                   ),
                                 ),
                               ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Flexible(
+                          child: Text(
+                            branch['name']?.toString() ?? 'Branch ${index + 1}',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
                             ),
-                          ],
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        branch['name']?.toString() ?? 'Branch ${index + 1}',
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
+                        Flexible(
+                          child: Text(
+                            formatLocation(branch),
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
                         ),
-                      ),
-                      Text(
-                        formatLocation(branch),
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: () => _showDeleteConfirmation(branch),
-                      child: Container(
-                        padding: EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 16,
+                      ],
+                    ),
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () => _showDeleteConfirmation(branch),
+                        child: Container(
+                          padding: EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               );
             },
           ),
@@ -1037,9 +1062,17 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     try {
       // Check if branch has images
       final images = branch['images'];
+      if (!kReleaseMode) {
+        print("_buildBranchImage: Branch ${branch['name']} - images: $images");
+        print("_buildBranchImage: Branch data: $branch");
+      }
+      
       if (images == null ||
           (images is List && images.isEmpty) ||
           (images is bool)) {
+        if (!kReleaseMode) {
+          print("_buildBranchImage: No images found, showing store icon");
+        }
         return Center(
           child: Icon(
             Icons.store,
@@ -1053,6 +1086,9 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
       if ((videos != null && videos is List && videos.isNotEmpty) &&
           (branch['images'] == null ||
               (branch['images'] is List && (branch['images'] as List).isEmpty))) {
+        if (!kReleaseMode) {
+          print("_buildBranchImage: Only videos found, showing video icon");
+        }
         return Stack(
           children: [
             Center(
@@ -1071,6 +1107,9 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
       if (images is List && images.isNotEmpty) {
         final imagePath = images[0];
         if (imagePath == null || imagePath is! String) {
+          if (!kReleaseMode) {
+            print("_buildBranchImage: Invalid image path: $imagePath");
+          }
           return Center(
             child: Icon(
               Icons.store,
@@ -1082,17 +1121,30 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
 
         // Print for debugging
         if (!kReleaseMode) {
-          print("Loading image from path: $imagePath");
+          print("_buildBranchImage: Loading image from path: $imagePath");
         }
 
         if (imagePath.startsWith('http')) {
           // It's already a full URL
+          if (!kReleaseMode) {
+            print("_buildBranchImage: Using full URL: $imagePath");
+          }
           return Image.network(
             imagePath,
             fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              );
+            },
             errorBuilder: (context, error, stackTrace) {
               if (!kReleaseMode) {
-                print("Error loading network image: $error");
+                print("_buildBranchImage: Error loading network image: $error");
               }
               return Icon(Icons.image_not_supported, size: 40, color: Colors.grey[400]);
             },
@@ -1101,15 +1153,25 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           // It's a server-side path, convert it to a full URL
           final fullImageUrl = '${ApiService.baseUrl}/$imagePath';
           if (!kReleaseMode) {
-            print("Converted to full URL: $fullImageUrl");
+            print("_buildBranchImage: Converted to full URL: $fullImageUrl");
           }
 
           return Image.network(
             fullImageUrl,
             fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              );
+            },
             errorBuilder: (context, error, stackTrace) {
               if (!kReleaseMode) {
-                print("Error loading network image: $error");
+                print("_buildBranchImage: Error loading network image: $error");
               }
               return Icon(Icons.image_not_supported, size: 40, color: Colors.grey[400]);
             },
@@ -1117,6 +1179,9 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         }
       }
 
+      if (!kReleaseMode) {
+        print("_buildBranchImage: No valid images found, showing store icon");
+      }
       return Center(
         child: Icon(
           Icons.store,
@@ -1126,7 +1191,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
       );
     } catch (e) {
       if (!kReleaseMode) {
-        print("Exception while building branch image: $e");
+        print("_buildBranchImage: Exception while building branch image: $e");
       }
       return Center(
         child: Icon(

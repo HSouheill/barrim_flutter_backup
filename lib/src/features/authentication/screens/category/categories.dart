@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
-// Remove or rename this import to avoid the Context conflict
-// import 'package:path/path.dart' as path_helper;  // Use with alias to avoid conflict
 
-import '../../headers/sidebar.dart';
 import '../user_dashboard/notification.dart';
 import 'category_filter.dart';
 import 'category_places.dart';
 import '../user_dashboard/home.dart';
 import '../workers/worker_home.dart';
-import '../booking/myboooking.dart';
 import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
@@ -18,7 +14,7 @@ import 'package:barrim/src/utils/authService.dart';
 
 class CategoryData {
   final String id;
-  final String iconPath;
+  final String? logoUrl; // Changed from iconPath to logoUrl
   final String title;
   final Color color;
   final double price; // For price filtering
@@ -28,7 +24,7 @@ class CategoryData {
 
   CategoryData({
     required this.id,
-    required this.iconPath,
+    this.logoUrl, // Made optional since it might not be available
     required this.title,
     required this.color,
     required this.price,
@@ -48,11 +44,18 @@ class CategoriesPage extends StatefulWidget {
 class _CategoriesPageState extends State<CategoriesPage> {
   bool _isSidebarOpen = false;
   String? _profileImagePath;
+  bool _isLoadingCategories = true;
+  String? _categoriesError;
+
+  // Dynamic categories loaded from backend
+  List<CategoryData> _allCategories = [];
+  List<CategoryData> _filteredCategories = [];
+  List<CategoryData> _featuredCategories = [];
 
   @override
   void initState() {
     super.initState();
-    _applyFilters(_filterOptions);
+    _loadCategories();
     _fetchUserData();
   }
 
@@ -68,6 +71,109 @@ class _CategoriesPageState extends State<CategoriesPage> {
     } catch (e) {
       print('Error fetching user data: $e');
     }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+        _categoriesError = null;
+      });
+
+      print('CategoriesPage: Loading categories from backend...');
+      final categoriesData = await ApiService.getAllCategoriesWithLogos();
+      print('CategoriesPage: Received categories: $categoriesData');
+      
+      if (mounted) {
+        // Convert backend categories to CategoryData objects
+        final List<CategoryData> backendCategories = [];
+        
+        for (var entry in categoriesData.entries) {
+          final categoryName = entry.key;
+          final categoryData = entry.value;
+          
+          // Parse color from hex string or use default
+          Color categoryColor = Colors.blue;
+          if (categoryData['color'] != null) {
+            try {
+              categoryColor = Color(int.parse(categoryData['color'].toString().replaceFirst('#', '0xFF')));
+            } catch (e) {
+              print('Error parsing color for category $categoryName: $e');
+              categoryColor = Colors.blue;
+            }
+          }
+          
+          final category = CategoryData(
+            id: categoryName.toLowerCase().replaceAll(' ', '_'),
+            logoUrl: categoryData['logo'],
+            title: categoryName,
+            color: categoryColor,
+            price: _getDefaultPriceForCategory(categoryName),
+            rating: _getDefaultRatingForCategory(categoryName),
+            isOpen: true,
+            distance: _getDefaultDistanceForCategory(categoryName),
+          );
+          backendCategories.add(category);
+        }
+
+        setState(() {
+          _allCategories = backendCategories;
+          _isLoadingCategories = false;
+        });
+        
+        print('CategoriesPage: Categories loaded successfully. Count: ${_allCategories.length}');
+        print('CategoriesPage: Categories: ${_allCategories.map((c) => c.title).toList()}');
+        
+        // Apply initial filters after categories are loaded
+        _applyFilters(_filterOptions);
+      }
+    } catch (e) {
+      print('CategoriesPage: Error loading categories: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCategories = false;
+          _categoriesError = 'Failed to load categories: $e';
+          _allCategories = [];
+          _filteredCategories = [];
+          _featuredCategories = [];
+        });
+      }
+    }
+  }
+
+  // Helper method to get default price for a category
+  double _getDefaultPriceForCategory(String categoryName) {
+    final categoryLower = categoryName.toLowerCase();
+    
+    if (categoryLower.contains('food') || categoryLower.contains('restaurant')) {
+      return 300.0;
+    } else if (categoryLower.contains('night') || categoryLower.contains('bar')) {
+      return 500.0;
+    } else if (categoryLower.contains('shop') || categoryLower.contains('retail')) {
+      return 200.0;
+    } else if (categoryLower.contains('health') || categoryLower.contains('medical')) {
+      return 400.0;
+    } else if (categoryLower.contains('education') || categoryLower.contains('university')) {
+      return 800.0;
+    } else if (categoryLower.contains('transport') || categoryLower.contains('car')) {
+      return 50.0;
+    } else if (categoryLower.contains('emergency') || categoryLower.contains('urgent')) {
+      return 200.0;
+    } else {
+      return 400.0; // Default price
+    }
+  }
+
+  // Helper method to get default rating for a category
+  double _getDefaultRatingForCategory(String categoryName) {
+    // Most categories get a good default rating
+    return 4.5;
+  }
+
+  // Helper method to get default distance for a category
+  double _getDefaultDistanceForCategory(String categoryName) {
+    // Random distance between 1-10 km for variety
+    return 2.0 + (categoryName.length % 8);
   }
 
   void _toggleSidebar() {
@@ -94,261 +200,17 @@ class _CategoriesPageState extends State<CategoriesPage> {
     closest: false,
   );
 
-  // Create a list of all categories
-  final List<CategoryData> _allCategories = [
-    // Featured categories (shown at the top)
-    CategoryData(
-      id: 'food_dining',
-      iconPath: 'assets/icons/food_dining.png',
-      title: "Food & Dining",
-      color: Colors.blue,
-      price: 300,
-      rating: 4.5,
-      isOpen: true,
-      distance: 2.5,
-    ),
-    CategoryData(
-      id: 'nightlife',
-      iconPath: 'assets/icons/nightlife.png',
-      title: "Nightlife",
-      color: Colors.blue,
-      price: 500,
-      rating: 4.2,
-      isOpen: true,
-      distance: 3.1,
-    ),
-    CategoryData(
-      id: 'shopping',
-      iconPath: 'assets/icons/shopping.png',
-      title: "Shopping",
-      color: Colors.blue,
-      price: 200,
-      rating: 4.0,
-      isOpen: true,
-      distance: 1.8,
-    ),
-
-    // Regular grid categories
-    CategoryData(
-      id: 'health',
-      iconPath: 'assets/icons/health.png',
-      title: "Health",
-      color: Colors.blue,
-      price: 400,
-      rating: 4.7,
-      isOpen: true,
-      distance: 5.2,
-    ),
-    // Rest of the categories (unchanged)
-    CategoryData(
-      id: 'services',
-      iconPath: 'assets/icons/services.png',
-      title: "Services",
-      color: Colors.blue,
-      price: 150,
-      rating: 3.8,
-      isOpen: false,
-      distance: 4.0,
-    ),
-    CategoryData(
-      id: 'education',
-      iconPath: 'assets/icons/education.png',
-      title: "Education",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'Transportation',
-      iconPath: 'assets/icons/transportation.png',
-      title: "Transportation",
-      color: Colors.blue,
-      price: 50,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'Events',
-      iconPath: 'assets/icons/events.png',
-      title: "Events",
-      color: Colors.blue,
-      price: 50,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'outdoor_activities',
-      iconPath: 'assets/icons/outdoor_activities.png',
-      title: "Outdoor Activities",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'Entertainment',
-      iconPath: 'assets/icons/entertainment.png',
-      title: "Entertainment",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'UserDashboard_Living',
-      iconPath: 'assets/icons/home_living.png',
-      title: "UserDashboard & Living",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'Beauty_Fashion',
-      iconPath: 'assets/icons/beauty_fashion.png',
-      title: "Beauty & Fashion",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'Automative_Services',
-      iconPath: 'assets/icons/automative_services.png',
-      title: "Automative & Services",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'real_state',
-      iconPath: 'assets/icons/realState.png',
-      title: "Real State",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'cultural_sites',
-      iconPath: 'assets/icons/cultural_sites.png',
-      title: "Cultural Sites",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'kids_family',
-      iconPath: 'assets/icons/kids_family.png',
-      title: "Kids & Family",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'pet_services',
-      iconPath: 'assets/icons/pet_services.png',
-      title: "Pet Services",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'financial_services',
-      iconPath: 'assets/icons/financial_services.png',
-      title: "Financial Services",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'tech_gadgets',
-      iconPath: 'assets/icons/tech_gadgets.png',
-      title: "Tech Gadgets Services",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'souks_artisans',
-      iconPath: 'assets/icons/souks_artisans.png',
-      title: "Souks & Artisans",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'speciality_stores',
-      iconPath: 'assets/icons/speciality_stores.png',
-      title: "Speciality Stores",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'hospitality',
-      iconPath: 'assets/icons/hospitality.png',
-      title: "Hospitality",
-      color: Colors.blue,
-      price: 800,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'emergency_services',
-      iconPath: 'assets/icons/emergency_services.png',
-      title: "Emergency Services",
-      color: Colors.blue,
-      price: 200,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-    CategoryData(
-      id: 'deals_promos',
-      iconPath: 'assets/icons/deals_promos.png',
-      title: "Deals & Promos",
-      color: Colors.blue,
-      price: 200,
-      rating: 4.9,
-      isOpen: true,
-      distance: 7.5,
-    ),
-  ];
-
-  List<CategoryData> _filteredCategories = [];
-  List<CategoryData> _featuredCategories = [];
-
   // Method to apply filters
   void _applyFilters(FilterOptions filters) {
     setState(() {
       _filterOptions = filters;
+
+      // Check if categories are available
+      if (_allCategories.isEmpty) {
+        _featuredCategories = [];
+        _filteredCategories = [];
+        return;
+      }
 
       // Start with all categories
       List<CategoryData> filtered = List.from(_allCategories);
@@ -383,13 +245,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
       }
 
       // Separate featured categories (first 3) and regular grid categories
-      _featuredCategories = filtered.where((cat) =>
-          ['food_dining', 'nightlife', 'shopping'].contains(cat.id)
-      ).take(3).toList();
-
-      _filteredCategories = filtered.where((cat) =>
-      !['food_dining', 'nightlife', 'shopping'].contains(cat.id)
-      ).toList();
+      // Use dynamic featured categories instead of hardcoded ones
+      _featuredCategories = filtered.take(3).toList();
+      _filteredCategories = filtered.skip(3).toList();
     });
   }
 
@@ -581,27 +439,138 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     // Use 150 for iPad/large screens, 80 for phones
                     double itemWidth = screenWidth >= 700 ? 150 : 80;
                     int crossAxisCount = screenWidth < 600 ? 3 : 4; // Responsive: 3 for phones, 4 for larger screens
-                    return GridView.builder(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 0.85,
+                    
+                    if (_isLoadingCategories) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Loading categories...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    
+                    if (_categoriesError != null) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red[300],
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Failed to load categories',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              _categoriesError!,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 24),
+                            ElevatedButton(
+                              onPressed: _loadCategories,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              ),
+                              child: Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    
+                    if (_filteredCategories.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.category_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No categories available',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Categories will appear here once they are added to the backend.\nCurrently showing: ${_allCategories.length} categories',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 16),
+                            if (_allCategories.isNotEmpty)
+                              Text(
+                                'Available categories: ${_allCategories.map((c) => c.title).join(', ')}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[400],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                          ],
+                        ),
+                      );
+                    }
+                    
+                    return RefreshIndicator(
+                      onRefresh: _loadCategories,
+                      child: GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.85,
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _filteredCategories.length,
+                        itemBuilder: (context, index) {
+                          final category = _filteredCategories[index];
+                          return CategoryItem(
+                            logoUrl: category.logoUrl, // Pass logoUrl
+                            title: category.title,
+                            color: category.color,
+                            onTap: () {
+                              _navigateToCategoryPlaces(category);
+                            },
+                            width: itemWidth,
+                          );
+                        },
                       ),
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _filteredCategories.length,
-                      itemBuilder: (context, index) {
-                        final category = _filteredCategories[index];
-                        return CategoryItem(
-                          iconPath: category.iconPath,
-                          title: category.title,
-                          color: category.color,
-                          onTap: () {
-                            _navigateToCategoryPlaces(category);
-                          },
-                          width: itemWidth,
-                        );
-                      },
                     );
                   },
                 ),
@@ -610,34 +579,35 @@ class _CategoriesPageState extends State<CategoriesPage> {
           ),
 
           // First row of featured categories overlapping the header
-          Positioned(
-            top: 280,
-            left: 12,
-            right: 12,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                double screenWidth = constraints.maxWidth;
-                double itemWidth = screenWidth >= 700 ? 150 : 80;
-                return Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: _featuredCategories.map((category) =>
-                        CategoryItem(
-                          iconPath: category.iconPath,
-                          title: category.title,
-                          color: category.color,
-                          onTap: () {
-                            _navigateToCategoryPlaces(category);
-                          },
-                          width: itemWidth,
-                        )
-                    ).toList(),
-                  ),
-                );
-              },
+          if (!_isLoadingCategories && _categoriesError == null && _featuredCategories.isNotEmpty)
+            Positioned(
+              top: 280,
+              left: 12,
+              right: 12,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  double screenWidth = constraints.maxWidth;
+                  double itemWidth = screenWidth >= 700 ? 150 : 80;
+                  return Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: _featuredCategories.map((category) =>
+                          CategoryItem(
+                            logoUrl: category.logoUrl, // Pass logoUrl
+                            title: category.title,
+                            color: category.color,
+                            onTap: () {
+                              _navigateToCategoryPlaces(category);
+                            },
+                            width: itemWidth,
+                          )
+                      ).toList(),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
 
           // Semi-transparent overlay when sidebar is open
           if (_isSidebarOpen)
@@ -834,7 +804,7 @@ class CategoriesHeader extends StatelessWidget {
 }
 
 class CategoryItem extends StatelessWidget {
-  final String iconPath;
+  final String? logoUrl; // Changed from iconPath to logoUrl
   final String title;
   final Color color;
   final VoidCallback onTap;
@@ -842,7 +812,7 @@ class CategoryItem extends StatelessWidget {
 
   const CategoryItem({
     Key? key,
-    required this.iconPath,
+    this.logoUrl, // Made optional since it might not be available
     required this.title,
     required this.color,
     required this.onTap,
@@ -872,12 +842,7 @@ class CategoryItem extends StatelessWidget {
               ],
             ),
             child: Center(
-              child: Image.asset(
-                iconPath,
-                width: width * 0.5,
-                height: width * 0.5,
-                color: color, // Optional: tint the image
-              ),
+              child: _buildLogoWidget(),
             ),
           ),
           SizedBox(height: 8),
@@ -897,6 +862,45 @@ class CategoryItem extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLogoWidget() {
+    // If we have a logo URL, try to load it as a network image
+    if (logoUrl != null && logoUrl!.isNotEmpty) {
+      if (logoUrl!.startsWith('http')) {
+        // Network image
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SecureNetworkImage(
+            imageUrl: logoUrl!,
+            width: width * 0.6,
+            height: width * 0.6,
+            fit: BoxFit.contain,
+            placeholder: _buildFallbackIcon(),
+            errorWidget: (context, url, error) => _buildFallbackIcon(),
+          ),
+        );
+      } else if (logoUrl!.startsWith('assets/')) {
+        // Asset image
+        return Image.asset(
+          logoUrl!,
+          width: width * 0.5,
+          height: width * 0.5,
+          color: color,
+        );
+      }
+    }
+    
+    // Fallback to default icon
+    return _buildFallbackIcon();
+  }
+
+  Widget _buildFallbackIcon() {
+    return Icon(
+      Icons.category,
+      size: width * 0.4,
+      color: color,
     );
   }
 }

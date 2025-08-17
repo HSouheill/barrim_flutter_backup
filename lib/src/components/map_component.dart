@@ -189,21 +189,7 @@ class _MapComponentState extends State<MapComponent> {
           indoorViewEnabled: false, // Disable indoor maps
         ),
         
-        // Animated location marker overlay - positioned at center of map
-        if (widget.currentLocation != null)
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: AnimatedLocationMarker(
-                size: 40.0,
-                color: Colors.blue,
-                isLive: true,
-              ),
-            ),
-          ),
+
       ],
     );
   }

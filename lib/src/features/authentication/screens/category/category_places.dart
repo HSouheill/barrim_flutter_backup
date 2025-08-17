@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../services/api_service.dart';
+import '../../../../components/secure_network_image.dart'; // Add SecureNetworkImage import
 import '../referrals/rewards.dart';
+import '../settings/settings.dart'; // Add SettingsPage import
 import 'branch_details.dart';
+import 'category_filter.dart'; // Add this import for FilterOptions
 import '../../headers/dashboard_headers.dart';
 import '../../headers/sidebar.dart';
 
@@ -19,10 +22,20 @@ class CategoryPlaces extends StatefulWidget {
 
 class _CategoryPlacesState extends State<CategoryPlaces> {
   List<Map<String, dynamic>> _branches = [];
+  List<Map<String, dynamic>> _filteredBranches = []; // Add filtered branches list
   bool _isLoading = true;
   String _errorMessage = '';
   String? _profileImagePath;
   bool _isSidebarOpen = false;
+
+  // Add filter options
+  FilterOptions _filterOptions = FilterOptions(
+    priceSort: 'none',
+    priceRange: const RangeValues(0, 1000),
+    ratingSort: 'none',
+    openNow: false,
+    closest: false,
+  );
 
   // Map to define category relationships (parent categories and their related subcategories)
   final Map<String, List<String>> _categoryRelationships = {
@@ -124,8 +137,12 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
 
       setState(() {
         _branches = filteredBranches;
+        _filteredBranches = filteredBranches; // Initialize filtered branches
         _isLoading = false;
       });
+      
+      // Apply initial filters after branches are loaded
+      _applyFilters(_filterOptions);
     } catch (e) {
       if (!kReleaseMode) {
         print('Error loading branches: $e');
@@ -135,6 +152,108 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
         _errorMessage = 'Failed to load branches: ${e.toString()}';
       });
     }
+  }
+
+  // Method to apply filters to branches
+  void _applyFilters(FilterOptions filters) {
+    setState(() {
+      _filterOptions = filters;
+
+      // Start with all branches
+      List<Map<String, dynamic>> filtered = List.from(_branches);
+
+      // Apply price range filter (if branches have price data)
+      filtered = filtered.where((branch) {
+        // Extract price from branch data, default to 0 if not available
+        double branchPrice = 0.0;
+        if (branch['price'] != null && branch['price'] is num) {
+          branchPrice = (branch['price'] as num).toDouble();
+        } else if (branch['averagePrice'] != null && branch['averagePrice'] is num) {
+          branchPrice = (branch['averagePrice'] as num).toDouble();
+        }
+        
+        return branchPrice >= filters.priceRange.start && branchPrice <= filters.priceRange.end;
+      }).toList();
+
+      // Apply "Open Now" filter if enabled
+      if (filters.openNow) {
+        filtered = filtered.where((branch) {
+          // Check if branch is open (you may need to adjust this based on your data structure)
+          final isOpen = branch['isOpen'] ?? branch['openNow'] ?? true;
+          return isOpen == true;
+        }).toList();
+      }
+
+      // Apply sorting
+      if (filters.priceSort == 'highToLow') {
+        filtered.sort((a, b) {
+          double priceA = _extractPrice(a);
+          double priceB = _extractPrice(b);
+          return priceB.compareTo(priceA);
+        });
+      } else if (filters.priceSort == 'lowToHigh') {
+        filtered.sort((a, b) {
+          double priceA = _extractPrice(a);
+          double priceB = _extractPrice(b);
+          return priceA.compareTo(priceB);
+        });
+      }
+
+      if (filters.ratingSort == 'highToLow') {
+        filtered.sort((a, b) {
+          double ratingA = _extractRating(a);
+          double ratingB = _extractRating(b);
+          return ratingB.compareTo(ratingA);
+        });
+      } else if (filters.ratingSort == 'lowToHigh') {
+        filtered.sort((a, b) {
+          double ratingA = _extractRating(a);
+          double ratingB = _extractRating(b);
+          return ratingA.compareTo(ratingB);
+        });
+      }
+
+      // Apply "Closest to" filter if enabled
+      if (filters.closest) {
+        // For now, we'll sort by a default distance (you may need to implement actual distance calculation)
+        filtered.sort((a, b) {
+          // This is a placeholder - you should implement actual distance calculation
+          double distanceA = _extractDistance(a);
+          double distanceB = _extractDistance(b);
+          return distanceA.compareTo(distanceB);
+        });
+      }
+
+      _filteredBranches = filtered;
+    });
+  }
+
+  // Helper method to extract price from branch data
+  double _extractPrice(Map<String, dynamic> branch) {
+    if (branch['price'] != null && branch['price'] is num) {
+      return (branch['price'] as num).toDouble();
+    } else if (branch['averagePrice'] != null && branch['averagePrice'] is num) {
+      return (branch['averagePrice'] as num).toDouble();
+    }
+    return 0.0;
+  }
+
+  // Helper method to extract rating from branch data
+  double _extractRating(Map<String, dynamic> branch) {
+    if (branch['rating'] != null && branch['rating'] is num) {
+      return (branch['rating'] as num).toDouble();
+    }
+    return 0.0;
+  }
+
+  // Helper method to extract distance from branch data (placeholder)
+  double _extractDistance(Map<String, dynamic> branch) {
+    // This is a placeholder - implement actual distance calculation based on user location
+    if (branch['distance'] != null && branch['distance'] is num) {
+      return (branch['distance'] as num).toDouble();
+    }
+    // Return a random distance for now (you should implement actual distance calculation)
+    return (branch['name']?.hashCode ?? 0) % 10 + 1.0;
   }
 
   // Helper method for case-insensitive and format-flexible category matching
@@ -274,16 +393,91 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
+  // Custom header with filter button
+  Widget _buildCustomHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Color(0xFF2079C2), // #2079C2
+            Color(0xFF1F4889), // #1F4889
+            Color(0xFF10105D), // #10105D
+          ],
+          stops: [0.0, 0.5, 1.0],
+        ),
+      ),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: MediaQuery.of(context).padding.top + 20,
+        bottom: 20,
+      ),
+      child: Column(
         children: [
-          Column(
+          // Top row with logo, profile, notifications, menu, and filter
+          Row(
             children: [
-              AppHeader(
-                onNotificationTap: () {
-                  // Navigate to notifications page
+              Image.asset('assets/logo/barrim_logo.png', height: 60),
+              Spacer(),
+              
+              // Filter button
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.filter_list, color: Color(0xFF2079C2)),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FiltersPage(
+                          initialFilters: _filterOptions,
+                          onApplyFilters: _applyFilters,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              SizedBox(width: 12),
+              
+              // Profile avatar
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SettingsPage(),
+                    ),
+                  );
+                },
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.grey.shade200,
+                  child: (_profileImagePath != null && _profileImagePath!.isNotEmpty)
+                      ? ClipOval(
+                          child: SecureNetworkImage(
+                            imageUrl: _profileImagePath!,
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) {
+                              return const Icon(Icons.person, color: Colors.white, size: 22);
+                            },
+                          ),
+                        )
+                      : Icon(Icons.person, color: Colors.white, size: 22),
+                ),
+              ),
+              SizedBox(width: 18),
+              
+              // Notifications
+              InkWell(
+                onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -291,9 +485,70 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
                     ),
                   );
                 },
-                onMenuTap: _toggleSidebar,
-                profileImagePath: _profileImagePath,
+                child: ImageIcon(
+                  AssetImage('assets/icons/notification_icon.png'),
+                  size: 26,
+                  color: Colors.white,
+                ),
               ),
+              SizedBox(width: 18),
+              
+              // Menu button
+              InkWell(
+                onTap: _toggleSidebar,
+                child: ImageIcon(
+                  AssetImage('assets/icons/sidebar_icon.png'),
+                  size: 26,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          
+          // Category title
+          SizedBox(height: 20),
+          Text(
+            _getCategoryTitle(widget.categoryId),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          
+          // Filter summary
+          if (_hasActiveFilters())
+            Container(
+              margin: EdgeInsets.only(top: 12),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _getFilterSummary(),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // Custom header with filter button
+              _buildCustomHeader(),
               Expanded(
                 child: _buildBody(),
               ),
@@ -337,7 +592,7 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
       return Center(child: Text(_errorMessage));
     }
 
-    if (_branches.isEmpty) {
+    if (_filteredBranches.isEmpty) {
       return Center(child: Text('No branches found for this category or related categories'));
     }
 
@@ -346,7 +601,7 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Featured Section - Take the top rated branches
-          if (_branches.isNotEmpty)
+          if (_filteredBranches.isNotEmpty)
             CategorySection(
               title: 'Featured',
               branches: _getFeaturedBranches().map((branch) => BranchCard(
@@ -362,7 +617,7 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'All ${_getCategoryTitle(widget.categoryId)} & Related',
+              'All ${_getCategoryTitle(widget.categoryId)} & Related (${_filteredBranches.length} results)',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -372,11 +627,11 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
           ListView.builder(
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
-            itemCount: _branches.length,
+            itemCount: _filteredBranches.length,
             itemBuilder: (context, index) {
               return BranchCard(
-                branch: _branches[index],
-                onTap: () => _navigateToBranchDetails(_branches[index]),
+                branch: _filteredBranches[index],
+                onTap: () => _navigateToBranchDetails(_filteredBranches[index]),
               );
             },
           ),
@@ -436,8 +691,8 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
 
   // Method to get featured branches (top 3 by rating)
   List<Map<String, dynamic>> _getFeaturedBranches() {
-    // Create a copy of branches list to avoid modifying the original
-    List<Map<String, dynamic>> sortedBranches = List.from(_branches);
+    // Create a copy of filtered branches list to avoid modifying the original
+    List<Map<String, dynamic>> sortedBranches = List.from(_filteredBranches);
 
     // Sort by rating (highest first) if rating exists
     sortedBranches.sort((a, b) {
@@ -528,6 +783,37 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
     };
 
     return categoryNames[categoryId] ?? categoryId.replaceAll('_', ' ');
+  }
+
+  bool _hasActiveFilters() {
+    return _filterOptions.priceSort != 'none' ||
+           _filterOptions.priceRange.start != 0 ||
+           _filterOptions.priceRange.end != 1000 ||
+           _filterOptions.ratingSort != 'none' ||
+           _filterOptions.openNow ||
+           _filterOptions.closest;
+  }
+
+  String _getFilterSummary() {
+    List<String> summaryParts = [];
+
+    if (_filterOptions.priceSort != 'none') {
+      summaryParts.add('Price: ${_filterOptions.priceSort}');
+    }
+    if (_filterOptions.priceRange.start != 0 || _filterOptions.priceRange.end != 1000) {
+      summaryParts.add('Price Range: ${_filterOptions.priceRange.start.toInt()} - ${_filterOptions.priceRange.end.toInt()}');
+    }
+    if (_filterOptions.ratingSort != 'none') {
+      summaryParts.add('Rating: ${_filterOptions.ratingSort}');
+    }
+    if (_filterOptions.openNow) {
+      summaryParts.add('Open Now');
+    }
+    if (_filterOptions.closest) {
+      summaryParts.add('Closest to you');
+    }
+
+    return summaryParts.join(', ');
   }
 }
 

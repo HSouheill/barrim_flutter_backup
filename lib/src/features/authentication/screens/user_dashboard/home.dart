@@ -80,6 +80,9 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   List<Map<String, dynamic>> _allCompanies = [];
   List<Map<String, dynamic>> _wholesalerBranches = [];
 
+  // Add category data for custom markers
+  Map<String, Map<String, dynamic>> _categoryData = {};
+
   // Search controller
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = '';
@@ -135,6 +138,23 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
     }
   }
 
+  // Add method to fetch category data for custom markers
+  Future<void> _fetchCategoryData() async {
+    try {
+      print('Fetching category data for custom markers...');
+      final categories = await ApiService.getAllCategoriesWithLogos();
+      setState(() {
+        _categoryData = categories;
+      });
+      print('Successfully fetched ${categories.length} categories with logos and colors');
+      categories.forEach((categoryName, data) {
+        print('Category: $categoryName, Color: ${data['color']}, Logo: ${data['logo']}');
+      });
+    } catch (e) {
+      print('Error fetching category data: $e');
+    }
+  }
+
 
 
 
@@ -169,102 +189,117 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       setState(() {
         _allBranches = filteredBranches;
 
-        // Create markers for filtered branches
-        final branchMarkers = filteredBranches.map((branch) {
-          final location = branch['location'];
-          final company = branch['company'];
-          final logoUrl = company?['logoUrl'];
+        // Debug: Print available categories in branch data
+        print('\n=== AVAILABLE CATEGORIES IN BRANCH DATA ===');
+        Set<String> availableCategories = {};
+        for (var branch in filteredBranches) {
+          final branchCategory = branch['category']?.toString() ?? '';
+          final companyCategory = branch['company']?['category']?.toString() ?? '';
+          if (branchCategory.isNotEmpty) availableCategories.add(branchCategory);
+          if (companyCategory.isNotEmpty) availableCategories.add(companyCategory);
+        }
+        print('Available categories: ${availableCategories.toList()}');
+        print('===========================================\n');
+      });
 
-          print('Processing branch: ${branch['name']}, Location: $location, Company: $company');
+      // Create markers for filtered branches
+      final branchMarkers = await Future.wait(filteredBranches.map((branch) async {
+        final location = branch['location'];
+        final company = branch['company'];
+        final logoUrl = company?['logoUrl'];
+        final category = branch['category']?.toString() ?? company?['category']?.toString() ?? '';
 
-          // Validate location data
-          if (location == null ||
-              location['lat'] == null ||
-              location['lng'] == null) {
-            print('Branch ${branch['name']} has invalid location data');
-            return null;
-          }
-          
-          print('Creating marker for branch: ${branch['name']} at lat: ${location['lat']}, lng: ${location['lng']}');
+        print('Processing branch: ${branch['name']}, Location: $location, Company: $company');
 
-          return google_maps.Marker(
-            markerId: google_maps.MarkerId('branch_${branch['id']}'),
+        // Validate location data
+        if (location == null ||
+            location['lat'] == null ||
+            location['lng'] == null) {
+          print('Branch ${branch['name']} has invalid location data');
+          return null;
+        }
+        
+        print('Creating marker for branch: ${branch['name']} at lat: ${location['lat']}, lng: ${location['lng']}');
+
+        // Create custom marker based on category with dynamic color and logo
+        final customIcon = await _createCategoryMarkerIcon(category);
+
+        return google_maps.Marker(
+          markerId: google_maps.MarkerId('branch_${branch['id']}'),
+          position: google_maps.LatLng(
+            location['lat'].toDouble(),
+            location['lng'].toDouble(),
+          ),
+          onTap: () {
+            setState(() {
+              _selectedPlace = {
+                'name': branch['name'] ?? 'Unnamed Branch',
+                '_id': branch['id'],
+                'latitude': location['lat'].toDouble(),
+                'longitude': location['lng'].toDouble(),
+                'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                'phone': branch['phone'] ?? '',
+                'description': branch['description'] ?? '',
+                'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                'logoUrl': logoUrl,
+                'companyName': company['businessName'] ?? 'Unknown Company',
+                'companyId': company['id'],
+                'images': branch['images'] ?? [],
+                'category': category,
+                'company': company,
+              };
+            });
+          },
+          icon: customIcon,
+          visible: true, // Ensure marker is always visible
+        );
+      })).then((markers) => markers.where((marker) => marker != null).cast<google_maps.Marker>().toList());
+
+      print('Created ${branchMarkers.length} branch markers');
+
+      // Add a test marker to see if markers are working
+      if (filteredBranches.isNotEmpty) {
+        final testBranch = filteredBranches.first;
+        final testLocation = testBranch['location'];
+        if (testLocation != null && testLocation['lat'] != null && testLocation['lng'] != null) {
+          final testMarker = google_maps.Marker(
+            markerId: google_maps.MarkerId('test_marker'),
             position: google_maps.LatLng(
-              location['lat'].toDouble(),
-              location['lng'].toDouble(),
+              testLocation['lat'].toDouble(),
+              testLocation['lng'].toDouble(),
             ),
             onTap: () {
               setState(() {
                 _selectedPlace = {
-                  'name': branch['name'] ?? 'Unnamed Branch',
-                  '_id': branch['id'],
-                  'latitude': location['lat'].toDouble(),
-                  'longitude': location['lng'].toDouble(),
-                  'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                  'phone': branch['phone'] ?? '',
-                  'description': branch['description'] ?? '',
-                  'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                  'logoUrl': logoUrl,
-                  'companyName': company['businessName'] ?? 'Unknown Company',
-                  'companyId': company['id'],
-                  'images': branch['images'] ?? [],
-                  'category': branch['category'] ?? 'Unknown Category',
-                  'company': company,
+                  'name': testBranch['name'] ?? 'Unnamed Branch',
+                  '_id': testBranch['id'],
+                  'latitude': testLocation['lat'].toDouble(),
+                  'longitude': testLocation['lng'].toDouble(),
+                  'address': '${testLocation['street'] ?? ''}, ${testLocation['city'] ?? ''}',
+                  'phone': testBranch['phone'] ?? '',
+                  'description': testBranch['description'] ?? '',
+                  'image': testBranch['logoUrl'] ?? 'assets/images/company_placeholder.png',
+                  'logoUrl': testBranch['logoUrl'],
+                  'companyName': testBranch['company']?['businessName'] ?? 'Unknown Company',
+                  'companyId': testBranch['company']?['id'],
+                  'images': testBranch['images'] ?? [],
+                  'category': testBranch['category'] ?? 'Unknown Category',
+                  'company': testBranch['company'],
                 };
               });
             },
-            icon: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
+            icon: _isRestaurantCategory(testBranch['category']?.toString() ?? '') || _isRestaurantCategory(testBranch['company']?['category']?.toString() ?? '')
                 ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
-                : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
+                : _isHotelCategory(testBranch['category']?.toString() ?? '') || _isHotelCategory(testBranch['company']?['category']?.toString() ?? '')
                     ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
                     : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
           );
-        }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
-
-        print('Created ${branchMarkers.length} branch markers');
-
-        // Add a test marker to see if markers are working
-        if (filteredBranches.isNotEmpty) {
-          final testBranch = filteredBranches.first;
-          final testLocation = testBranch['location'];
-          if (testLocation != null && testLocation['lat'] != null && testLocation['lng'] != null) {
-            final testMarker = google_maps.Marker(
-              markerId: google_maps.MarkerId('test_marker'),
-              position: google_maps.LatLng(
-                testLocation['lat'].toDouble(),
-                testLocation['lng'].toDouble(),
-              ),
-              onTap: () {
-                setState(() {
-                  _selectedPlace = {
-                    'name': testBranch['name'] ?? 'Unnamed Branch',
-                    '_id': testBranch['id'],
-                    'latitude': testLocation['lat'].toDouble(),
-                    'longitude': testLocation['lng'].toDouble(),
-                    'address': '${testLocation['street'] ?? ''}, ${testLocation['city'] ?? ''}',
-                    'phone': testBranch['phone'] ?? '',
-                    'description': testBranch['description'] ?? '',
-                    'image': testBranch['logoUrl'] ?? 'assets/images/company_placeholder.png',
-                    'logoUrl': testBranch['logoUrl'],
-                    'companyName': testBranch['company']?['businessName'] ?? 'Unknown Company',
-                    'companyId': testBranch['company']?['id'],
-                    'images': testBranch['images'] ?? [],
-                    'category': testBranch['category'] ?? 'Unknown Category',
-                    'company': testBranch['company'],
-                  };
-                });
-              },
-              icon: _isRestaurantCategory(testBranch['category']?.toString() ?? '') || _isRestaurantCategory(testBranch['company']?['category']?.toString() ?? '')
-                  ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
-                  : _isHotelCategory(testBranch['category']?.toString() ?? '') || _isHotelCategory(testBranch['company']?['category']?.toString() ?? '')
-                      ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
-                      : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
-            );
-            _wayPointMarkers.add(testMarker);
-            print('Added test marker for branch: ${testBranch['name']}');
-          }
+          _wayPointMarkers.add(testMarker);
+          print('Added test marker for branch: ${testBranch['name']}');
         }
+      }
 
+      setState(() {
         // Add branch markers to existing company markers
         _wayPointMarkers.addAll(branchMarkers);
         print('Total markers on map: ${_wayPointMarkers.length}');
@@ -326,11 +361,35 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
           final location = branch['location'];
           final company = branch['company'];
           final logoUrl = company['logoUrl'];
+          final category = branch['category']?.toString() ?? company['category']?.toString() ?? '';
 
           if (location == null ||
               location['lat'] == null ||
-              location['lng'] == null) {
+              location['lng'].toDouble() == null) {
             return null;
+          }
+
+          // Create dynamic marker based on category
+          google_maps.BitmapDescriptor markerIcon;
+          
+          // Check if we have category data loaded
+          if (_categoryData.containsKey(category)) {
+            final categoryInfo = _categoryData[category]!;
+            final String color = categoryInfo['color'] ?? '#2079C2';
+            
+            // Convert hex color to marker hue
+            markerIcon = _getMarkerHueFromColor(color);
+            print('Using dynamic color for category $category: $color');
+          } else {
+            // Fallback to default colors based on category type
+            if (_isRestaurantCategory(category)) {
+              markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed);
+            } else if (_isHotelCategory(category)) {
+              markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue);
+            } else {
+              markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen);
+            }
+            print('Using fallback color for category $category');
           }
 
           return google_maps.Marker(
@@ -359,11 +418,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                 };
               });
             },
-            icon: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
-                ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
-                : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
-                    ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
-                    : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
+            icon: markerIcon,
+            visible: true, // Ensure marker is always visible
           );
         }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
       });
@@ -509,6 +565,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                   }
                 },
                 icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
+                visible: true, // Ensure marker is always visible
               ),
             );
           } else {
@@ -557,11 +614,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                         };
                       });
                     },
-                    icon: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
-                        ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
-                        : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
-                            ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
-                            : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
+                    icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
+                    visible: true, // Ensure marker is always visible
                   ),
                 );
               } else {
@@ -656,13 +710,14 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       print('Company category: "$category" (type: ${category.runtimeType})');
       print('Location: ${location?['lat']}, ${location?['lng']}');
 
-      return google_maps.Marker(
-        markerId: google_maps.MarkerId('company_${company['_id']}'),
-        position: google_maps.LatLng(
-          location['lat'].toDouble(),
-          location['lng'].toDouble(),
-        ),
-        onTap: () async {
+              return google_maps.Marker(
+          markerId: google_maps.MarkerId('company_${company['_id']}'),
+          position: google_maps.LatLng(
+            location['lat'].toDouble(),
+            location['lng'].toDouble(),
+          ),
+          visible: true, // Ensure marker is always visible
+          onTap: () async {
           try {
             // Fetch branches for this company
             final prefs = await SharedPreferences.getInstance();
@@ -757,6 +812,8 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   }
 
   void _applyFilters(Map<String, dynamic> filters) async {
+    print('Applying filters: $filters'); // Debug log
+    
     setState(() {
       _wayPointMarkers.clear();
       _primaryRouteCoordinates.clear();
@@ -770,7 +827,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       List<Wholesaler> filteredWholesalers = wholesalers;
 
       // Category filter
-      if (filters['category'] != null && filters['category'] != 'All' && filters['category'] != null) {
+      if (filters['category'] != null && filters['category'] != 'All' && filters['category'] != '') {
         filteredWholesalers = filteredWholesalers.where((w) =>
           w.category.toLowerCase() == filters['category'].toString().toLowerCase()
         ).toList();
@@ -852,6 +909,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         return google_maps.Marker(
           markerId: google_maps.MarkerId('wholesaler_${wholesaler.id}'),
           position: google_maps.LatLng(lat, lng),
+          visible: true, // Ensure marker is always visible
           onTap: () {
             setState(() {
               _selectedPlace = {
@@ -888,11 +946,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         _mapController.move(_wayPointMarkers[0].position, 15.0);
       }
 
-      // if (filteredWholesalers.isEmpty) {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     SnackBar(content: Text('No wholesalers found matching your filters')),
-      //   );
-      // }
+      print('Filtered wholesalers: ${filteredWholesalers.length}');
       return;
     }
 
@@ -900,12 +954,8 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     if (_allBranches.isEmpty) {
       await _fetchAllBranches();
     }
-    // if (_allBranches.isEmpty) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text('No branch data available. Please try again.')),
-    //   );
-    //   return;
-    // }
+
+    print('Total branches available for filtering: ${_allBranches.length}');
 
     // Filter branches
     List<Map<String, dynamic>> filteredBranches = _allBranches.where((branch) {
@@ -914,38 +964,72 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       if (branchStatus != 'active') {
         return false; // Skip branches that are not active
       }
-      final branchType = branch['type']?.toString().toLowerCase() ?? branch['category']?.toString().toLowerCase() ?? '';
-      final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
-      final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
+      
       final location = branch['location'];
       if (location == null || location['lat'] == null || location['lng'] == null) return false;
-      // Type filter
-      if (filters['type'] != null && filters['type'] != 'All' && filters['type'] != '') {
-        if (branchType != filters['type'].toString().toLowerCase()) {
-          return false;
-        }
-      }
-      // Category filter
+      
+      // Category filter - check both branch category and company category
       if (filters['category'] != null && filters['category'] != 'All' && filters['category'] != '') {
-        if (branchCategory != filters['category'].toString().toLowerCase() && companyCategory != filters['category'].toString().toLowerCase()) {
+        final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
+        final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
+        final filterCategory = filters['category'].toString().toLowerCase();
+        
+        // Debug logging for category matching
+        print('Checking category for branch ${branch['name']}:');
+        print('  Branch category: "$branchCategory"');
+        print('  Company category: "$companyCategory"');
+        print('  Filter category: "$filterCategory"');
+        
+        // Check if either branch or company category matches the filter
+        // Use contains() for more flexible matching
+        bool categoryMatches = branchCategory.contains(filterCategory) || 
+                              companyCategory.contains(filterCategory) ||
+                              filterCategory.contains(branchCategory) ||
+                              filterCategory.contains(companyCategory);
+        
+        if (!categoryMatches) {
+          print('  ❌ Category does not match - filtering out');
+          return false;
+        } else {
+          print('  ✅ Category matches - keeping branch');
+        }
+      }
+      
+      // Subcategory filter (if implemented)
+      if (filters['subcategory'] != null && filters['subcategory'] != 'All' && filters['subcategory'] != '') {
+        final branchSubCategory = branch['subcategory']?.toString().toLowerCase() ?? '';
+        final companySubCategory = branch['company']?['subcategory']?.toString().toLowerCase() ?? '';
+        final filterSubCategory = filters['subcategory'].toString().toLowerCase();
+        
+        if (!branchSubCategory.contains(filterSubCategory) && !companySubCategory.contains(filterSubCategory)) {
+          print('Branch ${branch['name']} filtered out by subcategory: branch=$branchSubCategory, company=$companySubCategory, filter=$filterSubCategory');
           return false;
         }
       }
+      
       // Distance filter
-      if (filters['distance'] != null) {
-        double maxDistance = double.parse(filters['distance'].toString().replaceAll(' km', ''));
-        double distance = _calculateDistance(
-          _userLocation.latitude,
-          _userLocation.longitude,
-          location['lat'].toDouble(),
-          location['lng'].toDouble(),
-        );
-        if (distance > maxDistance) {
-          return false;
+      if (filters['distance'] != null && filters['distance'] != '') {
+        try {
+          double maxDistance = double.parse(filters['distance'].toString().replaceAll(' km', ''));
+          double distance = _calculateDistance(
+            _userLocation.latitude,
+            _userLocation.longitude,
+            location['lat'].toDouble(),
+            location['lng'].toDouble(),
+          );
+          if (distance > maxDistance) {
+            print('Branch ${branch['name']} filtered out by distance: $distance > $maxDistance km');
+            return false;
+          }
+        } catch (e) {
+          print('Error parsing distance filter: $e');
         }
       }
+      
       return true;
     }).toList();
+
+    print('Branches after filtering: ${filteredBranches.length}');
 
     // Sort branches
     if (filters['sortBy'] != null) {
@@ -991,28 +1075,74 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       _mapController.move(_wayPointMarkers[0].position, 15.0);
     }
 
-    // if (filteredBranches.isEmpty) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text('No branches found matching your filters')),
-    //   );
-    // }
+    print('Final filtered markers: ${_wayPointMarkers.length}');
   }
 
   void _createMarkers(List<Map<String, dynamic>> places) {
     setState(() {
       _wayPointMarkers = places.map((place) {
+        // Extract location data - handle both direct lat/lng and nested location structure
+        double latitude, longitude;
+        
+        if (place['latitude'] != null && place['longitude'] != null) {
+          // Direct lat/lng fields
+          latitude = place['latitude'].toDouble();
+          longitude = place['longitude'].toDouble();
+        } else if (place['location'] != null) {
+          // Nested location structure
+          final location = place['location'];
+          if (location['lat'] != null && location['lng'] != null) {
+            latitude = location['lat'].toDouble();
+            longitude = location['lng'].toDouble();
+          } else {
+            print('Invalid location data for place: ${place['name']}');
+            return null;
+          }
+        } else {
+          print('No location data found for place: ${place['name']}');
+          return null;
+        }
+        
+        // Get category for dynamic marker
+        final category = place['category']?.toString() ?? '';
+        
+        // Create dynamic marker based on category
+        google_maps.BitmapDescriptor markerIcon;
+        
+        // Check if we have category data loaded
+        if (_categoryData.containsKey(category)) {
+          final categoryInfo = _categoryData[category]!;
+          final String color = categoryInfo['color'] ?? '#2079C2';
+          
+          // Convert hex color to marker hue
+          markerIcon = _getMarkerHueFromColor(color);
+          print('Using dynamic color for category $category: $color');
+        } else {
+          // Fallback to default colors based on category type
+          if (_isRestaurantCategory(category)) {
+            markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed);
+          } else if (_isHotelCategory(category)) {
+            markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue);
+          } else {
+            markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen);
+          }
+          print('Using fallback color for category $category');
+        }
+        
         return google_maps.Marker(
-          markerId: google_maps.MarkerId('branch_${place['id']}'),
-          position: google_maps.LatLng(place['latitude'], place['longitude']),
+          markerId: google_maps.MarkerId('branch_${place['id'] ?? place['_id']}'),
+          position: google_maps.LatLng(latitude, longitude),
           onTap: () {
             setState(() {
               _selectedPlace = place;
             });
           },
-          icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed),
+          icon: markerIcon,
+          visible: true, // Ensure marker is always visible
         );
-        print('Number of markers created: ${_wayPointMarkers.length}');
-      }).toList();
+      }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
+      
+      print('Number of markers created: ${_wayPointMarkers.length}');
     });
   }
 
@@ -1025,6 +1155,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     _getUserLocationOnLogin();
     
     _fetchUserData(); // Add this line to fetch user data
+    _fetchCategoryData(); // Add this line to fetch category data for custom markers
     if (_allCompanies.isEmpty) {
       _fetchCompanies().then((_) {
         // After companies are fetched, show nearby companies if location is already set
@@ -2015,11 +2146,35 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         final location = branch['location'];
         final company = branch['company'];
         final logoUrl = company['logoUrl'];
+        final category = branch['category']?.toString() ?? company['category']?.toString() ?? '';
 
         if (location == null ||
             location['lat'] == null ||
             location['lng'] == null) {
           return null;
+        }
+
+        // Create dynamic marker based on category
+        google_maps.BitmapDescriptor markerIcon;
+        
+        // Check if we have category data loaded
+        if (_categoryData.containsKey(category)) {
+          final categoryInfo = _categoryData[category]!;
+          final String color = categoryInfo['color'] ?? '#2079C2';
+          
+          // Convert hex color to marker hue
+          markerIcon = _getMarkerHueFromColor(color);
+          print('Search result - Using dynamic color for category $category: $color');
+        } else {
+          // Fallback to default colors based on category type
+          if (_isRestaurantCategory(category)) {
+            markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed);
+          } else if (_isHotelCategory(category)) {
+            markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue);
+          } else {
+            markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen);
+          }
+          print('Search result - Using fallback color for category $category');
         }
 
         return google_maps.Marker(
@@ -2048,11 +2203,8 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
               };
             });
           },
-          icon: _isRestaurantCategory(branch['category']?.toString() ?? '') || _isRestaurantCategory(company['category']?.toString() ?? '')
-              ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed)
-              : _isHotelCategory(branch['category']?.toString() ?? '') || _isHotelCategory(company['category']?.toString() ?? '')
-                  ? google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue)
-                  : google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
+          icon: markerIcon,
+          visible: true, // Ensure marker is always visible
         );
       }).where((marker) => marker != null).cast<google_maps.Marker>().toList();
 
@@ -2634,12 +2786,105 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     try {
       final ByteData data = await rootBundle.load('assets/icons/wholesaler.png');
       final Uint8List bytes = data.buffer.asUint8List();
-      return google_maps.BitmapDescriptor.fromBytes(bytes);
+      return google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueOrange);
     } catch (e) {
       print('Error loading wholesaler icon: $e');
       // Fallback to default orange marker if image loading fails
       return google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueOrange);
     }
+  }
+
+  // Helper method to create custom category marker icon
+  Future<google_maps.BitmapDescriptor> _createCategoryMarkerIcon(String categoryName) async {
+    try {
+      // Get category data
+      final categoryInfo = _categoryData[categoryName];
+      if (categoryInfo == null) {
+        print('No category data found for: $categoryName, using default marker');
+        return google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen);
+      }
+
+      final String? logoUrl = categoryInfo['logo'];
+      final String color = categoryInfo['color'] ?? '#2079C2';
+
+      if (logoUrl == null || logoUrl.isEmpty) {
+        print('No logo found for category: $categoryName, using colored marker');
+        // Convert hex color to hue for default marker
+        return _getMarkerHueFromColor(color);
+      }
+
+      // Try to load the logo image
+      try {
+        // If it's a network image, we'll need to download it first
+        if (logoUrl.startsWith('http')) {
+          // For network images, we'll use a colored marker with the category color
+          print('Network logo for category: $categoryName, using colored marker');
+          return _getMarkerHueFromColor(color);
+        } else {
+          // For local assets, try to load them
+          final ByteData data = await rootBundle.load(logoUrl);
+          final Uint8List bytes = data.buffer.asUint8List();
+          return google_maps.BitmapDescriptor.fromBytes(bytes);
+        }
+      } catch (e) {
+        print('Error loading logo for category: $categoryName, using colored marker. Error: $e');
+        return _getMarkerHueFromColor(color);
+      }
+    } catch (e) {
+      print('Error creating category marker for: $categoryName, using default. Error: $e');
+      return google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen);
+    }
+  }
+
+  // Helper method to convert hex color to marker hue
+  google_maps.BitmapDescriptor _getMarkerHueFromColor(String hexColor) {
+    try {
+      // Remove # if present
+      String color = hexColor.startsWith('#') ? hexColor.substring(1) : hexColor;
+      
+      // Convert hex to RGB
+      int r = int.parse(color.substring(0, 2), radix: 16);
+      int g = int.parse(color.substring(2, 4), radix: 16);
+      int b = int.parse(color.substring(4, 6), radix: 16);
+      
+      // Convert RGB to HSV to get hue
+      double hue = _rgbToHue(r, g, b);
+      
+      // Map hue to Google Maps marker hue
+      return google_maps.BitmapDescriptor.defaultMarkerWithHue(hue);
+    } catch (e) {
+      print('Error converting color $hexColor to hue, using default: $e');
+      return google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen);
+    }
+  }
+
+  // Helper method to convert RGB to Hue
+  double _rgbToHue(int r, int g, int b) {
+    r = r ~/ 255;
+    g = g ~/ 255;
+    b = b ~/ 255;
+    
+    int max = [r, g, b].reduce((a, b) => a > b ? a : b);
+    int min = [r, g, b].reduce((a, b) => a < b ? a : b);
+    double delta = (max - min).toDouble();
+    
+    double hue = 0;
+    
+    if (delta == 0) {
+      hue = 0;
+    } else if (max == r) {
+      hue = ((g - b) / delta) % 6;
+    } else if (max == g) {
+      hue = (b - r) / delta + 2;
+    } else if (max == b) {
+      hue = (r - g) / delta + 4;
+    }
+    
+    hue = hue * 60;
+    if (hue < 0) hue += 360;
+    
+    // Convert to Google Maps hue range (0-360)
+    return hue;
   }
 
   // Helper method to check if a category is restaurant-related

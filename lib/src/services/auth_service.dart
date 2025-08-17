@@ -18,6 +18,12 @@ class AuthService extends ChangeNotifier {
   String? _error;
   final TokenManager _tokenManager = TokenManager();
 
+  // Constructor to log the baseUrl
+  AuthService() {
+    print('AuthService: Initialized with baseUrl: $baseUrl');
+    print('AuthService: ApiService.baseUrl: ${ApiService.baseUrl}');
+  }
+
   // --- Custom HTTP client for self-signed certificates ---
   static http.Client? _customClient;
   static Future<http.Client> _getCustomClient() async {
@@ -29,18 +35,64 @@ class AuthService extends ChangeNotifier {
     Map<String, String>? headers,
     Object? body,
   }) async {
-    final client = await _getCustomClient();
-    switch (method.toUpperCase()) {
-      case 'GET':
-        return await client.get(uri, headers: headers);
-      case 'POST':
-        return await client.post(uri, headers: headers, body: body);
-      case 'PUT':
-        return await client.put(uri, headers: headers, body: body);
-      case 'DELETE':
-        return await client.delete(uri, headers: headers, body: body);
-      default:
-        throw Exception('Unsupported HTTP method: $method');
+    // Use standard HTTP client for better HTTPS support
+    final client = http.Client();
+    
+    try {
+      print('AuthService: Making $method request to: $uri');
+      print('AuthService: Headers: $headers');
+      
+      switch (method.toUpperCase()) {
+        case 'GET':
+          return await client.get(uri, headers: headers).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout. Please check your internet connection.');
+            },
+          );
+        case 'POST':
+          return await client.post(uri, headers: headers, body: body).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout. Please check your internet connection.');
+            },
+          );
+        case 'PUT':
+          return await client.put(uri, headers: headers, body: body).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout. Please check your internet connection.');
+            },
+          );
+        case 'DELETE':
+          return await client.delete(uri, headers: headers, body: body).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout. Please check your internet connection.');
+            },
+          );
+        default:
+          throw Exception('Unsupported HTTP method: $method');
+      }
+    } catch (e) {
+      print('AuthService: Error in _makeRequest: $e');
+      print('AuthService: Error type: ${e.runtimeType}');
+      
+      // Handle specific error types
+      if (e.toString().contains('SSL') || e.toString().contains('certificate')) {
+        print('AuthService: SSL/Certificate error detected');
+        throw Exception('SSL connection error. Please check your internet connection.');
+      } else if (e.toString().contains('Failed host lookup')) {
+        print('AuthService: DNS resolution error');
+        throw Exception('Cannot connect to server. Please check your internet connection.');
+      } else if (e.toString().contains('timeout')) {
+        print('AuthService: Request timeout');
+        throw Exception('Request timeout. Please check your internet connection.');
+      }
+      
+      rethrow;
+    } finally {
+      client.close();
     }
   }
 
@@ -212,30 +264,63 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  // Test HTTPS connection
+  Future<bool> testConnection() async {
+    try {
+      print('AuthService: Testing connection to: $baseUrl');
+      
+      // Use a simple GET request to test basic connectivity
+      final response = await http.get(
+        Uri.parse('$baseUrl/'), // Just test the root endpoint
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      print('AuthService: Connection test successful: ${response.statusCode}');
+      return true;
+    } catch (e) {
+      print('AuthService: Connection test failed: $e');
+      return false;
+    }
+  }
+
   // Logout user
   Future<void> logout() async {
     try {
+      print('AuthService: Starting logout process...');
+      
       // Get the current token
       final token = await getToken();
       
       if (token != null) {
         // Call the logout endpoint to blacklist the token
         try {
-          final response = await _makeRequest(
-            'POST',
+          print('AuthService: Attempting to logout with token: ${token.substring(0, 10)}...');
+          print('AuthService: Logout URL: $baseUrl/api/auth/logout');
+          
+          // Use direct http.post instead of _makeRequest for better debugging
+          final response = await http.post(
             Uri.parse('$baseUrl/api/auth/logout'),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
             },
-          );
+          ).timeout(const Duration(seconds: 30));
           
           // Log the response for debugging
-          print('Logout endpoint response: ${response.statusCode}');
+          print('AuthService: Logout endpoint response: ${response.statusCode}');
+          print('AuthService: Logout response body: ${response.body}');
         } catch (e) {
           // Don't fail logout if server call fails, just log it
-          print('Error calling logout endpoint: $e');
+          print('AuthService: Error calling logout endpoint: $e');
+          print('AuthService: Error type: ${e.runtimeType}');
+          if (e.toString().contains('SSL') || e.toString().contains('certificate')) {
+            print('AuthService: SSL/Certificate error detected');
+          }
         }
+      } else {
+        print('AuthService: No token found for logout');
       }
 
       // Clear local data regardless of server response
@@ -246,18 +331,32 @@ class AuthService extends ChangeNotifier {
       _token = null;
       _currentUser = null;
       notifyListeners();
+      
+      print('AuthService: Local data cleared successfully');
     } catch (e) {
       _error = 'Error during logout: $e';
-      print(_error);
+      print('AuthService: Exception in logout: $e');
     }
   }
 
   // Get the current token
   Future<String?> getToken() async {
-    if (_token != null) return _token;
+    if (_token != null) {
+      print('AuthService: Token found in memory: ${_token!.substring(0, 10)}...');
+      return _token;
+    }
 
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token');
+    final token = prefs.getString('auth_token');
+    
+    if (token != null) {
+      print('AuthService: Token found in preferences: ${token.substring(0, 10)}...');
+      print('AuthService: Token length: ${token.length}');
+    } else {
+      print('AuthService: No token found in preferences');
+    }
+    
+    return token;
   }
 
   // Get user type ('user', 'company', 'admin', etc.)
