@@ -1,4 +1,5 @@
 // lib/services/company_service.dart
+// This service ensures all API calls use HTTPS for security
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,15 @@ import '../utils/token_manager.dart';
 class CompanyService {
   final TokenManager _tokenManager = TokenManager();
   final String _baseUrl = ApiConstants.baseUrl;
+
+  // Validate that all URLs are using HTTPS
+  bool _validateHttpsUrl(String url) {
+    if (!url.startsWith('https://')) {
+      print('CompanyService: WARNING - Non-HTTPS URL detected: $url');
+      return false;
+    }
+    return true;
+  }
 
   // --- Custom HTTP client for self-signed certificates ---
   static http.Client? _customClient;
@@ -62,6 +72,11 @@ class CompanyService {
       final url = '$_baseUrl/api/companies/data';
       if (!kReleaseMode) {
         print('CompanyService: Making request to: $url');
+      }
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot get company data with non-HTTPS URL');
       }
 
       final response = await _makeRequest(
@@ -137,9 +152,16 @@ class CompanyService {
     if (facebook != null) requestBody['facebook'] = facebook;
     if (instagram != null) requestBody['instagram'] = instagram;
 
+    final url = '$_baseUrl/api/companies/profile';
+    
+    // Ensure HTTPS is being used
+    if (!_validateHttpsUrl(url)) {
+      throw Exception('Cannot update company profile with non-HTTPS URL');
+    }
+    
     final response = await _makeRequest(
       'PUT',
-      Uri.parse('$_baseUrl/api/companies/profile'),
+      Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -171,10 +193,17 @@ class CompanyService {
   }) async {
     final token = await _tokenManager.getToken();
 
+    final url = '$_baseUrl/api/companies/profile';
+    
+    // Ensure HTTPS is being used
+    if (!_validateHttpsUrl(url)) {
+      throw Exception('Cannot update company profile with logo using non-HTTPS URL');
+    }
+    
     // Create multipart request
     final request = http.MultipartRequest(
       'PUT',
-      Uri.parse('$_baseUrl/api/companies/profile'),
+      Uri.parse(url),
     );
 
     // Add authorization header
@@ -225,10 +254,17 @@ class CompanyService {
   Future<String> uploadCompanyLogo(File logoFile) async {
     final token = await _tokenManager.getToken();
 
+    final url = '$_baseUrl/api/companies/logo';
+    
+    // Ensure HTTPS is being used
+    if (!_validateHttpsUrl(url)) {
+      throw Exception('Cannot upload company logo using non-HTTPS URL');
+    }
+    
     // Create multipart request
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$_baseUrl/api/companies/logo'),
+      Uri.parse(url),
     );
 
     // Add authorization header
@@ -288,6 +324,11 @@ class CompanyService {
       if (!kReleaseMode) {
         print('Fetching branches from URL: $url');
       }
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot get all branches using non-HTTPS URL');
+      }
 
       final response = await _makeRequest(
         'GET',
@@ -346,6 +387,11 @@ class CompanyService {
       final url = '$_baseUrl/api/companies/branches/$branchId';
       if (!kReleaseMode) {
         print('CompanyService: Making request to: $url');
+      }
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot get branch by ID using non-HTTPS URL');
       }
 
       final response = await _makeRequest(

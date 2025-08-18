@@ -1,11 +1,48 @@
+// lib/services/sponsorship_service.dart
+// This service ensures all API calls use HTTPS for security
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/sponsorship.dart';
 import 'api_service.dart';
 
 class SponsorshipService {
-  static const String baseUrl = 'https://barrim.online/api';
+  static const String baseUrl = ApiService.baseUrl;
+
+  // --- Custom HTTP client for self-signed certificates ---
+  static http.Client? _customClient;
+  static Future<http.Client> _getCustomClient() async {
+    if (_customClient != null) return _customClient!;
+    HttpClient httpClient = HttpClient();
+    httpClient.badCertificateCallback = (cert, host, port) {
+      return host == '104.131.188.174' || host == 'barrim.online';
+    };
+    _customClient = IOClient(httpClient);
+    return _customClient!;
+  }
+  
+  static Future<http.Response> _makeRequest(
+    String method,
+    Uri uri, {
+    Map<String, String>? headers,
+    Object? body,
+  }) async {
+    final client = await _getCustomClient();
+    switch (method.toUpperCase()) {
+      case 'GET':
+        return await client.get(uri, headers: headers);
+      case 'POST':
+        return await client.post(uri, headers: headers, body: body);
+      case 'PUT':
+        return await client.put(uri, headers: headers, body: body);
+      case 'DELETE':
+        return await client.delete(uri, headers: headers, body: body);
+      default:
+        throw Exception('Unsupported HTTP method: $method');
+    }
+  }
 
   // Get service provider sponsorships
   static Future<Map<String, dynamic>> getServiceProviderSponsorships({
@@ -13,8 +50,9 @@ class SponsorshipService {
     int limit = 10,
   }) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/sponsorships/service-provider?page=$page&limit=$limit'),
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/sponsorships/service-provider?page=$page&limit=$limit'),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -45,8 +83,9 @@ class SponsorshipService {
     int limit = 10,
   }) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/sponsorships/company-wholesaler?page=$page&limit=$limit'),
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/sponsorships/company-wholesaler?page=$page&limit=$limit'),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -154,12 +193,13 @@ class SponsorshipService {
         if (token != null) 'Authorization': 'Bearer $token',
       };
       
-      print('SponsorshipService: Sending request to $baseUrl/sponsorships-subscriptions/request');
+      print('SponsorshipService: Sending request to $baseUrl/api/sponsorship-subscriptions/request');
       print('SponsorshipService: Request body: $requestBody');
       print('SponsorshipService: Headers: $headers');
       
-      final response = await http.post(
-        Uri.parse('$baseUrl/sponsorship-subscriptions/request'),
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/sponsorship-subscriptions/request'),
         headers: headers,
         body: jsonEncode(requestBody),
       );

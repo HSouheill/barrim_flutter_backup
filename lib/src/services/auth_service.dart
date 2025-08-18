@@ -18,10 +18,17 @@ class AuthService extends ChangeNotifier {
   String? _error;
   final TokenManager _tokenManager = TokenManager();
 
-  // Constructor to log the baseUrl
+  // Constructor to log the baseUrl and ensure HTTPS
   AuthService() {
     print('AuthService: Initialized with baseUrl: $baseUrl');
     print('AuthService: ApiService.baseUrl: ${ApiService.baseUrl}');
+    
+    // Ensure we're using HTTPS
+    if (!baseUrl.startsWith('https://')) {
+      print('AuthService: WARNING - Base URL is not using HTTPS: $baseUrl');
+    } else {
+      print('AuthService: ✓ Base URL is using HTTPS: $baseUrl');
+    }
   }
 
   // --- Custom HTTP client for self-signed certificates ---
@@ -145,9 +152,17 @@ class AuthService extends ChangeNotifier {
   // Validate token with the server
   Future<bool> _validateToken(String token) async {
     try {
+      final url = '$baseUrl/api/auth/validate-token';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        print('AuthService: ERROR - Cannot validate token with non-HTTPS URL');
+        return false;
+      }
+      
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$baseUrl/api/auth/validate-token'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -168,10 +183,16 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final client = http.Client();
+      final url = '$baseUrl/api/auth/login';
       
-      final response = await client.post(
-        Uri.parse('${ApiService.baseUrl}/api/auth/login'),
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot login with non-HTTPS URL');
+      }
+      
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -238,9 +259,16 @@ class AuthService extends ChangeNotifier {
         requestBody['companyLicense'] = companyLicense;
       }
 
+      final url = '$baseUrl/api/auth/register';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot register with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$baseUrl/api/auth/register'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(requestBody),
       );
@@ -269,13 +297,20 @@ class AuthService extends ChangeNotifier {
     try {
       print('AuthService: Testing connection to: $baseUrl');
       
-      // Use a simple GET request to test basic connectivity
-      final response = await http.get(
+      // Ensure we're testing HTTPS connection
+      if (!baseUrl.startsWith('https://')) {
+        print('AuthService: ERROR - Cannot test connection: Base URL is not HTTPS');
+        return false;
+      }
+      
+      // Use secure _makeRequest method to test basic connectivity
+      final response = await _makeRequest(
+        'GET',
         Uri.parse('$baseUrl/'), // Just test the root endpoint
         headers: {
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10));
+      );
       
       print('AuthService: Connection test successful: ${response.statusCode}');
       return true;
@@ -283,6 +318,15 @@ class AuthService extends ChangeNotifier {
       print('AuthService: Connection test failed: $e');
       return false;
     }
+  }
+
+  // Validate that all URLs are using HTTPS
+  bool _validateHttpsUrl(String url) {
+    if (!url.startsWith('https://')) {
+      print('AuthService: WARNING - Non-HTTPS URL detected: $url');
+      return false;
+    }
+    return true;
   }
 
   // Logout user
@@ -299,14 +343,23 @@ class AuthService extends ChangeNotifier {
           print('AuthService: Attempting to logout with token: ${token.substring(0, 10)}...');
           print('AuthService: Logout URL: $baseUrl/api/auth/logout');
           
-          // Use direct http.post instead of _makeRequest for better debugging
-          final response = await http.post(
-            Uri.parse('$baseUrl/api/auth/logout'),
+          // Use secure _makeRequest method for HTTPS compliance
+          final logoutUrl = '$baseUrl/api/auth/logout';
+          
+          // Ensure HTTPS is being used
+          if (!_validateHttpsUrl(logoutUrl)) {
+            print('AuthService: ERROR - Cannot logout with non-HTTPS URL');
+            return;
+          }
+          
+          final response = await _makeRequest(
+            'POST',
+            Uri.parse(logoutUrl),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
             },
-          ).timeout(const Duration(seconds: 30));
+          );
           
           // Log the response for debugging
           print('AuthService: Logout endpoint response: ${response.statusCode}');
@@ -396,9 +449,16 @@ class AuthService extends ChangeNotifier {
       if (email != null) updateData['email'] = email;
       if (profileImage != null) updateData['profileImage'] = profileImage;
 
+      final url = '$baseUrl/api/users/profile';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot update profile with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'PUT',
-        Uri.parse('$baseUrl/api/users/profile'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $_token',
           'Content-Type': 'application/json',
@@ -446,9 +506,16 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final url = '$baseUrl/api/users/change-password';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot change password with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'PUT',
-        Uri.parse('$baseUrl/api/users/change-password'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $_token',
           'Content-Type': 'application/json',
@@ -486,9 +553,16 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final url = '$baseUrl/api/auth/forgot-password';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot request password reset with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$baseUrl/api/auth/forgot-password'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email}),
       );
@@ -519,9 +593,16 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final url = '$baseUrl/api/auth/reset-password';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot reset password with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$baseUrl/api/auth/reset-password'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'token': token,
@@ -556,6 +637,11 @@ class AuthService extends ChangeNotifier {
 
       final url = '$baseUrl/api/companies/data';
       print('AuthService: Making request to: $url');
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot get user data with non-HTTPS URL');
+      }
 
       final response = await _makeRequest(
         'GET',

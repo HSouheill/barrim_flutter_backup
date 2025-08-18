@@ -1,4 +1,5 @@
 // lib/services/company_subscription_service.dart
+// This service ensures all API calls use HTTPS for security
 import 'dart:convert';
 import 'dart:io';
 import 'package:barrim/src/services/api_service.dart';
@@ -13,6 +14,15 @@ class CompanySubscriptionService {
   static final TokenStorage _tokenStorage = TokenStorage();
   static const String _baseUrl = ApiService.baseUrl; // TODO: Move to api_constants.dart
   static const String _subscriptionEndpoint = '/api/companies';
+
+  // Validate that all URLs are using HTTPS
+  static bool _validateHttpsUrl(String url) {
+    if (!url.startsWith('https://')) {
+      print('CompanySubscriptionService: WARNING - Non-HTTPS URL detected: $url');
+      return false;
+    }
+    return true;
+  }
 
   // --- Custom HTTP client for self-signed certificates ---
   static http.Client? _customClient;
@@ -104,6 +114,11 @@ class CompanySubscriptionService {
       final url = '$_baseUrl$_subscriptionEndpoint/subscription-plans';
       print('Requesting URL: $url');
       
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot get subscription plans with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'GET',
         Uri.parse(url),
@@ -165,7 +180,14 @@ class CompanySubscriptionService {
   }) async {
     try {
       final headers = await _getMultipartHeaders();
-      final uri = Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/$branchId/request');
+      final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/request';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot create subscription request with non-HTTPS URL');
+      }
+      
+      final uri = Uri.parse(url);
 
       // Prepare fields
       Map<String, String> fields = {
@@ -228,9 +250,16 @@ class CompanySubscriptionService {
   static Future<ApiResponse<CurrentSubscriptionData?>> getCurrentSubscription({required String branchId}) async {
     try {
       final headers = await _getHeaders();
+      final url = '$_baseUrl$_subscriptionEndpoint/subscription/request/$branchId/status';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot get current subscription with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/request/$branchId/status'),
+        Uri.parse(url),
         headers: headers,
       );
 
@@ -267,9 +296,16 @@ class CompanySubscriptionService {
   static Future<ApiResponse<SubscriptionRemainingTimeData>> getSubscriptionRemainingTime({required String branchId}) async {
     try {
       final headers = await _getHeaders();
+      final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/remaining-time';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot get subscription remaining time with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/$branchId/remaining-time'),
+        Uri.parse(url),
         headers: headers,
       );
 
@@ -303,9 +339,16 @@ class CompanySubscriptionService {
   static Future<ApiResponse<void>> cancelSubscription({required String branchId}) async {
     try {
       final headers = await _getHeaders();
+      final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/cancel';
+      
+      // Ensure HTTPS is being used
+      if (!_validateHttpsUrl(url)) {
+        throw Exception('Cannot cancel subscription with non-HTTPS URL');
+      }
+      
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$_baseUrl$_subscriptionEndpoint/subscription/$branchId/cancel'),
+        Uri.parse(url),
         headers: headers,
       );
 
