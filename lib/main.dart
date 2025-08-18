@@ -3,7 +3,6 @@ import 'package:barrim/src/services/notification_service.dart';
 import 'package:barrim/src/services/notification_provider.dart';
 import 'package:barrim/src/services/user_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
@@ -43,10 +42,22 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  // Store provider references to avoid context access during lifecycle changes
+  NotificationProvider? _notificationProvider;
+  UserProvider? _userProvider;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Store provider references when dependencies are available
+    _notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+    _userProvider = Provider.of<UserProvider>(context, listen: false);
   }
 
   @override
@@ -59,20 +70,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Get the notification provider to manage WebSocket connection
-    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    // Use stored provider references instead of accessing context
+    if (_notificationProvider == null || _userProvider == null) {
+      print('Providers not available during lifecycle change');
+      return;
+    }
 
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-      // App is going to background or being terminated
+        // App is going to background or being terminated
         print('App going to background - closing WebSocket connection');
-        notificationProvider.closeConnection();
+        _notificationProvider!.closeConnection();
         break;
       case AppLifecycleState.resumed:
-      // App is coming to foreground
-        _handleAppResume(userProvider, notificationProvider);
+        // App is coming to foreground
+        _handleAppResume(_userProvider!, _notificationProvider!);
         break;
       default:
         break;
@@ -134,6 +147,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   bool _websocketInitialized = false;
+  NotificationProvider? _notificationProvider;
 
   @override
   void initState() {
@@ -142,6 +156,13 @@ class _MyHomePageState extends State<MyHomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeSession();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Store provider reference when dependencies are available
+    _notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
   }
 
   Future<void> _initializeSession() async {
@@ -368,8 +389,9 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void dispose() {
     // Clean up WebSocket connection when leaving this page
-    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
-    notificationProvider.closeConnection();
+    if (_notificationProvider != null) {
+      _notificationProvider!.closeConnection();
+    }
     super.dispose();
   }
 }

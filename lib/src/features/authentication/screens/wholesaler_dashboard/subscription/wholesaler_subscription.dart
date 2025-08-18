@@ -137,6 +137,25 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   Future<void> _initializeSubscriptionData() async {
     final provider = context.read<SubscriptionProvider>();
     await provider.initialize();
+    
+    // Check if subscription was recently approved
+    _checkSubscriptionApprovalStatus();
+  }
+
+  void _checkSubscriptionApprovalStatus() {
+    // This method can be called to check if subscription was approved
+    // You can integrate this with your backend API to check the actual status
+    // For now, this is a placeholder that you can call when needed
+    
+    // Example usage:
+    // if (subscriptionStatus == 'approved') {
+    //   _showSubscriptionApprovedDialog();
+    // }
+  }
+
+  // Call this method when you want to show the subscription approved dialog
+  void showSubscriptionApprovedPopup() {
+    _showSubscriptionApprovedDialog();
   }
 
   Future<void> _loadSponsorships() async {
@@ -1097,10 +1116,13 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(70),
                     gradient: const LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [Color(0xFF0094FF), Color(0xFF05055A), Color(0xFF0094FF)],
-                      stops: [0.0, 0.5, 1.0],
+                      begin: Alignment.bottomLeft,
+                      end: Alignment.topRight,
+                      colors: [
+                        Color(0xFF0094FF),
+                        Color(0xFF05055A),
+                        Color(0xFF0094FF),
+                      ],
                     ),
                   ),
                   child: ElevatedButton(
@@ -1483,146 +1505,157 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: Row(
-            children: [
-              Icon(
-                Icons.check_circle,
-                color: Colors.green,
-                size: 28,
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.bottomLeft,
+                end: Alignment.topRight,
+                colors: [
+                  Color(0xFF0094FF),
+                  Color(0xFF05055A),
+                  Color(0xFF0094FF),
+                ],
               ),
-              SizedBox(width: 12),
-              Text(
-                'Request Sent!',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
+            ),
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.check_circle,
+                  color: Colors.white,
+                  size: 60,
                 ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your sponsorship request has been sent to the admin team.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[700],
-                ),
-              ),
-              SizedBox(height: 12),
-              // Show sponsorship details
-              if (sponsorship.id != null && sponsorship.id!.isNotEmpty)
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
+                const SizedBox(height: 20),
+                const Text(
+                  'Request Sent Successfully!',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Request Details:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[700],
+                  textAlign: TextAlign.center,
+                ),
+                                const SizedBox(height: 16),
+                // Show sponsorship details
+                if (sponsorship.id != null && sponsorship.id!.isNotEmpty)
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Request Details:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.card_giftcard, color: Colors.blue[600], size: 16),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              sponsorship.title ?? 'Unknown Package',
+                        SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.card_giftcard, color: Colors.white, size: 16),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                sponsorship.title ?? 'Unknown Package',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.attach_money, color: Colors.white, size: 16),
+                            SizedBox(width: 8),
+                            Text(
+                              '\$${(sponsorship.price ?? 0).toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.grey[800],
+                                color: Colors.white,
                               ),
                             ),
-                          ),
-                        ],
+                            SizedBox(width: 16),
+                            Icon(Icons.schedule, color: Colors.white, size: 16),
+                            SizedBox(width: 8),
+                            Text(
+                              '${sponsorship.duration ?? 0} days',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.white,
+                        size: 20,
                       ),
-                      SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.attach_money, color: Colors.green[600], size: 16),
-                          SizedBox(width: 8),
-                          Text(
-                            '\$${(sponsorship.price ?? 0).toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[800],
-                            ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'The admin team will review your request and contact you within 24-48 hours.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white,
+                            fontStyle: FontStyle.italic,
                           ),
-                          SizedBox(width: 16),
-                          Icon(Icons.schedule, color: Colors.orange[600], size: 16),
-                          SizedBox(width: 8),
-                          Text(
-                            '${sponsorship.duration ?? 0} days',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.blue[700],
-                      size: 20,
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF05055A),
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
                     ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'The admin team will review your request and contact you within 24-48 hours.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blue[700],
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
+                  ),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'OK',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue[700],
-                ),
-              ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -1709,6 +1742,141 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _showSubscriptionApprovedDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.bottomLeft,
+                end: Alignment.topRight,
+                colors: [
+                  Color(0xFF0094FF),
+                  Color(0xFF05055A),
+                  Color(0xFF0094FF),
+                ],
+              ),
+            ),
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.celebration,
+                  color: Colors.white,
+                  size: 60,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Subscription Approved!',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Congratulations! Your subscription request has been approved by the admin team.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green[300],
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Your subscription is now active',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            color: Colors.orange[300],
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'You can now access all premium features',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Refresh subscription data to show updated status
+                    _initializeSubscriptionData();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF05055A),
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: const Text(
+                    'Great!',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
