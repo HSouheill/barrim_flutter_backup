@@ -2448,16 +2448,16 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                             print('Map controller: $_mapController');
                             print('Current location: $_currentLocation');
                             
-                            if (_currentLocation == null) {
-                              print('No current location available');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('No location available. Please wait...'),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                              return;
-                            }
+                            // if (_currentLocation == null) {
+                            //   print('No current location available');
+                            //   ScaffoldMessenger.of(context).showSnackBar(
+                            //     SnackBar(
+                            //       content: Text('No location available. Please wait...'),
+                            //       backgroundColor: Colors.orange,
+                            //     ),
+                            //   );
+                            //   return;
+                            // }
                             
                             _recenterToUserLocation();
                           },

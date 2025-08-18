@@ -6,7 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../headers/sidebar.dart';
 import '../../../../../models/subscription.dart';
 import '../../../../../models/sponsorship.dart';
-import '../../../../../services/wholesaler_subscription_service.dart';
+import '../../../../../models/wholesaler_model.dart';
+
 import '../../../../../services/wholesaler_service.dart';
 import '../../../../../services/api_service.dart';
 import '../../../../../services/sponsorship_service.dart';
@@ -34,12 +35,17 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   SponsorshipPagination? _sponsorshipPagination;
   String? _selectedSponsorshipId;
   bool _isSubmittingSponsorship = false;
+  String? _wholesalerId; // Add this to store the actual wholesaler ID
+  String? _selectedBranchId; // Add this to store the selected branch ID
+  List<Branch> _branches = []; // Add this to store the branches
+  bool _isLoadingWholesalerData = true; // Add this to track loading state
 
   @override
   void initState() {
     super.initState();
     _initializeSubscriptionData();
     _loadWholesalerLogo();
+    _loadBranches();
     _loadSponsorships();
   }
 
@@ -47,6 +53,15 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
     try {
       final wholesalerData = await _wholesalerService.getWholesalerData();
       if (wholesalerData != null && mounted) {
+        // Store the wholesaler ID
+        setState(() {
+          _wholesalerId = wholesalerData.id;
+          _isLoadingWholesalerData = false;
+        });
+        
+        print('Wholesaler ID loaded: ${wholesalerData.id}');
+        print('Wholesaler data: ${wholesalerData.toJson()}');
+        
         // Convert logo URL to full URL if it's a relative path
         String? logoUrl = wholesalerData.logoUrl;
         if (logoUrl != null && logoUrl.isNotEmpty) {
@@ -67,9 +82,55 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
         setState(() {
           _logoUrl = logoUrl;
         });
+      } else {
+        print('No wholesaler data received');
+        setState(() {
+          _wholesalerId = null;
+          _isLoadingWholesalerData = false;
+        });
       }
     } catch (e) {
       print('Error loading wholesaler logo: $e');
+      setState(() {
+        _wholesalerId = null;
+        _isLoadingWholesalerData = false;
+      });
+    }
+  }
+
+  Future<void> _refreshWholesalerData() async {
+    setState(() {
+      _isLoadingWholesalerData = true;
+    });
+    await _loadWholesalerLogo();
+    await _loadBranches();
+  }
+
+  Future<void> _loadBranches() async {
+    try {
+      final branches = await _wholesalerService.getWholesalerBranches();
+      if (mounted) {
+        setState(() {
+          _branches = branches;
+          // Select the first branch by default if available
+          if (branches.isNotEmpty && _selectedBranchId == null) {
+            _selectedBranchId = branches.first.id;
+          }
+        });
+        print('Loaded ${branches.length} branches');
+        if (branches.isNotEmpty) {
+          print('Selected branch ID: $_selectedBranchId');
+          print('Branch names: ${branches.map((b) => b.name).toList()}');
+          print('Branch IDs: ${branches.map((b) => b.id).toList()}');
+        }
+      }
+    } catch (e) {
+      print('Error loading branches: $e');
+      if (mounted) {
+        setState(() {
+          _branches = [];
+        });
+      }
     }
   }
 
@@ -815,42 +876,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   Widget _buildSponsorshipSection() {
     return Column(
       children: [
-        _buildSectionTitle('Sponsorship'),
-        const SizedBox(height: 24),
-        
-        // Top banner with join button
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF2079C2), Color(0xFF1F4889)],
-            ),
-          ),
-          child: Center(
-            child: ElevatedButton(
-              onPressed: () => _showJoinDialog(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF2079C2),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
-              ),
-              child: const Text(
-                'Join for only \$84.99',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ),
+        _buildSectionTitle('Sponsorship'), 
         
         const SizedBox(height: 24),
         
@@ -915,6 +941,85 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                     ),
                   ),
                 )
+              else if (_isLoadingWholesalerData)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text(
+                          'Loading wholesaler data...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_branches.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.store,
+                          size: 48,
+                          color: Colors.orange,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'No branches available',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'You need to create at least one branch to apply for sponsorship',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_selectedBranchId == null || _selectedBranchId!.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.orange,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'No branch selected',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loadBranches,
+                          child: Text('Refresh Branches'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
               else if (_sponsorships.isEmpty)
                 Center(
                   child: Padding(
@@ -933,6 +1038,58 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
               
               const SizedBox(height: 24),
               
+              // Branch selection dropdown (if multiple branches)
+              if (_branches.length > 1) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select Branch for Sponsorship',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedBranchId,
+                        decoration: InputDecoration(
+                          labelText: 'Branch',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        items: _branches.map((branch) {
+                          return DropdownMenuItem<String>(
+                            value: branch.id,
+                            child: Text(branch.name),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _selectedBranchId = newValue;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ] else if (_branches.length == 1) ...[
+                // Show selected branch info when there's only one
+                
+                const SizedBox(height: 16),
+              ],
+              
               // Get Sponsored button
               SizedBox(
                 width: double.infinity,
@@ -947,7 +1104,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                     ),
                   ),
                   child: ElevatedButton(
-                    onPressed: _selectedSponsorshipId != null 
+                    onPressed: (_selectedSponsorshipId != null && _selectedBranchId != null && _selectedBranchId!.isNotEmpty)
                       ? () => _submitSponsorshipRequest()
                       : null,
                     style: ElevatedButton.styleFrom(
@@ -982,12 +1139,11 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                           ],
                         )
                       : Text(
-                          _selectedSponsorshipId != null 
-                            ? 'Get Sponsored Now!' 
-                            : 'Select a sponsorship first',
+                            'Get Sponsored Now!' ,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                   ),
@@ -1233,11 +1389,18 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
     );
 
     try {
+      // Check if we have the branch ID
+      if (_selectedBranchId == null || _selectedBranchId!.isEmpty) {
+        throw Exception('No branch selected. Please try again.');
+      }
+
+      print('Submitting sponsorship request with branch ID: $_selectedBranchId');
+
       final response = await SponsorshipService.createSponsorshipSubscriptionRequest(
         sponsorshipId: originalSponsorshipId,
-        entityType: 'wholesaler',
-        entityId: 'wholesaler_id', // You may need to get this from user data
-        entityName: 'Wholesaler',
+        entityType: 'wholesaler_branch',
+        entityId: _selectedBranchId!, // Use the selected branch ID
+        entityName: 'Wholesaler Branch',
       );
 
       if (mounted) {
@@ -1257,6 +1420,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                   Icon(Icons.check_circle, color: Colors.white),
                   SizedBox(width: 12),
                   Text('Sponsorship request sent successfully!'),
+                  
                 ],
               ),
               backgroundColor: Colors.green,
@@ -1328,9 +1492,9 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
               ),
               SizedBox(width: 12),
               Text(
-                'Request Sent Successfully!',
+                'Request Sent!',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.green,
                 ),
