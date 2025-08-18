@@ -502,7 +502,7 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
                 SizedBox(height: 30),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('UserDashboard', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  title: Text('Home', style: TextStyle(color: Colors.white, fontSize: 14)),
                   onTap: () {
                     setState(() {
                       _isSidebarOpen = false;

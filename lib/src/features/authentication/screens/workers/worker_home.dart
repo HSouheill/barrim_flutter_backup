@@ -204,7 +204,7 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     // Fallback options if no custom logo was found
     if (provider['logoPath'] != null && provider['logoPath'].toString().isNotEmpty) {
       String logoPath = provider['logoPath'].toString();
-              return logoPath.startsWith('http') ? logoPath : 'https://104.131.188.174$logoPath';
+              return logoPath.startsWith('http') ? logoPath : 'https://barrim.online$logoPath';
     }
 
     // If still no logo, return default
@@ -273,7 +273,7 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
                 SizedBox(height: 40),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('UserDashboard', style: TextStyle(color: Colors.white)),
+                  title: Text('Home', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {

@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 import 'package:intl/intl.dart';
 import '../models/booking.dart';
 import '../utils/token_manager.dart';
@@ -20,15 +19,14 @@ class BookingService {
   static const String STATUS_COMPLETED = 'completed';
   static const String STATUS_CANCELLED = 'cancelled';
 
-  // --- Custom HTTP client for self-signed certificates ---
+  // --- Custom HTTP client with proper SSL handling ---
   static http.Client? _customClient;
   static Future<http.Client> _getCustomClient() async {
     if (_customClient != null) return _customClient!;
-    HttpClient httpClient = HttpClient();
-    httpClient.badCertificateCallback = (cert, host, port) {
-      return host == '104.131.188.174' || host == 'barrim.online';
-    };
-    _customClient = IOClient(httpClient);
+    
+    // In production, use standard HTTP client for proper SSL validation
+    // Let's Encrypt certificates are automatically trusted
+    _customClient = http.Client();
     return _customClient!;
   }
   

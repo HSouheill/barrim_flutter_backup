@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
+
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/company_model.dart';
@@ -25,15 +25,14 @@ class CompanyService {
     return true;
   }
 
-  // --- Custom HTTP client for self-signed certificates ---
+  // --- Custom HTTP client with proper SSL handling ---
   static http.Client? _customClient;
   static Future<http.Client> _getCustomClient() async {
     if (_customClient != null) return _customClient!;
-    HttpClient httpClient = HttpClient();
-    httpClient.badCertificateCallback = (cert, host, port) {
-      return host == '104.131.188.174' || host == 'barrim.online';
-    };
-    _customClient = IOClient(httpClient);
+    
+    // In production, use standard HTTP client for proper SSL validation
+    // Let's Encrypt certificates are automatically trusted
+    _customClient = http.Client();
     return _customClient!;
   }
   static Future<http.Response> _makeRequest(

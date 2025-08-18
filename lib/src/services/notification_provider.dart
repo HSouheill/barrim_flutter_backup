@@ -51,7 +51,7 @@ class NotificationProvider with ChangeNotifier {
     try {
       print('Establishing new WebSocket connection for user: $_userId');
       _channel = IOWebSocketChannel.connect(
-        'wss://104.131.188.174:8000/api/ws',
+        'wss://barrim.online/api/ws',
         headers: {'Authorization': 'Bearer $_currentToken'},
       );
 

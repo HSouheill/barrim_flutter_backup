@@ -94,7 +94,7 @@ class _ReferralPointsPageState extends State<ReferralPointsPage> {
                 SizedBox(height: 40),
                 ListTile(
                   leading: Icon(Icons.home, color: Colors.white),
-                  title: Text('UserDashboard', style: TextStyle(color: Colors.white)),
+                  title: Text('Home', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {

@@ -43,6 +43,9 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
   SponsorshipPagination? _sponsorshipPagination;
   String? _selectedSponsorshipId;
   bool _isSubmittingSponsorship = false;
+  
+  // Subscription plan state
+  bool _isSubmittingSubscription = false;
 
   @override
   void initState() {
@@ -76,12 +79,18 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
     });
 
     try {
+      print('Loading subscription data...');
       final plansResponse = await ServiceProviderSubscriptionService
           .getSubscriptionPlans();
+      print('Plans response: success=${plansResponse.success}, message=${plansResponse.message}');
+      
       final statusResponse = await ServiceProviderSubscriptionService
           .getSubscriptionStatus();
+      print('Status response: success=${statusResponse.success}, message=${statusResponse.message}');
+      
       final timeRemainingResponse = await ServiceProviderSubscriptionService
           .getSubscriptionTimeRemaining();
+      print('Time remaining response: success=${timeRemainingResponse.success}, message=${timeRemainingResponse.message}');
 
       if (mounted) {
         setState(() {
@@ -90,10 +99,12 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
             print('Loaded subscription plans: ${_subscriptionPlans.length}');
             // Debug: Print each plan details
             for (var plan in _subscriptionPlans) {
-              print('Plan: ${plan.title}, Type: ${plan.type}, Price: ${plan.price}');
+              print('Plan: ${plan.title}, Type: ${plan.type}, Price: ${plan.price}, ID: ${plan.id}');
+              print('  Benefits: ${plan.benefitsText}');
             }
           } else {
             _error = plansResponse.message;
+            print('Failed to load subscription plans: ${plansResponse.message}');
           }
           if (statusResponse.success) {
             _currentSubscription = statusResponse.data;
@@ -129,12 +140,20 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       );
 
       if (mounted) {
+        final sponsorships = SponsorshipService.parseSponsorships(response);
         setState(() {
-          _sponsorships = SponsorshipService.parseSponsorships(response);
+          _sponsorships = sponsorships;
           _sponsorshipPagination = SponsorshipService.parsePagination(response);
           _sponsorshipError = response['success'] == true ? null : response['message'];
           _isLoadingSponsorships = false;
         });
+        
+        // Debug: Print sponsorship IDs
+        print('Loaded ${sponsorships.length} sponsorships:');
+        for (var i = 0; i < sponsorships.length; i++) {
+          final sponsorship = sponsorships[i];
+          print('  Sponsorship $i: ID=${sponsorship.id}, Length=${sponsorship.id?.length ?? 0}');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -153,9 +172,13 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
         setState(() {
           _serviceProvider = provider;
         });
+        // Debug: Print service provider ID
+        print('ServiceProvider ID: ${provider.id}');
+        print('ServiceProvider ID length: ${provider.id.length}');
       }
     } catch (e) {
       // Optionally handle error
+      print('Error fetching service provider: $e');
     }
   }
 
@@ -169,6 +192,199 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
     setState(() {
       _isSidebarOpen = false;
     });
+  }
+  
+
+  
+
+  
+  Future<void> _submitSubscriptionRequestDirectly(subscription_models.SubscriptionPlan plan) async {
+    setState(() {
+      _isSubmittingSubscription = true;
+    });
+
+    try {
+      final response = await ServiceProviderSubscriptionService.createSubscriptionRequest(
+        planId: plan.id!,
+        // paymentProofImage: null, // Optional: Add file picker for payment proof
+      );
+
+      if (response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${plan.title} subscription request submitted successfully!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message ?? 'Failed to submit subscription request'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      setState(() {
+        _isSubmittingSubscription = false;
+      });
+    }
+  }
+  
+  LinearGradient _getPlanGradient(String planType) {
+    switch (planType) {
+      case 'monthly':
+        return const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1E3A8A), // Dark blue
+            Color(0xFF3B82F6), // Medium blue
+          ],
+        );
+      case 'sixMonths':
+        return const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1E40AF), // Dark blue
+            Color(0xFF2563EB), // Medium blue
+          ],
+        );
+      case 'yearly':
+        return const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF0F172A), // Very dark blue/black
+            Color(0xFF1E293B), // Dark blue
+          ],
+        );
+      default:
+        return const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2079C2),
+            Color(0xFF3B82F6),
+          ],
+        );
+    }
+  }
+  
+  void _showSubscriptionSelectionDialog(subscription_models.SubscriptionPlan plan) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.card_membership,
+                color: const Color(0xFF2079C2),
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Select ${plan.title}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You have selected the ${plan.title} subscription plan.',
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Price: \$${plan.price?.toStringAsFixed(2) ?? '0.00'}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF2079C2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Duration: ${plan.duration ?? 0} days',
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Benefits:',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...plan.benefitsText.split('\n')
+                  .where((b) => b.isNotEmpty)
+                  .map((benefit) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('• ', style: TextStyle(color: Colors.grey)),
+                            Expanded(child: Text(benefit)),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Show success message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${plan.title} plan selected!'),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2079C2),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Select Plan'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -208,21 +424,76 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                     children: [
                       const SizedBox(height: 10),
                       _buildSectionTitle('Service Provider Subscriptions'),
-                      const SizedBox(height: 24),
+                      // const SizedBox(height: 24),
 
                       // Current subscription status with circular progress
-                      if (_currentSubscription != null)
-                        _buildCurrentSubscriptionStatus(),
+                      // if (_currentSubscription != null)
+                      //   _buildCurrentSubscriptionStatus(),
 
                       const SizedBox(height: 24),
 
                       // Subscription plans grid
                       if (_subscriptionPlans.isNotEmpty)
                         _buildSubscriptionPlansGrid()
+                      else if (_error != null)
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: Colors.red,
+                                size: 48,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error loading subscription plans',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _error!,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _loadSubscriptionData,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2079C2),
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
                       else
                         const Center(
-                          child: Text('No subscription plans available'),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text(
+                                'Loading subscription plans...',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                      
+
 
                       const SizedBox(height: 40),
 
@@ -449,6 +720,8 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
 
   Widget _buildSubscriptionPlansGrid() {
     print('Building subscription plans grid with ${_subscriptionPlans.length} plans');
+    print('Plans: ${_subscriptionPlans.map((p) => '${p.title} (${p.id})').join(', ')}');
+    
     if (_subscriptionPlans.isEmpty) {
       return const Center(
         child: Text('No subscription plans available'),
@@ -459,7 +732,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
     if (_subscriptionPlans.length == 1) {
       return _buildSubscriptionCard(
         _subscriptionPlans.first,
-        const Color(0xFF2079C2),
+        'default',
         isFullWidth: true,
       );
     }
@@ -479,7 +752,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
 
     return Column(
       children: [
-        // Monthly and 6-month plans row
+        // Monthly and 6-month plans row (top row)
         if (monthlyPlans.isNotEmpty || sixMonthPlans.isNotEmpty)
           Row(
             children: [
@@ -487,7 +760,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                 Expanded(
                   child: _buildSubscriptionCard(
                     monthlyPlans.first,
-                    const Color(0xFF2079C2),
+                    'monthly',
                   ),
                 ),
               if (monthlyPlans.isNotEmpty && sixMonthPlans.isNotEmpty)
@@ -496,7 +769,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                 Expanded(
                   child: _buildSubscriptionCard(
                     sixMonthPlans.first,
-                    const Color(0xFF1F4889),
+                    'sixMonths',
                   ),
                 ),
             ],
@@ -504,19 +777,24 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
 
         const SizedBox(height: 20),
 
-        // Yearly plan (full width)
+        // Yearly plan (bottom center)
         if (yearlyPlans.isNotEmpty)
-          _buildSubscriptionCard(
-            yearlyPlans.first,
-            const Color(0xFF10105D),
-            isFullWidth: true,
+          Center(
+            child: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.6, // 60% of screen width
+              child: _buildSubscriptionCard(
+                yearlyPlans.first,
+                'yearly',
+                isFullWidth: true,
+              ),
+            ),
           ),
       ],
     );
   }
 
   Widget _buildSubscriptionCard(subscription_models.SubscriptionPlan plan,
-      Color backgroundColor, {
+      String planType, {
         bool isFullWidth = false,
       }) {
     final benefits = plan.benefitsText.split('\n')
@@ -527,9 +805,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       width: isFullWidth ? double.infinity : null,
       constraints: isFullWidth ? null : const BoxConstraints(maxWidth: 200),
       decoration: BoxDecoration(
-        color: (plan.title?.toLowerCase().contains('yearly') ?? false)
-            ? const Color(0xFF0094FF)
-            : null,
+        gradient: _getPlanGradient(planType),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -551,7 +827,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                 errorBuilder: (context, error, stackTrace) {
                   print('Error loading image: $error');
                   return Container(
-                    color: backgroundColor.withOpacity(0.1),
+                    color: Colors.grey.withOpacity(0.1),
                     child: const Center(
                       child: Icon(
                         Icons.card_membership,
@@ -563,6 +839,73 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                 },
               ),
             ),
+            
+            // Decorative elements based on plan type
+            if (planType == 'monthly')
+              Positioned(
+                top: 20,
+                right: 20,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+              ),
+            if (planType == 'sixMonths')
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  width: 80,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            if (planType == 'yearly')
+              Positioned(
+                top: 15,
+                left: 15,
+                child: Container(
+                  width: 100,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+              ),
+            if (planType == 'yearly')
+              Positioned(
+                bottom: 30,
+                right: 20,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            if (planType == 'yearly')
+              Positioned(
+                bottom: 50,
+                right: 40,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
             // Dark overlay for better text readability
             Positioned.fill(
               child: Container(
@@ -615,6 +958,32 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                         ),
                       )).toList(),
 
+                  const SizedBox(height: 20),
+
+                                        // Join button
+                      Container(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => _submitSubscriptionRequestDirectly(plan),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF2079C2),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            'Join for only \$${plan.price?.toStringAsFixed(2) ?? '0.00'}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+
 
                 ],
               ),
@@ -664,42 +1033,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
         _buildSectionTitle('Sponsorship'),
         const SizedBox(height: 24),
         
-        // Top banner with join button
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF2079C2), Color(0xFF1F4889)],
-            ),
-          ),
-          child: Center(
-            child: ElevatedButton(
-              onPressed: () => _showJoinDialog(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF2079C2),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
-              ),
-              child: const Text(
-                'Join for only \$84.99',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 24),
-        
+                
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -828,12 +1162,11 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                           ],
                         )
                       : Text(
-                          _selectedSponsorshipId != null 
-                            ? 'Get Sponsored Now!' 
-                            : 'Select a sponsorship first',
+                            'Get Sponsored Now!',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                   ),
@@ -1020,6 +1353,17 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       );
       return;
     }
+    
+    // Validate that the sponsorship ID is a valid MongoDB ObjectID (24 characters)
+    if (originalSponsorshipId.length != 24) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invalid sponsorship ID format. Expected 24 characters, got ${originalSponsorshipId.length}.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isSubmittingSponsorship = true;
@@ -1055,11 +1399,48 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       },
     );
 
+    // Validate service provider ID exists and is valid
+    if (_serviceProvider?.id == null || _serviceProvider!.id!.isEmpty) {
+      Navigator.of(context).pop(); // Close loading dialog
+      setState(() {
+        _isSubmittingSponsorship = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: Service provider ID not found. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    // Validate that the service provider ID is a valid MongoDB ObjectID (24 characters)
+    if (_serviceProvider!.id!.length != 24) {
+      Navigator.of(context).pop(); // Close loading dialog
+      setState(() {
+        _isSubmittingSponsorship = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: Invalid service provider ID format. Expected 24 characters, got ${_serviceProvider!.id!.length}.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     try {
+      // Debug: Print the values being sent
+      print('Submitting sponsorship request:');
+      print('  sponsorshipId: $originalSponsorshipId');
+      print('  entityType: service_provider');
+      print('  entityId: ${_serviceProvider!.id}');
+      print('  entityName: Service Provider');
+      
       final response = await SponsorshipService.createSponsorshipSubscriptionRequest(
         sponsorshipId: originalSponsorshipId,
         entityType: 'service_provider',
-        entityId: 'service_provider_id', // You may need to get this from user data
+        entityId: _serviceProvider!.id!,
         entityName: 'Service Provider',
       );
 
@@ -1151,7 +1532,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
               ),
               SizedBox(width: 12),
               Text(
-                'Request Sent Successfully!',
+                'Request Sent!',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -1256,7 +1637,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'The admin team will review your request and contact you within 24-48 hours.',
+                        'The admin team will review your request and contact you soon.',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.blue[700],

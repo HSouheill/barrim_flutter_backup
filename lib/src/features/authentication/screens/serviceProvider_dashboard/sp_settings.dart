@@ -164,7 +164,7 @@ class _SPSettingsPageState extends State<SPSettingsPage> {
                               );
                             }
                           },
-                          child: Image.asset('assets/logo/barrim_logo.png', height: 70),
+                          child: Image.asset('assets/logo/barrim_logo.png', height: 60),
                         ),
 
                         // Right side icons

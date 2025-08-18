@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
+
 import 'package:shared_preferences/shared_preferences.dart'; // Make sure this is in your pubspec.yaml
 
 import '../models/user.dart';

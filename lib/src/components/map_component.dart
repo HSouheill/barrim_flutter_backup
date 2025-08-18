@@ -67,19 +67,17 @@ class _MapComponentState extends State<MapComponent> {
       );
     }
 
-    // Add waypoint markers - handle both flutter_map and Google Maps marker types
+    // Add waypoint markers - preserve original markers with their dynamic colors
     for (int i = 0; i < widget.wayPointMarkers.length; i++) {
       final marker = widget.wayPointMarkers[i];
       
-      // Extract position from different marker types
-      latlong.LatLng? position;
       if (marker is google_maps.Marker) {
-        // Google Maps marker
-        position = latlong.LatLng(marker.position.latitude, marker.position.longitude);
+        // Google Maps marker - use it directly to preserve the dynamic icon
+        markers.add(marker);
       } else {
-        // flutter_map marker - try to extract point property
+        // flutter_map marker - try to extract position and create a basic marker
         try {
-          // Use reflection or dynamic access to get the point property
+          latlong.LatLng? position;
           if (marker is Map) {
             final point = marker['point'];
             if (point != null) {
@@ -92,23 +90,23 @@ class _MapComponentState extends State<MapComponent> {
               position = latlong.LatLng(point.latitude, point.longitude);
             }
           }
+          
+          if (position != null) {
+            markers.add(
+              google_maps.Marker(
+                markerId: google_maps.MarkerId('waypoint_$i'),
+                position: google_maps.LatLng(position.latitude, position.longitude),
+                icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue),
+                onTap: () {
+                  // Handle marker tap if needed
+                },
+              ),
+            );
+          }
         } catch (e) {
           print('Error extracting position from marker: $e');
           continue;
         }
-      }
-      
-      if (position != null) {
-        markers.add(
-          google_maps.Marker(
-            markerId: google_maps.MarkerId('waypoint_$i'),
-            position: google_maps.LatLng(position.latitude, position.longitude),
-            icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
-            onTap: () {
-              // Handle marker tap if needed
-            },
-          ),
-        );
       }
     }
 

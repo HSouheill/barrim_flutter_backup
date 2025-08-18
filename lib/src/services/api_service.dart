@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as path;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 
 import '../models/branch_review.dart';
 import '../models/notification_model.dart';
@@ -23,7 +24,6 @@ import 'auth_service.dart';
 
 class ApiService {
   static const String baseUrl = 'https://barrim.online';
-  static const String alternativeBaseUrl = 'https://104.131.188.174'; // Fallback IP address
   
   // Method to get the appropriate base URL
   static String getBaseUrl() {
@@ -39,6 +39,18 @@ class ApiService {
     return {
       'Content-Type': 'application/json',
       'Authorization': token != null ? 'Bearer $token' : '',
+    };
+  }
+
+  // Headers for multipart requests (file uploads)
+  static Future<Map<String, String>> _getMultipartHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+
+    return {
+      'Authorization': token != null ? 'Bearer $token' : '',
+      // Note: Don't set Content-Type for multipart requests
+      // The multipart request will set its own content type with boundary
     };
   }
 
@@ -460,9 +472,8 @@ class ApiService {
       // Create multipart request using custom client
       final uri = Uri.parse('$baseUrl/api/auth/signup-service-provider-with-logo');
       
-      // Prepare headers
-      Map<String, String> headers = await _getHeaders();
-      headers.remove('Content-Type'); // Let MultipartRequest set this
+      // Prepare headers for multipart request (without Content-Type)
+      Map<String, String> headers = await _getMultipartHeaders();
       
       // Prepare fields
       Map<String, String> fields = {};
@@ -816,8 +827,8 @@ class ApiService {
       // Fix the URL to match the backend route
       final uri = Uri.parse('$baseUrl/api/companies/branches');
 
-      // Add headers
-      Map<String, String> headers = await _getHeaders();
+      // Add headers for multipart request (without Content-Type)
+      Map<String, String> headers = await _getMultipartHeaders();
 
       // Remove file paths from the JSON data to avoid confusion
       var dataCopy = Map<String, dynamic>.from(branchData);
@@ -1025,11 +1036,8 @@ class ApiService {
       // Fix the URL to match the backend route
       final uri = Uri.parse('$baseUrl/api/companies/branches/$branchId');
 
-      // For multipart requests, don't set Content-Type header as it will be set automatically
-      Map<String, String> headers = {
-        'Authorization': 'Bearer $token',
-        // Remove Content-Type for multipart requests
-      };
+      // Add headers for multipart request (without Content-Type)
+      Map<String, String> headers = await _getMultipartHeaders();
 
       // Format data to match the backend expectations
       var dataCopy = Map<String, dynamic>.from(branchData);
@@ -1297,16 +1305,28 @@ class ApiService {
   static Future<Map<String, dynamic>> uploadProfilePhoto(File imageFile) async {
     try {
       print('Sending profile picture: $imageFile'); // Debug log
+      
+      // Compress the image before upload to avoid "413 Request Entity Too Large" error
+      File compressedImage = await _compressImage(imageFile);
+      print('Original image size: ${await imageFile.length()} bytes');
+      print('Compressed image size: ${await compressedImage.length()} bytes');
+      
+      // Check if the compressed image is still too large
+      final compressedSize = await compressedImage.length();
+      if (compressedSize > 2 * 1024 * 1024) { // 2MB limit
+        throw Exception('Image is still too large after compression (${(compressedSize / 1024 / 1024).toStringAsFixed(1)}MB). Please try a smaller image.');
+      }
+      
       final uri = Uri.parse('$baseUrl/api/upload-user-profile-photo');
       
-      // Add headers
-      Map<String, String> headers = await _getHeaders();
+      // Add headers for multipart request (without Content-Type)
+      Map<String, String> headers = await _getMultipartHeaders();
 
       // Prepare files
       List<http.MultipartFile> files = [];
       
-      // Add image file
-      var extension = imageFile.path
+      // Add compressed image file
+      var extension = compressedImage.path
           .split('.')
           .last
           .toLowerCase();
@@ -1314,7 +1334,7 @@ class ApiService {
 
       files.add(await http.MultipartFile.fromPath(
         'photo',
-        imageFile.path,
+        compressedImage.path,
         contentType: MediaType.parse(contentType),
       ));
 
@@ -1327,6 +1347,21 @@ class ApiService {
       );
       
       var response = await http.Response.fromStream(streamedResponse);
+      
+      // Add debug logging to see the actual response
+      print('Profile photo upload response status: ${response.statusCode}');
+      print('Profile photo upload response body: ${response.body}');
+      
+      // Check for specific error codes and provide helpful messages
+      if (response.statusCode == 413) {
+        throw Exception('Profile photo is too large. Please try a smaller image or contact support if the issue persists.');
+      }
+      
+      // Check if response is HTML (error page) instead of JSON
+      if (response.body.trim().startsWith('<html') || response.body.trim().startsWith('<!DOCTYPE')) {
+        throw Exception('Server returned HTML error page instead of JSON response. This usually indicates an authentication or server error.');
+      }
+      
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
@@ -1337,6 +1372,77 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Failed to upload profile photo: ${e.toString()}');
+    }
+  }
+
+  // Helper method to compress images
+  static Future<File> _compressImage(File imageFile) async {
+    try {
+      // Read the image file
+      final bytes = await imageFile.readAsBytes();
+      final originalSize = bytes.length;
+      
+      print('Original image size: $originalSize bytes');
+      
+      // If image is already small enough (under 500KB), return as is
+      if (originalSize < 500 * 1024) {
+        print('Image is already small enough, no compression needed');
+        return imageFile;
+      }
+      
+      // Decode the image
+      final image = img.decodeImage(bytes);
+      if (image == null) {
+        print('Could not decode image, returning original');
+        return imageFile;
+      }
+      
+      print('Original image dimensions: ${image.width}x${image.height}');
+      
+      // Calculate new dimensions - target max 800x800 pixels
+      int newWidth = image.width;
+      int newHeight = image.height;
+      
+      if (image.width > 800 || image.height > 800) {
+        if (image.width > image.height) {
+          newWidth = 800;
+          newHeight = (image.height * 800 / image.width).round();
+        } else {
+          newHeight = 800;
+          newWidth = (image.width * 800 / image.height).round();
+        }
+      }
+      
+      // Resize the image
+      final resizedImage = img.copyResize(
+        image,
+        width: newWidth,
+        height: newHeight,
+        interpolation: img.Interpolation.linear,
+      );
+      
+      print('Resized image dimensions: ${resizedImage.width}x${resizedImage.height}');
+      
+      // Encode as JPEG with quality 85 (good balance between size and quality)
+      final compressedBytes = img.encodeJpg(resizedImage, quality: 85);
+      final compressedSize = compressedBytes.length;
+      
+      print('Compressed image size: $compressedSize bytes');
+      print('Size reduction: ${((originalSize - compressedSize) / originalSize * 100).toStringAsFixed(1)}%');
+      
+      // Create a temporary file for the compressed image
+      final tempDir = Directory.systemTemp;
+      final tempFile = File('${tempDir.path}/compressed_profile_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      
+      await tempFile.writeAsBytes(compressedBytes);
+      
+      print('Compressed image saved to: ${tempFile.path}');
+      return tempFile;
+      
+    } catch (e) {
+      print('Error compressing image: $e');
+      // If compression fails, return the original image
+      return imageFile;
     }
   }
 
@@ -3242,5 +3348,6 @@ static Future<List<NotificationModel>> fetchNotifications() async {
       return {};
     }
   }
+
 }
 
