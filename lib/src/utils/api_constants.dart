@@ -8,6 +8,7 @@ class ApiConstants {
   // Endpoint paths
   static const String loginEndpoint = '/api/auth/login';
   static const String registerEndpoint = '/api/auth/register';
+  static const String googleAuthEndpoint = '/api/auth/google-auth-without-firebase';
   static const String companyDataEndpoint = '/api/companies/data';
   static const String companyProfileEndpoint = '/api/companies/profile';
   static const String companyLogoEndpoint = '/api/companies/logo';

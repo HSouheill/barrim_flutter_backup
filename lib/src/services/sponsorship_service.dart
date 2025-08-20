@@ -93,18 +93,26 @@ class SponsorshipService {
     int limit = 10,
   }) async {
     try {
+      print('Making request to: $baseUrl/api/sponsorships/company-wholesaler?page=$page&limit=$limit');
+      
+      // Get authentication headers
+      final headers = await _getHeaders();
+      
       final response = await _makeRequest(
         'GET',
         Uri.parse('$baseUrl/api/sponsorships/company-wholesaler?page=$page&limit=$limit'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
       );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('Successfully parsed response data: $data');
         return data;
       } else {
+        print('Error response: HTTP ${response.statusCode}');
         return {
           'success': false,
           'message': 'Failed to fetch company/wholesaler sponsorships',
@@ -112,6 +120,7 @@ class SponsorshipService {
         };
       }
     } catch (e) {
+      print('Error in getCompanyWholesalerSponsorships: $e');
       return {
         'success': false,
         'message': 'Network error: ${e.toString()}',
@@ -137,7 +146,7 @@ class SponsorshipService {
       
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$baseUrl/api/sponsorship/request'),
+        Uri.parse('$baseUrl/api/service-providers/sponsorship/request'),
         headers: headers,
         body: jsonEncode(requestBody),
       );
@@ -401,8 +410,11 @@ class SponsorshipService {
   static List<Sponsorship> parseSponsorships(Map<String, dynamic> response) {
     try {
       if (response['success'] == true && response['data'] != null) {
-        final List<dynamic> sponsorshipsJson = response['data'];
-        return sponsorshipsJson.map((json) => Sponsorship.fromJson(json)).toList();
+        final data = response['data'] as Map<String, dynamic>;
+        if (data['sponsorships'] != null) {
+          final List<dynamic> sponsorshipsJson = data['sponsorships'];
+          return sponsorshipsJson.map((json) => Sponsorship.fromJson(json)).toList();
+        }
       }
       return [];
     } catch (e) {
@@ -414,13 +426,16 @@ class SponsorshipService {
   // Parse pagination from API response
   static SponsorshipPagination? parsePagination(Map<String, dynamic> response) {
     try {
-      if (response['pagination'] != null) {
-        return SponsorshipPagination.fromJson(response['pagination']);
+      if (response['success'] == true && response['data'] != null) {
+        final data = response['data'] as Map<String, dynamic>;
+        if (data['pagination'] != null) {
+          return SponsorshipPagination.fromJson(data['pagination']);
+        }
       }
-      return null;
-    } catch (e) {
-      print('Error parsing pagination: $e');
-      return null;
-    }
+              return null;
+      } catch (e) {
+        print('Error parsing pagination: $e');
+        return null;
+      }
   }
 }

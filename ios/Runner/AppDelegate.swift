@@ -14,7 +14,14 @@ import FirebaseCore
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GMSServices.provideAPIKey("AIzaSyD8LfG_dswX7RwHlfSCf-Qc0qFpEVm-XrM")
+            // Load API key from secure configuration
+        if let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
+           let config = NSDictionary(contentsOfFile: path),
+           let apiKey = config["GoogleMapsAPIKey"] as? String {
+            GMSServices.provideAPIKey(apiKey)
+        } else {
+            print("Warning: Google Maps API key not found in configuration")
+        }
     FlutterLocalNotificationsPlugin.setPluginRegistrantCallback { (registry) in
        GeneratedPluginRegistrant.register(with: registry)
       }

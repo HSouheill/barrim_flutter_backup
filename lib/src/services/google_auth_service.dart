@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:barrim/src/services/api_service.dart';
+import 'package:barrim/src/utils/api_constants.dart';
 
 class GoogleSignInProvider extends ChangeNotifier {
   final googleSignIn = GoogleSignIn();
@@ -100,7 +101,12 @@ class GoogleSignInProvider extends ChangeNotifier {
         throw Exception('Failed to get authentication tokens from Google: ${e.toString()}');
       }
 
-      // Send the Google auth data to your backend
+      // Check if idToken is available
+      if (googleAuth.idToken == null) {
+        throw Exception('Failed to get ID token from Google authentication');
+      }
+
+      // Send the Google ID token to your backend using the new endpoint
       http.Response? response;
       int retryCount = 0;
       const maxRetries = 3;
@@ -108,18 +114,14 @@ class GoogleSignInProvider extends ChangeNotifier {
 
       while (response == null && retryCount < maxRetries) {
         try {
-          print("Attempting to send Google auth data to backend (attempt ${retryCount + 1})");
+          print("Attempting to send Google ID token to backend (attempt ${retryCount + 1})");
 
-          final apiUrl = '${ApiService.baseUrl}/api/auth/google';
+          final apiUrl = '${ApiService.baseUrl}${ApiConstants.googleAuthEndpoint}';
           print("API URL: $apiUrl");
 
+          // New request body structure - only send idToken
           final requestBody = {
-            'email': _user!.email,
-            'displayName': _user!.displayName,
-            'googleId': _user!.id,
-            'photoUrl': _user!.photoUrl,
             'idToken': googleAuth.idToken,
-            'accessToken': googleAuth.accessToken,
           };
 
           print("Request body: ${jsonEncode(requestBody)}");
@@ -158,34 +160,36 @@ class GoogleSignInProvider extends ChangeNotifier {
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        if (responseData['data'] != null) {
-          final token = responseData['data']['token'];
-          final userData = responseData['data']['user'];
+        // New response structure from the updated endpoint
+        final token = responseData['token'];
+        final userData = responseData['user'];
 
-          // Save token
-          if (token != null) {
-            await ApiService.saveToken(token);
-          } else {
-            throw Exception('Invalid response: Missing token');
-          }
-
-          // Save user data
-          if (userData != null) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('user_data', jsonEncode(userData));
-          } else {
-            throw Exception('Invalid response: Missing user data');
-          }
-
-          _isLoading = false;
-          notifyListeners();
-          return responseData['data'];
+        // Save token
+        if (token != null) {
+          await ApiService.saveToken(token);
         } else {
-          throw Exception('Invalid response format from server: missing data');
+          throw Exception('Invalid response: Missing token');
         }
+
+        // Save user data
+        if (userData != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_data', jsonEncode(userData));
+        } else {
+          throw Exception('Invalid response: Missing user data');
+        }
+
+        _isLoading = false;
+        notifyListeners();
+        
+        // Return data in the expected format for the login page
+        return {
+          'token': token,
+          'user': userData,
+        };
       } else {
         // Handle error response
-        String errorMessage = responseData['message'] ?? 'Failed to authenticate with backend';
+        String errorMessage = responseData['error'] ?? 'Failed to authenticate with backend';
         throw Exception('$errorMessage (Status: ${response.statusCode})');
       }
     } catch (e) {

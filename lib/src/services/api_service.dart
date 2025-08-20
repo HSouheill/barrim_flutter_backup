@@ -205,7 +205,7 @@ class ApiService {
         requestBody['phone'] = formattedInput;
       }
 
-      print('Request body: $requestBody'); // Debug print
+      print('Request body: [REDACTED]'); // Request body logged for security
 
       // Use custom client for handling self-signed certificates
       final response = await _makeRequest(
@@ -217,7 +217,7 @@ class ApiService {
 
       // Print response for debugging
       print('Login response status: ${response.statusCode}');
-      print('Login response body: ${response.body}');
+      print('Login response body: [REDACTED]'); // Response body logged for security
 
       final responseData = jsonDecode(response.body);
 
@@ -659,8 +659,8 @@ class ApiService {
         Uri.parse('$baseUrl/api/user/companies'),
         headers: await _getHeaders(),
       );
-      print('getCompaniesWithLocations status: \\${response.statusCode}');
-      print('getCompaniesWithLocations body: \\${response.body}');
+      print('getCompaniesWithLocations status: ${response.statusCode}');
+      print('getCompaniesWithLocations body: [REDACTED]'); // Response body logged for security
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return responseData['data'] ?? []; // Ensure we always return a list
@@ -752,8 +752,7 @@ class ApiService {
     try {
       final url = '${baseUrl}/api/companies/data';
       print('📡 [GET] Fetching company data from: $url');
-      print('🔑 Using token: ${token.substring(
-          0, 10)}...'); // Log first 10 chars of token for security
+      print('🔑 Using token: [REDACTED]'); // Token logged for security
 
       final stopwatch = Stopwatch()
         ..start();
@@ -792,7 +791,7 @@ class ApiService {
         print('❌ Failed to load company data: ${response.statusCode}');
         print('🔧 Error details: ${errorResponse['message'] ??
             'No error message'}');
-        print('📄 Full response: ${response.body}');
+        print('📄 Full response: [REDACTED]'); // Response body logged for security
         throw Exception('Failed to load company data: ${response.statusCode}');
       }
     } catch (e) {
@@ -1155,11 +1154,11 @@ class ApiService {
         body: jsonEncode(data),
       );
       print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      print('Response body: [REDACTED]'); // Response body logged for security
       if (response.statusCode == 200) {
         return true;
       } else {
-        throw Exception('Failed to update: ${response.body}');
+        throw Exception('Failed to update: [REDACTED]'); // Error message logged for security
       }
     } catch (e) {
       print('Error updating company data: $e');
@@ -1187,7 +1186,7 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        print('Response body: ${response.body}');
+        print('Response body: [REDACTED]'); // Response body logged for security
         final responseData = json.decode(response.body);
         if (responseData['status'] == 200) {
           // Return empty list if data is null, otherwise return the data
@@ -1277,7 +1276,7 @@ class ApiService {
         'currentPassword': currentPassword,
       };
 
-      print('Sending profile update payload: $payload'); // Debug log
+      print('Sending profile update payload: [REDACTED]'); // Payload logged for security
 
       final response = await _makeRequest(
         'PUT',
@@ -1287,7 +1286,7 @@ class ApiService {
       );
 
       print('Response status: ${response.statusCode}'); // Debug log
-      print('Response body: ${response.body}'); // Debug log
+      print('Response body: [REDACTED]'); // Response body logged for security
 
       final responseData = jsonDecode(response.body);
 
@@ -1542,7 +1541,7 @@ class ApiService {
         if (location != null) 'location': location,
       };
 
-      print('Sending personal info update: $payload');
+      print('Sending personal info update: [REDACTED]'); // Personal info logged for security
 
       final response = await _makeRequest(
         'PUT',
@@ -1552,7 +1551,7 @@ class ApiService {
       );
 
       print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      print('Response body: [REDACTED]'); // Response body logged for security
 
       final responseData = jsonDecode(response.body);
 
@@ -2315,7 +2314,7 @@ class ApiService {
       );
 
       print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      print('Response body: [REDACTED]'); // Response body logged for security
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
@@ -2338,7 +2337,7 @@ class ApiService {
         return responseData;
       } else {
         print('Failed to load comments: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        print('Response body: [REDACTED]'); // Response body logged for security
 
         // Return a formatted error response
         return {
@@ -2405,7 +2404,7 @@ class ApiService {
         return responseData;
       } else {
         print('Failed to post comment: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        print('Response body: [REDACTED]'); // Response body logged for security
         throw Exception(
             'Failed to post comment (Status: ${response.statusCode})');
       }
@@ -2442,14 +2441,14 @@ class ApiService {
       );
 
       print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      print('Response body: [REDACTED]'); // Response body logged for security
 
       if (response.statusCode == 201) {
         final responseData = json.decode(response.body);
         return responseData;
       } else {
         print('Failed to post reply: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        print('Response body: [REDACTED]'); // Response body logged for security
         throw Exception(
             'Failed to post reply (Status: ${response.statusCode})');
       }
@@ -2489,7 +2488,7 @@ class ApiService {
       );
 
       debugPrint('Social links update response: ${response.statusCode}');
-      debugPrint('Response body: ${response.body}');
+      debugPrint('Response body: [REDACTED]'); // Response body logged for security
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -3225,7 +3224,7 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         return categoriesMap;
       } else {
         print('Failed to fetch categories: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        print('Response body: [REDACTED]'); // Response body logged for security
         // Return empty map on error
         return {};
       }
@@ -3281,7 +3280,7 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         return categoriesMap;
       } else {
         print('Failed to fetch categories: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        print('Response body: [REDACTED]'); // Response body logged for security
         // Return empty map on error
         return {};
       }
@@ -3309,7 +3308,7 @@ static Future<List<NotificationModel>> fetchNotifications() async {
       );
 
       print('getAllWholesalerCategories: Response status: ${response.statusCode}');
-      print('getAllWholesalerCategories: Response body: ${response.body}');
+      print('getAllWholesalerCategories: Response body: [REDACTED]'); // Response body logged for security
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -3351,7 +3350,7 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         return categoriesMap;
       } else {
         print('Failed to fetch wholesaler categories: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        print('Response body: [REDACTED]'); // Response body logged for security
         print('=== WHOLESALER CATEGORIES METHOD FAILED ===');
         // Return empty map on error
         return {};

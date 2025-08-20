@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
+    <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">barrim.online</domain>
+        <domain includeSubdomains="true">firebase.google.com</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
     </domain-config>
-    <base-config cleartextTrafficPermitted="true">
+    
+    <!-- Block all cleartext traffic by default -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system"/>
-            <certificates src="user"/>
         </trust-anchors>
     </base-config>
 </network-security-config> 

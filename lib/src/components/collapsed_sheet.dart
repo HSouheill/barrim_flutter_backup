@@ -1432,7 +1432,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Text(
-              'Sponsored Branches',
+              'Sponsored Wholesalers',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,

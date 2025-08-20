@@ -85,7 +85,7 @@ class WholesalerSubscriptionService {
   Future<Map<String, String>> _getHeaders() async {
     try {
       final token = await _tokenStorage.getToken();
-      print('WholesalerSubscriptionService - Token retrieved: ${token != null ? "exists" : "null"}');
+      print('WholesalerSubscriptionService - Token retrieved: [REDACTED]'); // Token status logged for security
       
       final headers = {
         'Content-Type': 'application/json',
@@ -126,8 +126,8 @@ class WholesalerSubscriptionService {
         headers: headers,
       );
 
-      print('WholesalerSubscriptionService - Response status: ${response.statusCode}');
-      print('WholesalerSubscriptionService - Response body: ${response.body}');
+              print('WholesalerSubscriptionService - Response status: ${response.statusCode}');
+        print('WholesalerSubscriptionService - Response body: [REDACTED]'); // Response body logged for security
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
@@ -218,24 +218,24 @@ class WholesalerSubscriptionService {
       
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('WholesalerSubscriptionService - Response body: ${response.body}');
+      print('WholesalerSubscriptionService - Response body: [REDACTED]'); // Response body logged for security
 
       if (response.statusCode == 201) {
         print('WholesalerSubscriptionService - Success response, parsing JSON...');
         final Map<String, dynamic> responseData = json.decode(response.body);
-        print('WholesalerSubscriptionService - Parsed response data: $responseData');
+        print('WholesalerSubscriptionService - Parsed response data: [REDACTED]'); // Response data logged for security
         print('WholesalerSubscriptionService - Response data type: ${responseData.runtimeType}');
-        print('WholesalerSubscriptionService - Response data keys: ${responseData.keys.toList()}');
+        print('WholesalerSubscriptionService - Response data keys: [REDACTED]'); // Response keys logged for security
         
         final data = responseData['data'];
-        print('WholesalerSubscriptionService - Extracted data: $data');
+        print('WholesalerSubscriptionService - Extracted data: [REDACTED]'); // Extracted data logged for security
         print('WholesalerSubscriptionService - Data type: ${data.runtimeType}');
         
         if (data != null) {
-          print('WholesalerSubscriptionService - Data keys: ${data is Map ? data.keys.toList() : 'Not a map'}');
+          print('WholesalerSubscriptionService - Data keys: [REDACTED]'); // Data keys logged for security
           if (data is Map) {
             data.forEach((key, value) {
-              print('WholesalerSubscriptionService - Data field $key: $value (type: ${value.runtimeType})');
+              print('WholesalerSubscriptionService - Data field $key: [REDACTED] (type: ${value.runtimeType})'); // Field values logged for security
             });
           }
         }
@@ -247,7 +247,7 @@ class WholesalerSubscriptionService {
         print('WholesalerSubscriptionService - Creating WholesalerBranchSubscriptionRequest from JSON...');
         try {
           final result = WholesalerBranchSubscriptionRequest.fromJson(data);
-          print('WholesalerSubscriptionService - Successfully created subscription request: ${result.toJson()}');
+          print('WholesalerSubscriptionService - Successfully created subscription request: [REDACTED]'); // Request data logged for security
           return result;
         } catch (parseError) {
           print('WholesalerSubscriptionService - Error parsing WholesalerBranchSubscriptionRequest: $parseError');

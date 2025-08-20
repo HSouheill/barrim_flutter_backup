@@ -45,12 +45,9 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs access to camera to take photos for your company logo</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to your location to provide location-based services.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app needs access to location when in the background to show your current location on the map.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to location when open to show your current location on the map.</string>
+	<string>This app needs access to location when open to show your current location on the map and provide location-based services.</string>
+
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs access to microphone for camera functionality</string>
 	<key>NSPhotoLibraryUsageDescription</key>
