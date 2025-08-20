@@ -12,6 +12,8 @@ class ServiceProviderHeader extends StatelessWidget {
   final ServiceProvider? serviceProvider;
   final bool isLoading;
   final VoidCallback? onLogoTap;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onLogoNavigation;
 
   const ServiceProviderHeader({
     Key? key,
@@ -19,6 +21,8 @@ class ServiceProviderHeader extends StatelessWidget {
     this.serviceProvider,
     this.isLoading = true,
     this.onLogoTap,
+    this.onRefresh,
+    this.onLogoNavigation,
   }) : super(key: key);
 
   @override
@@ -57,30 +61,9 @@ class ServiceProviderHeader extends StatelessWidget {
           children: [
             // Logo on the left
             GestureDetector(
-              onTap: onLogoTap ?? () async {
-                if (serviceProvider != null) {
-                  // Ensure userData has token before navigating
-                  Map<String, dynamic> updatedUserData = Map<String, dynamic>.from(serviceProvider!.toJson());
-                  if (!updatedUserData.containsKey('token') || updatedUserData['token'] == null) {
-                    // Try to get token from TokenManager
-                    try {
-                      final tokenManager = TokenManager();
-                      final token = await tokenManager.getToken();
-                      if (token.isNotEmpty) {
-                        updatedUserData['token'] = token;
-                      }
-                    } catch (e) {
-                      print('Error getting token: $e');
-                    }
-                  }
-                  
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ServiceproviderDashboard(userData: updatedUserData),
-                    ),
-                  );
-                }
+              onTap: onLogoTap ?? onLogoNavigation ?? () {
+                // Default behavior - do nothing if no navigation callback is provided
+                debugPrint('Logo tapped - no navigation callback provided');
               },
               child: SizedBox(
                 height: 50, // Header height
@@ -92,6 +75,17 @@ class ServiceProviderHeader extends StatelessWidget {
               ),
             ),
             const Spacer(),
+            
+            // Refresh button
+            if (onRefresh != null)
+              IconButton(
+                onPressed: onRefresh,
+                icon: const Icon(
+                  Icons.refresh,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
             
             // Make CircleAvatar clickable to navigate to Settings
             GestureDetector(

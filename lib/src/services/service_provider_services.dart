@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 
 import 'package:http_parser/http_parser.dart';
 import '../models/service_provider.dart';
@@ -21,6 +23,53 @@ class ServiceProviderService {
     // Let's Encrypt certificates are automatically trusted
     _customClient = http.Client();
     return _customClient!;
+  }
+
+  // Helper method to compress and resize image
+  Future<File> _compressAndResizeImage(File originalFile) async {
+    try {
+      // Read the original image
+      final Uint8List bytes = await originalFile.readAsBytes();
+      final img.Image? originalImage = img.decodeImage(bytes);
+      
+      if (originalImage == null) {
+        throw Exception('Failed to decode image');
+      }
+      
+      // Calculate new dimensions (max 800x800 pixels)
+      int newWidth = originalImage.width;
+      int newHeight = originalImage.height;
+      
+      if (newWidth > 800 || newHeight > 800) {
+        if (newWidth > newHeight) {
+          newHeight = (newHeight * 800 / newWidth).round();
+          newWidth = 800;
+        } else {
+          newWidth = (newWidth * 800 / newHeight).round();
+          newHeight = 800;
+        }
+      }
+      
+      // Resize the image
+      final img.Image resizedImage = img.copyResize(originalImage, width: newWidth, height: newHeight);
+      
+      // Encode as JPEG with quality 85 (good balance between quality and size)
+      final Uint8List compressedBytes = img.encodeJpg(resizedImage, quality: 85);
+      
+      // Create a temporary file for the compressed image
+      final Directory tempDir = Directory.systemTemp;
+      final File compressedFile = File('${tempDir.path}/compressed_logo_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await compressedFile.writeAsBytes(compressedBytes);
+      
+      print('Image compressed: ${originalFile.lengthSync()} bytes -> ${compressedFile.lengthSync()} bytes');
+      print('Image resized: ${originalImage.width}x${originalImage.height} -> ${newWidth}x${newHeight}');
+      
+      return compressedFile;
+    } catch (e) {
+      print('Failed to compress image: $e');
+      // Return original file if compression fails
+      return originalFile;
+    }
   }
   static Future<http.Response> _makeRequest(
     String method,
@@ -61,7 +110,23 @@ class ServiceProviderService {
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         if (responseData['status'] == 200 && responseData['data'] != null) {
-          return ServiceProvider.fromJson(responseData['data']);
+          final data = responseData['data'] as Map<String, dynamic>;
+          
+          // Extract the actual service provider data from the nested structure
+          Map<String, dynamic> serviceProviderData;
+          if (data.containsKey('serviceProvider')) {
+            // The API returns {category: "...", serviceProvider: {...}}
+            serviceProviderData = Map<String, dynamic>.from(data['serviceProvider'] as Map<String, dynamic>);
+            // Add the category to the service provider data
+            if (data.containsKey('category')) {
+              serviceProviderData['category'] = data['category'];
+            }
+          } else {
+            // Direct service provider data
+            serviceProviderData = data;
+          }
+          
+          return ServiceProvider.fromJson(serviceProviderData);
         } else {
           throw Exception(responseData['message'] ?? 'Failed to get service provider data');
         }
@@ -94,9 +159,38 @@ class ServiceProviderService {
       }
       final client = await _getCustomClient();
       var response = await http.Response.fromStream(await client.send(request));
+      
+      print('Profile update response status: ${response.statusCode}');
+      print('Profile update response body: ${response.body}');
+      
       if (response.statusCode != 200) {
-        final responseData = json.decode(response.body);
-        throw Exception(responseData['message'] ?? 'Failed to update profile');
+        // Check for specific error status codes
+        String errorMessage = 'Failed to update profile';
+        
+        if (response.statusCode == 413) {
+          errorMessage = 'Request entity too large. Please try with a smaller file.';
+        } else {
+          try {
+            if (response.body.trim().startsWith('<html>') || response.body.trim().startsWith('<!DOCTYPE')) {
+              // Server returned HTML instead of JSON (likely an error page)
+              if (response.body.contains('413 Request Entity Too Large')) {
+                errorMessage = 'File size too large. Please try with a smaller file.';
+              } else {
+                errorMessage = 'Server error occurred while updating profile. Please try again later.';
+              }
+            } else {
+              // Try to parse as JSON
+              final responseData = json.decode(response.body);
+              errorMessage = responseData['message'] ?? 'Failed to update profile';
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, use the raw response or default message
+            if (response.body.isNotEmpty && response.body.length < 200) {
+              errorMessage = 'Server response: ${response.body}';
+            }
+          }
+        }
+        throw Exception(errorMessage);
       }
     } catch (e) {
       throw Exception('Error updating profile: $e');
@@ -110,9 +204,40 @@ class ServiceProviderService {
     String? newPassword,
     required File logoFile,
   }) async {
+    // Declare processedLogoFile outside try block so it can be accessed in catch block
+    File processedLogoFile = logoFile;
+    
     try {
       final token = await _tokenStorage.getToken();
       if (token == null) throw Exception('No token found');
+      
+      // Validate logo file
+      if (!await logoFile.exists()) {
+        throw Exception('Logo file does not exist');
+      }
+      
+      final fileSize = await logoFile.length();
+      if (fileSize == 0) {
+        throw Exception('Logo file is empty');
+      }
+      
+      print('Updating profile with logo - URL: $baseUrl/api/service-provider/update');
+      print('Original logo file path: ${logoFile.path}');
+      print('Original logo file size: $fileSize bytes');
+      
+      // Compress and resize the image if it's too large
+      if (fileSize > 1024 * 1024) { // If larger than 1MB, compress it
+        print('Logo file is large, compressing...');
+        processedLogoFile = await _compressAndResizeImage(logoFile);
+        final compressedSize = await processedLogoFile.length();
+        print('Compressed logo file size: $compressedSize bytes');
+        
+        // Check if compression was successful and file is still too large
+        if (compressedSize > 5 * 1024 * 1024) {
+          throw Exception('Logo file is still too large after compression (${(compressedSize / (1024 * 1024)).toStringAsFixed(1)}MB). Please choose a smaller image.');
+        }
+      }
+      
       var request = http.MultipartRequest(
         'PUT',
         Uri.parse('$baseUrl/api/service-provider/update'),
@@ -123,18 +248,80 @@ class ServiceProviderService {
       if (newPassword != null && newPassword.isNotEmpty) {
         request.fields['password'] = newPassword;
       }
-      request.files.add(await http.MultipartFile.fromPath(
-        'logo',
-        logoFile.path,
-        contentType: MediaType('image', 'jpeg'),
-      ));
+      
+      // Add the logo file
+      try {
+        final multipartFile = await http.MultipartFile.fromPath(
+          'logo',
+          processedLogoFile.path,
+          contentType: MediaType('image', 'jpeg'),
+        );
+        request.files.add(multipartFile);
+        print('Logo file added successfully to request (using ${processedLogoFile == logoFile ? 'original' : 'compressed'} file)');
+      } catch (e) {
+        throw Exception('Failed to prepare logo file for upload: $e');
+      }
+      
+      print('Request fields: ${request.fields}');
+      print('Request files count: ${request.files.length}');
+      
       final client = await _getCustomClient();
+      print('Sending multipart request...');
       var response = await http.Response.fromStream(await client.send(request));
+      print('Response received');
+      
+      print('Profile update response status: ${response.statusCode}');
+      print('Profile update response body: ${response.body}');
+      
       if (response.statusCode != 200) {
-        final responseData = json.decode(response.body);
-        throw Exception(responseData['message'] ?? 'Failed to update profile');
+        // Check for specific error status codes
+        String errorMessage = 'Failed to update profile';
+        
+        if (response.statusCode == 413) {
+          errorMessage = 'File size too large. The image has been compressed, but it\'s still too big. Please choose a smaller image (under 5MB).';
+        } else {
+          try {
+            if (response.body.trim().startsWith('<html>') || response.body.trim().startsWith('<!DOCTYPE')) {
+              // Server returned HTML instead of JSON (likely an error page)
+              if (response.body.contains('413 Request Entity Too Large')) {
+                errorMessage = 'File size too large. Please choose a smaller image file.';
+              } else {
+                errorMessage = 'Server error occurred while updating profile. Please try again later.';
+              }
+            } else {
+              // Try to parse as JSON
+              final responseData = json.decode(response.body);
+              errorMessage = responseData['message'] ?? 'Failed to update profile';
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, use the raw response or default message
+            if (response.body.isNotEmpty && response.body.length < 200) {
+              errorMessage = 'Server response: ${response.body}';
+            }
+          }
+        }
+        throw Exception(errorMessage);
+      }
+      
+      // Clean up temporary compressed file if it was created
+      if (processedLogoFile != logoFile) {
+        try {
+          await processedLogoFile.delete();
+          print('Temporary compressed file cleaned up');
+        } catch (e) {
+          print('Failed to clean up temporary file: $e');
+        }
       }
     } catch (e) {
+      // Clean up temporary compressed file if it was created (even on error)
+      if (processedLogoFile != logoFile) {
+        try {
+          await processedLogoFile.delete();
+          print('Temporary compressed file cleaned up after error');
+        } catch (e) {
+          print('Failed to clean up temporary file after error: $e');
+        }
+      }
       throw Exception('Error updating profile with logo: $e');
     }
   }

@@ -381,7 +381,9 @@ class _WholesalerProfileSettingsState extends State<WholesalerProfileSettings> {
                       ),
                     ),
 
-                    const SizedBox(height: 32),
+                    
+
+                    const SizedBox(height: 16),
 
                     // Display error message if any
                     if (_errorMessage != null)
@@ -410,19 +412,20 @@ class _WholesalerProfileSettingsState extends State<WholesalerProfileSettings> {
                         const SizedBox(height: 8),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
                           ),
                           child: TextField(
                             controller: _nameController,
                             decoration: const InputDecoration(
+                              hintText: 'Enter wholesaler name',
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
                               ),
                             ),
-                            enabled: false, // Making this read-only as name update is not implemented in backend
                           ),
                         ),
                       ],
@@ -444,13 +447,15 @@ class _WholesalerProfileSettingsState extends State<WholesalerProfileSettings> {
                         const SizedBox(height: 8),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
                           ),
                           child: TextField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
                             decoration: const InputDecoration(
+                              hintText: 'Enter email address',
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(
                                 horizontal: 16,

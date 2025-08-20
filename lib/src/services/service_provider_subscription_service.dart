@@ -236,9 +236,25 @@ class ServiceProviderSubscriptionService {
       final Map<String, dynamic> responseData = json.decode(response.body);
 
       if (response.statusCode == 200) {
+        // Transform the response to match the expected structure
+        final data = responseData['data'] as Map<String, dynamic>?;
+        if (data != null) {
+          // The API returns the data directly, so we need to wrap it properly
+          final transformedData = {
+            'hasActiveSubscription': data['hasActiveSubscription'] ?? false,
+            'remainingTime': data['remainingTime'] ?? null,
+          };
+          
+          return ApiResponse<Map<String, dynamic>>(
+            success: true,
+            data: transformedData,
+            message: responseData['message'] ?? 'Subscription time remaining retrieved successfully',
+          );
+        }
+        
         return ApiResponse<Map<String, dynamic>>(
           success: true,
-          data: responseData['data'],
+          data: data,
           message: responseData['message'] ?? 'Subscription time remaining retrieved successfully',
         );
       } else {

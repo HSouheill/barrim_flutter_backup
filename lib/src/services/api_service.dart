@@ -1738,9 +1738,24 @@ class ApiService {
         if (responseData['status'] == 200) {
           // Store the data locally for offline access
           final providerData = responseData['data'] as Map<String, dynamic>;
-          prefs.setString('service_provider_data', jsonEncode(providerData));
+          
+          // Extract the actual service provider data from the nested structure
+          Map<String, dynamic> serviceProviderData;
+          if (providerData.containsKey('serviceProvider')) {
+            // The API returns {category: "...", serviceProvider: {...}}
+            serviceProviderData = Map<String, dynamic>.from(providerData['serviceProvider'] as Map<String, dynamic>);
+            // Add the category to the service provider data
+            if (providerData.containsKey('category')) {
+              serviceProviderData['category'] = providerData['category'];
+            }
+          } else {
+            // Direct service provider data
+            serviceProviderData = providerData;
+          }
+          
+          prefs.setString('service_provider_data', jsonEncode(serviceProviderData));
 
-          return providerData;
+          return serviceProviderData;
         } else {
           print('ApiService: Error in response: ${responseData['message']}');
           throw Exception(

@@ -52,6 +52,7 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
       // First try getting service provider details for logged-in provider
       try {
         final providerDetailsData = await ApiService.getServiceProviderDetails();
+        
         if (providerDetailsData != null) {
           setState(() {
             serviceProvider = ServiceProvider.fromJson(providerDetailsData);
@@ -78,6 +79,7 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
       // If that fails, try getting by ID
       try {
         final providerData = await ApiService.getServiceProviderByIdFixed(providerId);
+        
         if (providerData != null) {
           setState(() {
             serviceProvider = ServiceProvider.fromJson(providerData);
@@ -105,14 +107,36 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
           error = 'Error: $e';
           isLoading = false;
         });
-        debugPrint('Error loading service provider data: $e');
+        debugPrint('Error loading service provider data by ID: $e');
       }
     } catch (e) {
       setState(() {
         error = 'Unexpected error: $e';
         isLoading = false;
       });
-      debugPrint('Error in load function: $e');
+      debugPrint('Unexpected error in load function: $e');
+    }
+  }
+
+  // Function to force refresh data by clearing cache
+  Future<void> _forceRefreshData() async {
+    try {
+      setState(() {
+        isLoading = true;
+        error = null;
+      });
+
+      // Clear any cached data
+      await ApiService.clearServiceProviderCache();
+      
+      // Reload the data
+      await _loadServiceProviderData();
+    } catch (e) {
+      debugPrint('Error in force refresh: $e');
+      setState(() {
+        isLoading = false;
+        error = 'Error refreshing data: $e';
+      });
     }
   }
 
@@ -227,9 +251,52 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
   @override
   Widget build(BuildContext context) {
     final socialLinks = serviceProvider?.serviceProviderInfo?.socialLinks ?? {};
+    
     if (error != null) {
       return Scaffold(body: _buildErrorView());
     }
+    
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    if (serviceProvider == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                'No Service Provider Data',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'The data could not be loaded. Please try refreshing.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _forceRefreshData,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0066B3),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Retry Loading'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     return Scaffold(
       body: _buildDashboard(socialLinks),
     );
@@ -255,7 +322,7 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _loadServiceProviderData,
+              onPressed: _forceRefreshData,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0066B3),
                 foregroundColor: Colors.white,
@@ -271,10 +338,15 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
   Widget _buildDashboard(Map<String, String> socialLinks) {
     return Column(
       children: [
-        // Header with logo and notification icons - removed SafeArea
+        // Header with logo and notification icons
         ServiceProviderHeader(
           serviceProvider: serviceProvider,
           isLoading: isLoading,
+          onLogoNavigation: () {
+            // Refresh the current dashboard page
+            _forceRefreshData();
+          },
+          // onRefresh: _forceRefreshData,
         ),
 
         Expanded(
@@ -297,14 +369,14 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Service Type 1',
+                                'Category',
                                 style: TextStyle(color: Colors.white70, fontSize: 12),
                               ),
                               Row(
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      serviceProvider?.serviceProviderInfo?.serviceType ?? 'N/A',
+                                      serviceProvider?.category ?? 'N/A',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -331,14 +403,14 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Service Type 2',
+                                'Service Type',
                                 style: TextStyle(color: Colors.white70, fontSize: 12),
                               ),
                               Row(
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      serviceProvider?.serviceProviderInfo?.customServiceType ?? 'N/A',
+                                      serviceProvider?.serviceProviderInfo?.serviceType ?? 'N/A',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,

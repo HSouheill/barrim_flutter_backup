@@ -78,6 +78,10 @@ class _SPNotificationSettingsPageState extends State<SPNotificationSettingsPage>
               ServiceProviderHeader(
                 serviceProvider: _serviceProvider,
                 isLoading: _isLoading,
+                onLogoNavigation: () {
+                  // Navigate back to the previous screen
+                  Navigator.of(context).pop();
+                },
               ),
 
               // Back button and page title

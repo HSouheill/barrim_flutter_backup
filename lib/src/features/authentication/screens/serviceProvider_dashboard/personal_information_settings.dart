@@ -310,6 +310,10 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
           ServiceProviderHeader(
             serviceProvider: _serviceProvider,
             isLoading: isLoading,
+            onLogoNavigation: () {
+              // Navigate back to the previous screen
+              Navigator.of(context).pop();
+            },
           ),
           Expanded(
             child: SingleChildScrollView(

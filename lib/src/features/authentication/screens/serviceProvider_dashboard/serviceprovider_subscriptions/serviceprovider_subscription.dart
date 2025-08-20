@@ -12,6 +12,7 @@ import 'package:flutter/gestures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'dart:math' as math;
+import 'dart:async';
 
 class ServiceproviderSubscription extends StatefulWidget {
   const ServiceproviderSubscription({Key? key}) : super(key: key);
@@ -20,7 +21,7 @@ class ServiceproviderSubscription extends StatefulWidget {
   State<ServiceproviderSubscription> createState() => _ServiceproviderSubscriptionState();
 }
 
-class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscription> with TickerProviderStateMixin {
+class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscription> with TickerProviderStateMixin, WidgetsBindingObserver {
   final sp_services.ServiceProviderService _serviceProviderService = sp_services
       .ServiceProviderService();
   final ServiceProviderSubscriptionService _subscriptionService = ServiceProviderSubscriptionService();
@@ -29,12 +30,24 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
   List<subscription_models.SubscriptionPlan> _subscriptionPlans = [];
   dynamic _currentSubscription;
   String? _error;
-  Map<String, dynamic>? _timeRemaining;
   ServiceProvider? _serviceProvider;
 
   // Animation controller for circular progress
   late AnimationController _progressAnimationController;
   late Animation<double> _progressAnimation;
+  
+  // New state variables for remaining time
+  Timer? _refreshTimer;
+  Timer? _countdownTimer;
+  AnimationController? _pulseAnimationController;
+  Animation<double>? _pulseAnimation;
+  subscription_models.SubscriptionRemainingTimeData? _remainingTimeData;
+  
+  // Countdown timer state
+  String _currentTimeDisplay = '';
+  DateTime? _subscriptionEndDate;
+
+
   
   // Sponsorship state
   List<Sponsorship> _sponsorships = [];
@@ -50,6 +63,10 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
   @override
   void initState() {
     super.initState();
+    
+    // Add observer for app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+    
     _progressAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -61,15 +78,66 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       parent: _progressAnimationController,
       curve: Curves.easeInOut,
     ));
+
+    // Initialize pulse animation controller
+    _pulseAnimationController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.2,
+    ).animate(CurvedAnimation(
+      parent: _pulseAnimationController!,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Start pulse animation
+    _pulseAnimationController?.repeat(reverse: true);
+    
     _fetchServiceProvider();
     _loadSubscriptionData();
     _loadSponsorships();
+    _loadSponsorshipSubscriptionData();
+    
+    // Set up periodic refresh for subscription status
+    _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+      _loadSubscriptionData();
+      _loadSponsorshipSubscriptionData();
+    });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
+    _countdownTimer?.cancel();
     _progressAnimationController.dispose();
+    _pulseAnimationController?.dispose();
+    
+    // Remove observer
+    WidgetsBinding.instance.removeObserver(this);
+    
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+        // Pause the countdown timer when app is in background
+        _stopCountdownTimer();
+        break;
+      case AppLifecycleState.resumed:
+        // Resume the countdown timer when app comes to foreground
+        if (_remainingTimeData?.hasActiveSubscription == true) {
+          _startCountdownTimer();
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   Future<void> _loadSubscriptionData() async {
@@ -109,10 +177,11 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
           if (statusResponse.success) {
             _currentSubscription = statusResponse.data;
           }
-          if (timeRemainingResponse.success) {
-            _timeRemaining = timeRemainingResponse.data;
+          if (timeRemainingResponse.success && timeRemainingResponse.data != null) {
+            // Parse the remaining time data to match the new structure
+            _parseRemainingTimeData(timeRemainingResponse.data!);
             // Start animation when time remaining is loaded
-            _progressAnimationController.forward();
+            _progressAnimationController.forward(from: 0.0);
           }
           _isLoading = false;
         });
@@ -124,6 +193,260 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadSponsorshipSubscriptionData() async {
+    try {
+      final response = await SponsorshipService.getServiceProviderSponsorshipTimeRemaining();
+      
+      if (mounted && response['success'] == true) {
+        final data = response['data'];
+        if (data != null) {
+          // Parse sponsorship subscription data
+          _parseSponsorshipSubscriptionData(data);
+        }
+      }
+    } catch (e) {
+      print('Error loading sponsorship subscription data: $e');
+    }
+  }
+
+  void _parseSponsorshipSubscriptionData(Map<String, dynamic> data) {
+    try {
+      final hasActiveSubscription = data['hasActiveSubscription'] ?? false;
+      
+      if (hasActiveSubscription && data['timeRemaining'] != null) {
+        final timeRemaining = data['timeRemaining'] as Map<String, dynamic>;
+        
+        // Create sponsorship subscription remaining time data
+        final sponsorshipRemainingTimeData = SponsorshipSubscriptionTimeRemainingData(
+          hasActiveSubscription: hasActiveSubscription,
+          timeRemaining: SponsorshipSubscriptionTimeRemaining(
+            days: timeRemaining['days'] ?? 0,
+            hours: timeRemaining['hours'] ?? 0,
+            minutes: timeRemaining['minutes'] ?? 0,
+            seconds: timeRemaining['seconds'] ?? 0,
+            formatted: timeRemaining['formatted'] ?? '',
+            percentageUsed: timeRemaining['percentageUsed'] ?? '0%',
+            startDate: timeRemaining['startDate'] != null ? DateTime.parse(timeRemaining['startDate']) : null,
+            endDate: timeRemaining['endDate'] != null ? DateTime.parse(timeRemaining['endDate']) : null,
+          ),
+          subscription: data['subscription'] != null ? SponsorshipSubscription.fromJson(data['subscription']) : null,
+          sponsorship: data['sponsorship'] != null ? Sponsorship.fromJson(data['sponsorship']) : null,
+          entityInfo: data['entityInfo'] != null ? SponsorshipSubscriptionEntityInfo.fromJson(data['entityInfo']) : null,
+          message: data['message'],
+        );
+        
+        // Update state with sponsorship data
+        setState(() {
+          // You can add a new state variable for sponsorship subscription data
+          // For now, we'll use the existing _remainingTimeData structure
+          if (sponsorshipRemainingTimeData.timeRemaining != null) {
+            _remainingTimeData = subscription_models.SubscriptionRemainingTimeData(
+              hasActiveSubscription: hasActiveSubscription,
+              remainingTime: subscription_models.SubscriptionRemainingTime(
+                days: sponsorshipRemainingTimeData.timeRemaining!.days,
+                hours: sponsorshipRemainingTimeData.timeRemaining!.hours,
+                minutes: sponsorshipRemainingTimeData.timeRemaining!.minutes,
+                formatted: sponsorshipRemainingTimeData.timeRemaining!.formatted,
+                percentageUsed: sponsorshipRemainingTimeData.timeRemaining!.percentageUsed,
+                endDate: sponsorshipRemainingTimeData.timeRemaining!.endDate,
+              ),
+            );
+          }
+        });
+        
+        // Start countdown timer if we have active sponsorship
+        if (hasActiveSubscription) {
+          _startCountdownTimer();
+          if (sponsorshipRemainingTimeData.timeRemaining?.endDate != null) {
+            _setSubscriptionEndDate(sponsorshipRemainingTimeData.timeRemaining!.endDate);
+          }
+        } else {
+          _stopCountdownTimer();
+        }
+      } else {
+        // No active sponsorship subscription
+        setState(() {
+          _remainingTimeData = subscription_models.SubscriptionRemainingTimeData(
+            hasActiveSubscription: false,
+            remainingTime: null,
+          );
+        });
+        _stopCountdownTimer();
+      }
+    } catch (e) {
+      print('Error parsing sponsorship subscription data: $e');
+      setState(() {
+        _remainingTimeData = subscription_models.SubscriptionRemainingTimeData(
+          hasActiveSubscription: false,
+          remainingTime: null,
+        );
+      });
+      _stopCountdownTimer();
+    }
+  }
+
+  void _parseRemainingTimeData(Map<String, dynamic> data) {
+    try {
+      final hasActiveSubscription = data['hasActiveSubscription'] ?? false;
+      
+      if (hasActiveSubscription && data['remainingTime'] != null) {
+        final remainingTime = data['remainingTime'] as Map<String, dynamic>;
+        
+        final remainingTimeData = subscription_models.SubscriptionRemainingTime(
+          days: remainingTime['days'],
+          hours: remainingTime['hours'],
+          minutes: remainingTime['minutes'],
+          formatted: remainingTime['formatted'],
+          percentageUsed: remainingTime['percentageUsed'],
+          endDate: remainingTime['endDate'] != null ? DateTime.parse(remainingTime['endDate']) : null,
+        );
+        
+        _remainingTimeData = subscription_models.SubscriptionRemainingTimeData(
+          hasActiveSubscription: hasActiveSubscription,
+          remainingTime: remainingTimeData,
+        );
+        
+        // Start countdown timer if we have remaining time data
+        if (hasActiveSubscription) {
+          _startCountdownTimer();
+          // Set subscription end date for countdown timer
+          if (remainingTimeData.endDate != null) {
+            _setSubscriptionEndDate(remainingTimeData.endDate);
+          }
+        } else {
+          _stopCountdownTimer();
+        }
+      } else {
+        _remainingTimeData = subscription_models.SubscriptionRemainingTimeData(
+          hasActiveSubscription: false,
+          remainingTime: null,
+        );
+        _stopCountdownTimer();
+      }
+    } catch (e) {
+      print('Error parsing remaining time data: $e');
+      _remainingTimeData = subscription_models.SubscriptionRemainingTimeData(
+        hasActiveSubscription: false,
+        remainingTime: null,
+      );
+      _stopCountdownTimer();
+    }
+  }
+
+  void _startCountdownTimer() {
+    // Cancel existing timer if any
+    _countdownTimer?.cancel();
+    
+    // Start new countdown timer that updates every second
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_remainingTimeData?.remainingTime != null && mounted) {
+        // Update the remaining time data with current time
+        _updateRemainingTime();
+      } else {
+        // Stop timer if no remaining time data or widget is disposed
+        timer.cancel();
+      }
+    });
+  }
+
+  void _stopCountdownTimer() {
+    _countdownTimer?.cancel();
+  }
+
+  void _updateRemainingTime() {
+    if (_remainingTimeData?.remainingTime == null) return;
+    
+    final remaining = _remainingTimeData!.remainingTime!;
+    final endDate = remaining.endDate;
+    
+    if (endDate != null) {
+      final now = DateTime.now();
+      final difference = endDate.difference(now);
+      
+      if (difference.isNegative) {
+        // Subscription has expired
+        _stopCountdownTimer();
+        return;
+      }
+      
+      // Calculate the remaining time values
+      final days = difference.inDays;
+      final hours = difference.inHours % 24;
+      final minutes = difference.inMinutes % 60;
+      final seconds = difference.inSeconds % 60;
+      
+      // Create formatted string similar to the screenshot (1M:12D:1H format)
+      String formatted = '';
+      if (days >= 30) {
+        final months = days ~/ 30;
+        final remainingDays = days % 30;
+        if (months > 0) {
+          formatted += '${months}M:';
+        }
+        if (remainingDays > 0) {
+          formatted += '${remainingDays}D:';
+        }
+      } else if (days > 0) {
+        formatted += '${days}D:';
+      }
+      if (hours > 0) {
+        formatted += '${hours}H';
+      } else if (formatted.isEmpty) {
+        // If no days or hours, show minutes only
+        formatted += '${minutes}M';
+      }
+      
+      // Update countdown display with seconds
+      String timeDisplay = '';
+      if (days > 0) {
+        timeDisplay += '${days}d ';
+      }
+      if (hours > 0 || days > 0) {
+        timeDisplay += '${hours.toString().padLeft(2, '0')}h ';
+      }
+      if (minutes > 0 || hours > 0 || days > 0) {
+        timeDisplay += '${minutes.toString().padLeft(2, '0')}m ';
+      }
+      timeDisplay += '${seconds.toString().padLeft(2, '0')}s';
+      
+      setState(() {
+        _currentTimeDisplay = timeDisplay.trim();
+      });
+      
+      // Calculate percentage used
+      final totalDuration = _currentSubscription?.plan?.duration ?? 30;
+      final usedDays = totalDuration - days;
+      final percentageUsed = ((usedDays / totalDuration) * 100).clamp(0, 100);
+      
+      // Create new remaining time instance with updated values
+      final updatedRemainingTime = subscription_models.SubscriptionRemainingTime(
+        days: days,
+        hours: hours,
+        minutes: minutes,
+        formatted: formatted,
+        percentageUsed: '${percentageUsed.toStringAsFixed(1)}%',
+        endDate: endDate,
+      );
+      
+      // Update the remaining time data
+      setState(() {
+        _remainingTimeData = subscription_models.SubscriptionRemainingTimeData(
+          hasActiveSubscription: _remainingTimeData!.hasActiveSubscription,
+          remainingTime: updatedRemainingTime,
+        );
+      });
+    }
+  }
+
+  void _setSubscriptionEndDate(DateTime? endDate) {
+    _subscriptionEndDate = endDate;
+    if (endDate != null) {
+      _startCountdownTimer();
+    } else {
+      _stopCountdownTimer();
     }
   }
 
@@ -398,6 +721,10 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
               ServiceProviderHeader(
                 serviceProvider: _serviceProvider,
                 isLoading: _isLoading,
+                onLogoNavigation: () {
+                  // Navigate back to the previous screen
+                  Navigator.of(context).pop();
+                },
               ),
               Expanded(
                 child: _isLoading
@@ -423,14 +750,25 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                   child: Column(
                     children: [
                       const SizedBox(height: 10),
-                      _buildSectionTitle('Service Provider Subscriptions'),
-                      // const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSectionTitle('Service Provider Subscriptions'),
+                          ),
+                          IconButton(
+                            onPressed: _loadSubscriptionData,
+                            icon: Icon(Icons.refresh, color: Colors.blue),
+                            tooltip: 'Refresh subscription plans',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
 
                       // Current subscription status with circular progress
                       // if (_currentSubscription != null)
                       //   _buildCurrentSubscriptionStatus(),
 
-                      const SizedBox(height: 24),
+                      // const SizedBox(height: 24),
 
                       // Subscription plans grid
                       if (_subscriptionPlans.isNotEmpty)
@@ -493,7 +831,15 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                           ),
                         ),
                       
+                      const SizedBox(height: 40),
 
+                      // Time Remaining Section
+                      _buildRemainingTimeWidget(),
+
+                      const SizedBox(height: 40),
+
+                      // Sponsorship Subscription Status Section
+                      _buildSponsorshipSubscriptionWidget(),
 
                       const SizedBox(height: 40),
 
@@ -533,98 +879,9 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
     );
   }
 
-  Widget _buildCurrentSubscriptionStatus() {
-    if (_timeRemaining == null) return const SizedBox.shrink();
+  
 
-    final bool isActive = _timeRemaining!['isActive'] ?? false;
-    final int remainingDays = _timeRemaining!['remainingDays'] ?? 0;
-    final String endDate = _timeRemaining!['endDate'] ?? '';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Left side - Status info
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                   
-                    const SizedBox(width: 8),
-                    Text(
-                      isActive ? 'Active Subscription' : '',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isActive ? Colors.green : Colors.orange,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (isActive) ...[
-                  Text(
-                    'Time Remaining: ${ServiceProviderSubscriptionService.formatRemainingTime(remainingDays)}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'End Date: ${endDate.isNotEmpty ? endDate : 'N/A'}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-                if (ServiceProviderSubscriptionService.isSubscriptionExpiringSoon(remainingDays)) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      ServiceProviderSubscriptionService.getExpiryWarningMessage(remainingDays) ?? '',
-                      style: const TextStyle(
-                        color: Colors.orange,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // Right side - Circular progress
-          if (isActive) ...[
-            const SizedBox(width: 16),
-            _buildCircularTimeProgress(remainingDays),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCircularTimeProgress(int remainingDays) {
+    Widget _buildCircularTimeProgress(int remainingDays) {
     // Get total days from current subscription plan
     final int totalDays = _currentSubscription?.plan?.duration ?? 30; // Fallback to 30 if no plan
     final double progress = remainingDays / totalDays;
@@ -677,14 +934,14 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Time Left',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
+                      // const SizedBox(height: 4),
+                      // Text(
+                      //   'Time Left',
+                      //   style: TextStyle(
+                      //     fontSize: 12,
+                      //     color: Colors.grey.shade600,
+                      //   ),
+                      // ),
                     ],
                   ),
                 ),
@@ -1027,10 +1284,277 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
     );
   }
 
+  Widget _buildRemainingTimeWidget() {
+    if (_remainingTimeData == null || !_remainingTimeData!.hasActiveSubscription!) {
+      return const SizedBox.shrink();
+    }
+    
+    final remaining = _remainingTimeData!.remainingTime;
+    if (remaining == null) return const SizedBox.shrink();
+    
+    final percentUsed = double.tryParse((remaining.percentageUsed ?? '0').replaceAll('%', '')) ?? 0;
+    final percentLeft = 1 - (percentUsed / 100);
+    
+    return Container(
+      child: Column(
+        children: [
+          // Section title with refresh button
+          Row(
+            children: [
+              Expanded(
+                child: _buildSectionTitle('Time Left'),
+              ),
+              IconButton(
+                onPressed: _loadSubscriptionData,
+                icon: Icon(Icons.refresh, color: Colors.blue),
+                tooltip: 'Refresh subscription status',
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          // Main time remaining widget
+          Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                // Circular progress indicator with time
+                SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Background circle
+                      SizedBox(
+                        width: 200,
+                        height: 200,
+                        child: CircularProgressIndicator(
+                          value: 1.0,
+                          strokeWidth: 12,
+                          backgroundColor: Colors.grey.shade200,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.grey.shade200),
+                        ),
+                      ),
+                      // Progress circle
+                      SizedBox(
+                        width: 200,
+                        height: 200,
+                        child: CircularProgressIndicator(
+                          value: percentLeft * _progressAnimation.value,
+                          strokeWidth: 12,
+                          backgroundColor: Colors.transparent,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _getProgressColor(percentLeft),
+                          ),
+                        ),
+                      ),
+                      // Center time display
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _currentTimeDisplay.isNotEmpty 
+                                ? _currentTimeDisplay 
+                                : (remaining.formatted ?? '0D:0H'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 28,
+                              color: Color(0xFF2079C2),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSponsorshipSubscriptionWidget() {
+    return Container(
+      child: Column(
+        children: [
+          // Section title with refresh button
+          Row(
+            children: [
+              Expanded(
+                child: _buildSectionTitle('Sponsorship Status'),
+              ),
+              IconButton(
+                onPressed: _loadSponsorshipSubscriptionData,
+                icon: Icon(Icons.refresh, color: Colors.blue),
+                tooltip: 'Refresh sponsorship status',
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          // Sponsorship subscription content
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Check if we have sponsorship subscription data
+                if (_remainingTimeData?.hasActiveSubscription == true)
+                  _buildActiveSponsorshipStatus()
+                else
+                  _buildNoSponsorshipStatus(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveSponsorshipStatus() {
+    final remaining = _remainingTimeData?.remainingTime;
+    if (remaining == null) return _buildNoSponsorshipStatus();
+    
+    final percentUsed = double.tryParse((remaining.percentageUsed ?? '0').replaceAll('%', '')) ?? 0;
+    final percentLeft = 1 - (percentUsed / 100);
+    
+    return Column(
+      children: [
+        // Status indicator
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.green.withOpacity(0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Active Sponsorship',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 20),
+        
+        // Time remaining display
+        Text(
+          remaining.formatted ?? '0D:0H',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 32,
+            color: Color(0xFF2079C2),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Time Remaining',
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 16,
+          ),
+        ),
+        SizedBox(height: 20),
+        
+        // Progress bar
+        LinearProgressIndicator(
+          value: percentLeft,
+          backgroundColor: Colors.grey[200],
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+          minHeight: 8,
+        ),
+        SizedBox(height: 8),
+        Text(
+          '${percentUsed.toStringAsFixed(1)}% used',
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNoSponsorshipStatus() {
+    return Column(
+      children: [
+        Icon(
+          Icons.star,
+          size: 64,
+          color: Colors.grey[400],
+        ),
+        SizedBox(height: 16),
+        Text(
+          'No Active Sponsorship',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[600],
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'You don\'t have an active sponsorship subscription.',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[500],
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 16),
+        Text(
+          'Apply for sponsorships below to get featured on our platform!',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[400],
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
   Widget _buildSponsorshipSection() {
     return Column(
       children: [
-        _buildSectionTitle('Sponsorship'),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSectionTitle('Sponsorship'),
+            ),
+            IconButton(
+              onPressed: _loadSponsorships,
+              icon: Icon(Icons.refresh, color: Colors.blue),
+              tooltip: 'Refresh sponsorships',
+            ),
+          ],
+        ),
         const SizedBox(height: 24),
         
                 
@@ -1437,11 +1961,9 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       print('  entityId: ${_serviceProvider!.id}');
       print('  entityName: Service Provider');
       
-      final response = await SponsorshipService.createSponsorshipSubscriptionRequest(
+      final response = await SponsorshipService.createServiceProviderSponsorshipRequest(
         sponsorshipId: originalSponsorshipId,
-        entityType: 'service_provider',
-        entityId: _serviceProvider!.id!,
-        entityName: 'Service Provider',
+        adminNote: null, // Optional: Add a text field for admin note if needed
       );
 
       if (mounted) {
@@ -1479,6 +2001,9 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
           setState(() {
             _selectedSponsorshipId = null;
           });
+          
+          // Refresh sponsorship subscription data to show updated status
+          _loadSponsorshipSubscriptionData();
         } else {
           // Check if it's an existing request error
           final errorMessage = response['message']?.toString().toLowerCase() ?? '';
@@ -1687,7 +2212,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
               Text(
                 'Sponsorship Already Exists',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.orange,
                 ),

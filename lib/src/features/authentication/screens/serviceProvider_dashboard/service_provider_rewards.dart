@@ -69,6 +69,10 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
                 return ServiceProviderHeader(
                   serviceProvider: controller.serviceProvider,
                   isLoading: controller.isLoading,
+                  onLogoNavigation: () {
+                    // Navigate back to the previous screen
+                    Navigator.of(context).pop();
+                  },
                 );
               },
             ),

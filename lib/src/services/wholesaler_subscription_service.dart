@@ -83,11 +83,21 @@ class WholesalerSubscriptionService {
 
   /// Get authorization headers with token
   Future<Map<String, String>> _getHeaders() async {
-    final token = await _tokenStorage.getToken();
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ${token ?? ''}',
-    };
+    try {
+      final token = await _tokenStorage.getToken();
+      print('WholesalerSubscriptionService - Token retrieved: ${token != null ? "exists" : "null"}');
+      
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${token ?? ''}',
+      };
+      
+      print('WholesalerSubscriptionService - Headers prepared: ${headers.keys}');
+      return headers;
+    } catch (e) {
+      print('WholesalerSubscriptionService - Error getting headers: $e');
+      rethrow;
+    }
   }
 
   /// Get multipart headers with token
@@ -103,23 +113,39 @@ class WholesalerSubscriptionService {
   /// Returns a list of available subscription plans
   Future<List<SubscriptionPlan>> getAvailablePlans() async {
     try {
+      print('WholesalerSubscriptionService - Getting available plans...');
       final headers = await _getHeaders();
+      print('WholesalerSubscriptionService - Headers prepared: ${headers.keys}');
+      
+      final url = '$baseUrl/api/wholesaler/subscription-plans';
+      print('WholesalerSubscriptionService - Calling API: $url');
+      
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$baseUrl/api/wholesaler/subscription-plans'),
+        Uri.parse(url),
         headers: headers,
       );
+
+      print('WholesalerSubscriptionService - Response status: ${response.statusCode}');
+      print('WholesalerSubscriptionService - Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         final List<dynamic> plansData = responseData['data'] ?? [];
-
-        return plansData.map((plan) => SubscriptionPlan.fromJson(plan)).toList();
+        
+        print('WholesalerSubscriptionService - Plans data found: ${plansData.length} plans');
+        
+        final plans = plansData.map((plan) => SubscriptionPlan.fromJson(plan)).toList();
+        print('WholesalerSubscriptionService - Successfully parsed ${plans.length} plans');
+        return plans;
       } else {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        throw Exception(responseData['message'] ?? 'Failed to get available plans');
+        final errorMessage = responseData['message'] ?? 'Failed to get available plans';
+        print('WholesalerSubscriptionService - API error: $errorMessage');
+        throw Exception(errorMessage);
       }
     } catch (e) {
+      print('WholesalerSubscriptionService - Exception in getAvailablePlans: $e');
       if (e is SocketException) {
         throw Exception('No internet connection. Please check your network.');
       } else if (e is FormatException) {
@@ -133,38 +159,53 @@ class WholesalerSubscriptionService {
   /// Create a new wholesaler subscription request
   ///
   /// [planId] - The ID of the subscription plan
+  /// [branchId] - The ID of the branch for the subscription
   /// [imageFile] - Optional image file for payment proof (if required)
   ///
   /// Returns the created subscription request or throws an exception
-  Future<SubscriptionRequest> createWholesalerSubscription({
+  Future<WholesalerBranchSubscriptionRequest> createWholesalerSubscription({
     required String planId,
+    required String branchId,
     File? imageFile,
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl/api/wholesaler/subscription');
+      print('WholesalerSubscriptionService - Starting subscription creation...');
+      print('WholesalerSubscriptionService - Plan ID: $planId, Branch ID: $branchId');
+      
+      final uri = Uri.parse('$baseUrl/api/wholesaler/subscription/$branchId/request');
       final headers = await _getMultipartHeaders();
+
+      print('WholesalerSubscriptionService - URI: $uri');
+      print('WholesalerSubscriptionService - Headers: ${headers.keys}');
 
       // Prepare fields
       Map<String, String> fields = {
         'planId': planId,
+        'branchId': branchId,
       };
+
+      print('WholesalerSubscriptionService - Fields: $fields');
 
       // Prepare files
       List<http.MultipartFile> files = [];
 
-      // Add image file if provided
+      // Add image file if provided - use 'paymentProof' as the field name
       if (imageFile != null) {
         final fileName = path.basename(imageFile.path);
+        print('WholesalerSubscriptionService - Adding image file: $fileName');
         files.add(
           await http.MultipartFile.fromPath(
-            'image',
+            'paymentProof',
             imageFile.path,
             filename: fileName,
           ),
         );
       }
 
+      print('WholesalerSubscriptionService - Files prepared: ${files.length}');
+
       // Send the request using custom client
+      print('WholesalerSubscriptionService - Sending multipart request...');
       final streamedResponse = await _makeMultipartRequest(
         'POST',
         uri,
@@ -173,90 +214,145 @@ class WholesalerSubscriptionService {
         files: files,
       );
       
+      print('WholesalerSubscriptionService - Response received, status: ${streamedResponse.statusCode}');
+      
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (response.statusCode == 201) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final data = responseData['data'];
+      print('WholesalerSubscriptionService - Response body: ${response.body}');
 
-        return SubscriptionRequest.fromJson(data);
-      } else {
+      if (response.statusCode == 201) {
+        print('WholesalerSubscriptionService - Success response, parsing JSON...');
         final Map<String, dynamic> responseData = json.decode(response.body);
-        throw Exception(responseData['message'] ?? 'Failed to create subscription request');
+        print('WholesalerSubscriptionService - Parsed response data: $responseData');
+        print('WholesalerSubscriptionService - Response data type: ${responseData.runtimeType}');
+        print('WholesalerSubscriptionService - Response data keys: ${responseData.keys.toList()}');
+        
+        final data = responseData['data'];
+        print('WholesalerSubscriptionService - Extracted data: $data');
+        print('WholesalerSubscriptionService - Data type: ${data.runtimeType}');
+        
+        if (data != null) {
+          print('WholesalerSubscriptionService - Data keys: ${data is Map ? data.keys.toList() : 'Not a map'}');
+          if (data is Map) {
+            data.forEach((key, value) {
+              print('WholesalerSubscriptionService - Data field $key: $value (type: ${value.runtimeType})');
+            });
+          }
+        }
+
+        if (data == null) {
+          throw Exception('No data received from server');
+        }
+
+        print('WholesalerSubscriptionService - Creating WholesalerBranchSubscriptionRequest from JSON...');
+        try {
+          final result = WholesalerBranchSubscriptionRequest.fromJson(data);
+          print('WholesalerSubscriptionService - Successfully created subscription request: ${result.toJson()}');
+          return result;
+        } catch (parseError) {
+          print('WholesalerSubscriptionService - Error parsing WholesalerBranchSubscriptionRequest: $parseError');
+          print('WholesalerSubscriptionService - Parse error type: ${parseError.runtimeType}');
+          
+          // If parsing fails, create a basic success response with available data
+          print('WholesalerSubscriptionService - Creating fallback response...');
+          try {
+            final fallbackResult = WholesalerBranchSubscriptionRequest(
+              id: data is Map ? (data['requestId'] ?? data['id'] ?? 'unknown')?.toString() : 'unknown',
+              branchId: branchId,
+              planId: planId,
+              status: data is Map ? (data['status'] ?? 'pending')?.toString() : 'pending',
+              requestedAt: DateTime.now(),
+              imagePath: data is Map ? data['imagePath']?.toString() : null,
+            );
+            print('WholesalerSubscriptionService - Fallback response created: ${fallbackResult.toJson()}');
+            return fallbackResult;
+          } catch (fallbackError) {
+            print('WholesalerSubscriptionService - Fallback creation also failed: $fallbackError');
+            if (parseError.toString().contains("type 'String' is not a subtype of type 'bool'")) {
+              throw Exception('Data type mismatch in server response. Please try again or contact support.');
+            }
+            rethrow;
+          }
+        }
+      } else {
+        print('WholesalerSubscriptionService - Error response: ${response.statusCode}');
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final errorMessage = responseData['message'] ?? 'Failed to create subscription request';
+        print('WholesalerSubscriptionService - Error message: $errorMessage');
+        throw Exception(errorMessage);
       }
     } catch (e) {
+      print('WholesalerSubscriptionService - Exception in createWholesalerSubscription: $e');
+      print('WholesalerSubscriptionService - Exception type: ${e.runtimeType}');
+      print('WholesalerSubscriptionService - Exception stack trace: ${e is Error ? e.stackTrace : 'No stack trace'}');
+      
       if (e is SocketException) {
         throw Exception('No internet connection. Please check your network.');
       } else if (e is FormatException) {
         throw Exception('Invalid response format from server.');
+      } else if (e.toString().contains("type 'String' is not a subtype of type 'bool'")) {
+        throw Exception('Data type mismatch in server response. Please try again or contact support.');
       } else {
         throw Exception('Failed to create subscription request: ${e.toString()}');
       }
     }
   }
 
-  /// Get the current active wholesaler subscription
-  ///
-  /// Returns the current subscription data or null if no active subscription
-  Future<CurrentWholesalerSubscriptionData?> getCurrentWholesalerSubscription() async {
-    try {
-      final headers = await _getHeaders();
-      final response = await _makeRequest(
-        'GET',
-        Uri.parse('$baseUrl/api/wholesaler/subscription/current'),
-        headers: headers,
-      );
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final data = responseData['data'];
-
-        if (data == null) {
-          return null; // No active subscription
-        }
-
-        return CurrentWholesalerSubscriptionData.fromJson(data);
-      } else {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        throw Exception(responseData['message'] ?? 'Failed to get current subscription');
-      }
-    } catch (e) {
-      if (e is SocketException) {
-        throw Exception('No internet connection. Please check your network.');
-      } else if (e is FormatException) {
-        throw Exception('Invalid response format from server.');
-      } else {
-        throw Exception('Failed to get current subscription: ${e.toString()}');
-      }
-    }
-  }
 
   /// Get the remaining time of the current wholesaler subscription
   ///
   /// Returns subscription remaining time data
-  Future<SubscriptionRemainingTimeData> getWholesalerSubscriptionRemainingTime() async {
+  Future<SubscriptionRemainingTimeData> getWholesalerSubscriptionRemainingTime(String branchId) async {
     try {
+      print('WholesalerSubscriptionService - Getting remaining time for branch: $branchId');
       final headers = await _getHeaders();
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$baseUrl/api/wholesaler/subscription/remaining-time'),
+        Uri.parse('$baseUrl/api/wholesaler/subscription/$branchId/remaining-time'),
         headers: headers,
       );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final data = responseData['data'];
+      print('WholesalerSubscriptionService - Remaining time response status: ${response.statusCode}');
+      print('WholesalerSubscriptionService - Remaining time response body: ${response.body}');
 
-        return SubscriptionRemainingTimeData.fromJson(data);
-      } else {
+      if (response.statusCode == 200) {
+        print('WholesalerSubscriptionService - Parsing remaining time response...');
         final Map<String, dynamic> responseData = json.decode(response.body);
-        throw Exception(responseData['message'] ?? 'Failed to get subscription remaining time');
+        print('WholesalerSubscriptionService - Parsed response data: $responseData');
+        
+        final data = responseData['data'];
+        print('WholesalerSubscriptionService - Extracted data: $data');
+        print('WholesalerSubscriptionService - Data type: ${data.runtimeType}');
+
+        if (data == null) {
+          print('WholesalerSubscriptionService - No data in response, creating default...');
+          return SubscriptionRemainingTimeData(
+            hasActiveSubscription: false,
+            remainingTime: null,
+          );
+        }
+
+        print('WholesalerSubscriptionService - Creating SubscriptionRemainingTimeData from JSON...');
+        final result = SubscriptionRemainingTimeData.fromJson(data);
+        print('WholesalerSubscriptionService - Successfully created remaining time data: hasActiveSubscription=${result.hasActiveSubscription}');
+        return result;
+      } else {
+        print('WholesalerSubscriptionService - Error response: ${response.statusCode}');
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final errorMessage = responseData['message'] ?? 'Failed to get subscription remaining time';
+        print('WholesalerSubscriptionService - Error message: $errorMessage');
+        throw Exception(errorMessage);
       }
     } catch (e) {
+      print('WholesalerSubscriptionService - Exception in getWholesalerSubscriptionRemainingTime: $e');
+      print('WholesalerSubscriptionService - Exception type: ${e.runtimeType}');
+      
       if (e is SocketException) {
         throw Exception('No internet connection. Please check your network.');
       } else if (e is FormatException) {
         throw Exception('Invalid response format from server.');
+      } else if (e.toString().contains("type 'String' is not a subtype of type 'bool'")) {
+        throw Exception('Data type mismatch in server response. Please try again or contact support.');
       } else {
         throw Exception('Failed to get subscription remaining time: ${e.toString()}');
       }
@@ -265,13 +361,14 @@ class WholesalerSubscriptionService {
 
   /// Cancel the current active wholesaler subscription
   ///
+  /// [branchId] - The ID of the branch to cancel subscription for
   /// Returns true if cancellation was successful
-  Future<bool> cancelWholesalerSubscription() async {
+  Future<bool> cancelWholesalerSubscription(String branchId) async {
     try {
       final headers = await _getHeaders();
       final response = await _makeRequest(
         'DELETE',
-        Uri.parse('$baseUrl/api/wholesaler/subscription/cancel'),
+        Uri.parse('$baseUrl/api/wholesaler/subscription/$branchId/cancel'),
         headers: headers,
       );
 
@@ -295,9 +392,9 @@ class WholesalerSubscriptionService {
   /// Check if wholesaler has an active subscription
   ///
   /// Returns true if there's an active subscription
-  Future<bool> hasActiveSubscription() async {
+  Future<bool> hasActiveSubscription(String branchId) async {
     try {
-      final remainingTimeData = await getWholesalerSubscriptionRemainingTime();
+      final remainingTimeData = await getWholesalerSubscriptionRemainingTime(branchId);
       return remainingTimeData.hasActiveSubscription ?? false;
     } catch (e) {
       // If there's an error, assume no active subscription
@@ -308,14 +405,12 @@ class WholesalerSubscriptionService {
   /// Get subscription status summary
   ///
   /// Returns a comprehensive summary of the subscription status
-  Future<WholesalerSubscriptionStatus> getSubscriptionStatus() async {
+  Future<WholesalerSubscriptionStatus> getSubscriptionStatus(String branchId) async {
     try {
-      final currentSubscription = await getCurrentWholesalerSubscription();
-      final remainingTime = await getWholesalerSubscriptionRemainingTime();
+      final remainingTime = await getWholesalerSubscriptionRemainingTime(branchId);
 
       return WholesalerSubscriptionStatus(
         hasActiveSubscription: remainingTime.hasActiveSubscription ?? false,
-        currentSubscription: currentSubscription,
         remainingTime: remainingTime.remainingTime,
       );
     } catch (e) {

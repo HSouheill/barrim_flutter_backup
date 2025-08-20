@@ -22,11 +22,9 @@ class CompanyAppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print('CompanyAppHeader: Building with logoUrl: $logoUrl');
     final fullLogoUrl = logoUrl != null && logoUrl!.isNotEmpty
         ? (logoUrl!.startsWith('http') ? logoUrl! : '${ApiService.baseUrl}/$logoUrl')
         : null;
-    print('CompanyAppHeader: Full logo URL: $fullLogoUrl');
 
     return Container(
       decoration: BoxDecoration(
@@ -59,7 +57,6 @@ class CompanyAppHeader extends StatelessWidget {
                     updatedUserData['token'] = token;
                   }
                 } catch (e) {
-                  print('Error getting token: $e');
                 }
               }
               
@@ -87,7 +84,6 @@ class CompanyAppHeader extends StatelessWidget {
                     updatedUserData['token'] = token;
                   }
                 } catch (e) {
-                  print('Error getting token: $e');
                 }
               }
               
@@ -108,7 +104,6 @@ class CompanyAppHeader extends StatelessWidget {
                         height: 44,
                         fit: BoxFit.cover,
                         errorWidget: (context, url, error) {
-                          print('CompanyAppHeader: Image network error: $error');
                           return const Icon(Icons.person, color: Colors.white, size: 22);
                         },
                       ),

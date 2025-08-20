@@ -3,7 +3,7 @@ import 'package:barrim/src/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../models/service_provider.dart';
-import '../../../../services/auth_service.dart';
+
 import '../../../../services/service_provider_services.dart';
 import '../../headers/service_provider_header.dart';
 import '../login_page.dart';
@@ -23,7 +23,6 @@ class _SPProfileSettingsState extends State<SPProfileSettings> {
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
   final ServiceProviderService _serviceProviderService = ServiceProviderService();
-  final AuthService _authService = AuthService();
 
   ServiceProvider? _serviceProviderData;
   bool _isLoading = true;
@@ -55,16 +54,14 @@ class _SPProfileSettingsState extends State<SPProfileSettings> {
     });
 
     try {
-      print('SPProfileSettings: Calling service provider service');
-      // Fetch service provider data
-      final serviceProvider = await _serviceProviderService.getServiceProviderData();
-      print('SPProfileSettings: Service provider data fetched: ${serviceProvider.fullName}');
+      print('SPProfileSettings: Calling getServiceProviderDetails API');
+      // Fetch service provider data using the API service directly
+      final serviceProviderData = await ApiService.getServiceProviderDetails();
+      print('SPProfileSettings: Service provider data fetched from API');
 
-      // Fetch user email separately since it might not be in the service provider model
-      print('SPProfileSettings: Fetching user email');
-      final userData = await ApiService.getUserData();
-      final userEmail = userData['email'] ?? '';
-      print('SPProfileSettings: User email fetched: $userEmail');
+      // Create ServiceProvider object from the API data
+      final serviceProvider = ServiceProvider.fromJson(serviceProviderData);
+      print('SPProfileSettings: Service provider data fetched: ${serviceProvider.fullName}');
 
       setState(() {
         _serviceProviderData = serviceProvider;
@@ -75,7 +72,7 @@ class _SPProfileSettingsState extends State<SPProfileSettings> {
         // Populate form fields with service provider data
         _nameController.text = serviceProvider.fullName;
         print('SPProfileSettings: Business name set: ${_nameController.text}');
-        _emailController.text = userEmail;
+        _emailController.text = serviceProvider.email ?? '';
         print('SPProfileSettings: Email set: ${_emailController.text}');
       });
     } catch (e) {
@@ -309,6 +306,10 @@ class _SPProfileSettingsState extends State<SPProfileSettings> {
           ServiceProviderHeader(
             serviceProvider: _serviceProviderData,
             isLoading: _isLoading,
+            onLogoNavigation: () {
+              // Navigate back to the previous screen
+              Navigator.of(context).pop();
+            },
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -338,22 +339,35 @@ class _SPProfileSettingsState extends State<SPProfileSettings> {
 
                     // Profile Image Section
                     Center(
-                      child: Stack(
+                      child: Column(
                         children: [
-                          _buildProfileImage(),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.blue,
-                                shape: BoxShape.circle,
+                          Stack(
+                            children: [
+                              _buildProfileImage(),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: IconButton(
+                                    icon: Icon(Icons.camera_alt, color: Colors.white),
+                                    onPressed: _selectProfileImage,
+                                  ),
+                                ),
                               ),
-                              child: IconButton(
-                                icon: Icon(Icons.camera_alt, color: Colors.white),
-                                onPressed: _selectProfileImage,
-                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Maximum file size: 5MB\nRecommended: 800x800 pixels',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
                             ),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),

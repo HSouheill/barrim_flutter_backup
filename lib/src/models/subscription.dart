@@ -32,6 +32,21 @@ class SubscriptionPlan {
       }
     }
 
+    // Handle isActive field conversion from various types
+    bool? isActiveValue;
+    if (json['isActive'] != null) {
+      if (json['isActive'] is bool) {
+        isActiveValue = json['isActive'] as bool;
+      } else if (json['isActive'] is String) {
+        final isActiveStr = json['isActive'].toString().toLowerCase();
+        isActiveValue = isActiveStr == 'true' || isActiveStr == '1' || isActiveStr == 'yes';
+      } else if (json['isActive'] is num) {
+        isActiveValue = (json['isActive'] as num) != 0;
+      } else {
+        isActiveValue = false;
+      }
+    }
+
     return SubscriptionPlan(
       id: json['id'],
       title: json['title'],
@@ -41,7 +56,7 @@ class SubscriptionPlan {
       benefits: benefitsValue,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
-      isActive: json['isActive'],
+      isActive: isActiveValue,
     );
   }
 
@@ -110,6 +125,21 @@ class CompanySubscription {
   });
 
   factory CompanySubscription.fromJson(Map<String, dynamic> json) {
+    // Handle autoRenew field conversion from various types
+    bool? autoRenewValue;
+    if (json['autoRenew'] != null) {
+      if (json['autoRenew'] is bool) {
+        autoRenewValue = json['autoRenew'] as bool;
+      } else if (json['autoRenew'] is String) {
+        final autoRenewStr = json['autoRenew'].toString().toLowerCase();
+        autoRenewValue = autoRenewStr == 'true' || autoRenewStr == '1' || autoRenewStr == 'yes';
+      } else if (json['autoRenew'] is num) {
+        autoRenewValue = (json['autoRenew'] as num) != 0;
+      } else {
+        autoRenewValue = false;
+      }
+    }
+
     return CompanySubscription(
       id: json['id'],
       companyId: json['companyId'],
@@ -117,7 +147,7 @@ class CompanySubscription {
       startDate: json['startDate'] != null ? DateTime.parse(json['startDate']) : null,
       endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
       status: json['status'],
-      autoRenew: json['autoRenew'],
+      autoRenew: autoRenewValue,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
     );
@@ -190,11 +220,115 @@ class SubscriptionRequest {
   }
 }
 
+/// Model for wholesaler branch subscription requests
+class WholesalerBranchSubscriptionRequest {
+  final String? id;
+  final String? branchId;
+  final String? planId;
+  final String? status;
+  final DateTime? requestedAt;
+  final String? imagePath;
+
+  WholesalerBranchSubscriptionRequest({
+    this.id,
+    this.branchId,
+    this.planId,
+    this.status,
+    this.requestedAt,
+    this.imagePath,
+  });
+
+  factory WholesalerBranchSubscriptionRequest.fromJson(Map<String, dynamic> json) {
+    // Safe parsing with type checking
+    String? safeId;
+    try {
+      final idValue = json['requestId'] ?? json['id'];
+      safeId = idValue?.toString();
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing id: $e');
+      safeId = null;
+    }
+
+    String? safeBranchId;
+    try {
+      final branchIdValue = json['branchId'];
+      safeBranchId = branchIdValue?.toString();
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing branchId: $e');
+      safeBranchId = null;
+    }
+
+    String? safePlanId;
+    try {
+      final planIdValue = json['planId'];
+      safePlanId = planIdValue?.toString();
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing planId: $e');
+      safePlanId = null;
+    }
+
+    String? safeStatus;
+    try {
+      final statusValue = json['status'];
+      safeStatus = statusValue?.toString();
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing status: $e');
+      safeStatus = null;
+    }
+
+    DateTime? safeRequestedAt;
+    try {
+      final requestedAtValue = json['submittedAt'] ?? json['requestedAt'];
+      if (requestedAtValue != null) {
+        if (requestedAtValue is DateTime) {
+          safeRequestedAt = requestedAtValue;
+        } else if (requestedAtValue is String) {
+          safeRequestedAt = DateTime.parse(requestedAtValue);
+        } else if (requestedAtValue is int) {
+          // Handle timestamp
+          safeRequestedAt = DateTime.fromMillisecondsSinceEpoch(requestedAtValue);
+        }
+      }
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing requestedAt: $e');
+      safeRequestedAt = null;
+    }
+
+    String? safeImagePath;
+    try {
+      final imagePathValue = json['imagePath'];
+      safeImagePath = imagePathValue?.toString();
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing imagePath: $e');
+      safeImagePath = null;
+    }
+
+    return WholesalerBranchSubscriptionRequest(
+      id: safeId,
+      branchId: safeBranchId,
+      planId: safePlanId,
+      status: safeStatus,
+      requestedAt: safeRequestedAt,
+      imagePath: safeImagePath,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'branchId': branchId,
+      'planId': planId,
+      'status': status,
+      'requestedAt': requestedAt?.toIso8601String(),
+      'imagePath': imagePath,
+    };
+  }
+}
+
 class SubscriptionRemainingTime {
   final int? days;
   final int? hours;
   final int? minutes;
-  final int? seconds;
   final String? formatted;
   final String? percentageUsed;
   final DateTime? endDate;
@@ -203,7 +337,6 @@ class SubscriptionRemainingTime {
     this.days,
     this.hours,
     this.minutes,
-    this.seconds,
     this.formatted,
     this.percentageUsed,
     this.endDate,
@@ -214,7 +347,6 @@ class SubscriptionRemainingTime {
       days: json['days'],
       hours: json['hours'],
       minutes: json['minutes'],
-      seconds: json['seconds'],
       formatted: json['formatted'],
       percentageUsed: json['percentageUsed'],
       endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
@@ -226,7 +358,6 @@ class SubscriptionRemainingTime {
       'days': days,
       'hours': hours,
       'minutes': minutes,
-      'seconds': seconds,
       'formatted': formatted,
       'percentageUsed': percentageUsed,
       'endDate': endDate?.toIso8601String(),
@@ -272,8 +403,23 @@ class SubscriptionRemainingTimeData {
   });
 
   factory SubscriptionRemainingTimeData.fromJson(Map<String, dynamic> json) {
+    // Handle hasActiveSubscription field conversion from various types
+    bool? hasActiveSubscriptionValue;
+    if (json['hasActiveSubscription'] != null) {
+      if (json['hasActiveSubscription'] is bool) {
+        hasActiveSubscriptionValue = json['hasActiveSubscription'] as bool;
+      } else if (json['hasActiveSubscription'] is String) {
+        final hasActiveStr = json['hasActiveSubscription'].toString().toLowerCase();
+        hasActiveSubscriptionValue = hasActiveStr == 'true' || hasActiveStr == '1' || hasActiveStr == 'yes';
+      } else if (json['hasActiveSubscription'] is num) {
+        hasActiveSubscriptionValue = (json['hasActiveSubscription'] as num) != 0;
+      } else {
+        hasActiveSubscriptionValue = false;
+      }
+    }
+
     return SubscriptionRemainingTimeData(
-      hasActiveSubscription: json['hasActiveSubscription'],
+      hasActiveSubscription: hasActiveSubscriptionValue,
       remainingTime: json['remainingTime'] != null
           ? SubscriptionRemainingTime.fromJson(json['remainingTime'])
           : null,

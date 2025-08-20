@@ -75,6 +75,7 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _locationController.removeListener(_onLocationChanged);
     _locationController.dispose();
     _phoneController.dispose();
     _descriptionController.dispose();
@@ -85,10 +86,23 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
   void initState() {
     super.initState();
     _loadCategories();
+    
+    // Add listener to location controller for manual input
+    _locationController.addListener(_onLocationChanged);
+    
     // Load existing data if in edit mode
     if (widget.isEditMode && widget.branchData != null) {
       _loadBranchData();
       _loadMediaFromExistingBranch();
+    }
+  }
+
+  void _onLocationChanged() {
+    // If user types in location field and we don't have coordinates, show the manual location button
+    if (_locationController.text.isNotEmpty && (latitude == null || longitude == null)) {
+      setState(() {
+        // Trigger rebuild to show manual location button
+      });
     }
   }
 
@@ -171,14 +185,47 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
     try {
       final List<XFile> pickedFiles = await _picker.pickMultiImage();
       if (pickedFiles.isNotEmpty) {
+        List<File> validImages = [];
+        List<String> skippedFiles = [];
+        
+        for (var xFile in pickedFiles) {
+          final file = File(xFile.path);
+          try {
+            final fileSize = await file.length();
+            final maxSize = 5 * 1024 * 1024; // 5MB limit for UI warning
+            
+            if (fileSize > maxSize) {
+              skippedFiles.add('${xFile.name} (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB)');
+            } else {
+              validImages.add(file);
+            }
+          } catch (e) {
+            print('Error checking file size: $e');
+            validImages.add(file); // Add anyway if we can't check size
+          }
+        }
+        
         setState(() {
-          _selectedImages.addAll(pickedFiles.map((xFile) => File(xFile.path)).toList());
+          _selectedImages.addAll(validImages);
         });
+        
+        if (skippedFiles.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Skipped large files: ${skippedFiles.join(', ')}. Max size: 5MB"),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
       }
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Error picking images: $e")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error picking images: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -186,14 +233,39 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
     try {
       final pickedFile = await _picker.pickVideo(source: ImageSource.gallery);
       if (pickedFile != null) {
-        setState(() {
-          _selectedVideos.add(File(pickedFile.path));
-        });
+        final file = File(pickedFile.path);
+        try {
+          final fileSize = await file.length();
+          final maxSize = 25 * 1024 * 1024; // 25MB limit for UI warning
+          
+          if (fileSize > maxSize) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Video is too large (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB). Max size: 25MB"),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 4),
+              ),
+            );
+            return;
+          }
+          
+          setState(() {
+            _selectedVideos.add(file);
+          });
+        } catch (e) {
+          print('Error checking video file size: $e');
+          setState(() {
+            _selectedVideos.add(file);
+          });
+        }
       }
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Error picking video: $e")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error picking video: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -239,38 +311,46 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
     PermissionStatus _permissionGranted;
     LocationData _locationData;
 
-    // Check if location service is enabled
-    _serviceEnabled = await location.serviceEnabled();
-    if (!_serviceEnabled) {
-      _serviceEnabled = await location.requestService();
-      if (!_serviceEnabled) {
-        setState(() {
-          _isLoadingLocation = false;
-        });
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(content: Text("Location services are disabled")),
-        // );
-        return;
-      }
-    }
-
-    // Check location permission
-    _permissionGranted = await location.hasPermission();
-    if (_permissionGranted == PermissionStatus.denied) {
-      _permissionGranted = await location.requestPermission();
-      if (_permissionGranted != PermissionStatus.granted) {
-        setState(() {
-          _isLoadingLocation = false;
-        });
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(content: Text("Location permission denied")),
-        // );
-        return;
-      }
-    }
-
-    // Get location
     try {
+      // Check if location service is enabled
+      _serviceEnabled = await location.serviceEnabled();
+      if (!_serviceEnabled) {
+        _serviceEnabled = await location.requestService();
+        if (!_serviceEnabled) {
+          setState(() {
+            _isLoadingLocation = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Location services are disabled. Please enable location services in your device settings."),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          return;
+        }
+      }
+
+      // Check location permission
+      _permissionGranted = await location.hasPermission();
+      if (_permissionGranted == PermissionStatus.denied) {
+        _permissionGranted = await location.requestPermission();
+        if (_permissionGranted != PermissionStatus.granted) {
+          setState(() {
+            _isLoadingLocation = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Location permission denied. Please grant location permission in your device settings."),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          return;
+        }
+      }
+
+      // Get location
       _locationData = await location.getLocation();
       latitude = _locationData.latitude;
       longitude = _locationData.longitude;
@@ -291,18 +371,91 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
             _locationController.text = address;
             _isLoadingLocation = false;
           });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Location captured successfully!"),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          setState(() {
+            _isLoadingLocation = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Location captured but couldn't get address. You can type the address manually."),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
         }
+      } else {
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to get location coordinates. Please try again or type the address manually."),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
       }
     } catch (e) {
       setState(() {
         _isLoadingLocation = false;
       });
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Failed to get location: $e")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to get location: $e. Please type the address manually."),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
     }
   }
 
+  // Method to handle manual location input
+  void _handleManualLocationInput() {
+    String locationText = _locationController.text.trim();
+    if (locationText.isNotEmpty) {
+      // Set default coordinates for Lebanon (Beirut) when user types manually
+      if (latitude == null || longitude == null) {
+        setState(() {
+          latitude = 33.8935; // Beirut latitude
+          longitude = 35.5018; // Beirut longitude
+        });
+      
+      }
+    }
+  }
+
+  // Method to show file processing results
+  void _showFileProcessingResults(int originalImageCount, int processedImageCount, int originalVideoCount, int processedVideoCount) {
+    if (originalImageCount > processedImageCount || originalVideoCount > processedVideoCount) {
+      String message = "";
+      if (originalImageCount > processedImageCount) {
+        message += "${originalImageCount - processedImageCount} large images were compressed or skipped. ";
+      }
+      if (originalVideoCount > processedVideoCount) {
+        message += "${originalVideoCount - processedVideoCount} large videos were skipped. ";
+      }
+      message += "Only files under size limits will be uploaded.";
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+
+  
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -385,6 +538,31 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                                     ),
                                   ),
                                 ),
+                                // File size indicator
+                                Positioned(
+                                  left: 4,
+                                  bottom: 4,
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.7),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: FutureBuilder<String>(
+                                      future: _getFileSize(_selectedImages[index]),
+                                      builder: (context, snapshot) {
+                                        return Text(
+                                          snapshot.data ?? '...',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           );
@@ -448,6 +626,31 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                                     ),
                                   ),
                                 ),
+                                // File size indicator
+                                Positioned(
+                                  left: 4,
+                                  bottom: 4,
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.7),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: FutureBuilder<String>(
+                                      future: _getFileSize(_selectedVideos[index]),
+                                      builder: (context, snapshot) {
+                                        return Text(
+                                          snapshot.data ?? '...',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           );
@@ -497,6 +700,20 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                       ),
                     ),
                   ),
+                  
+                  // File size limits info
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      "📁 File limits: Images max 5MB, Videos max 25MB. Large files will be automatically compressed or skipped.",
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                  
                   SizedBox(height: 24),
 
                   // The rest of your form fields...
@@ -526,8 +743,10 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                               ),
                             if (_isLoadingLocation)
                               SizedBox(width: 8),
+                            Icon(Icons.my_location, size: 16),
+                            SizedBox(width: 4),
                             Text(
-                              "Auto-pin locations",
+                              "Auto-pin",
                               style: TextStyle(
                                 color: Colors.blue,
                                 fontSize: 14,
@@ -539,14 +758,88 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                     ],
                   ),
                   _buildTextField(_locationController, "Location"),
+                  
+                  
+                  
+                  // Warning when coordinates are missing
+                  if (_locationController.text.isNotEmpty && (latitude == null || longitude == null))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          border: Border.all(color: Colors.orange.shade200),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning, color: Colors.orange, size: 16),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "Location coordinates not set. Please use one of the buttons below to set coordinates.",
+                                style: TextStyle(
+                                  color: Colors.orange.shade700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  
+                  // Manual location button
+                  if (_locationController.text.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _handleManualLocationInput(),
+                              icon: Icon(Icons.edit_location, size: 16),
+                              label: Text("Set Coordinates for Manual Location"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          
+                        ],
+                      ),
+                    ),
+                  
                   if (latitude != null && longitude != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        "Lat: ${latitude!.toStringAsFixed(6)}, Long: ${longitude!.toStringAsFixed(6)}",
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          border: Border.all(color: Colors.green.shade200),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.green, size: 16),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "Coordinates set: Lat: ${latitude!.toStringAsFixed(6)}, Long: ${longitude!.toStringAsFixed(6)}",
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -876,9 +1169,28 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
 
   void _onUpdate() async {
     if (_nameController.text.isEmpty) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Please enter a name")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please enter a name")),
+      );
+      return;
+    }
+
+    if (_locationController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please enter a location")),
+      );
+      return;
+    }
+
+    // Check if we have coordinates (either from GPS or manual input)
+    if (latitude == null || longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Please set location coordinates. Use 'Auto-pin' or 'Set Coordinates for Manual Location' button."),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
       return;
     }
 
@@ -895,17 +1207,67 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
     });
 
     try {
+      // Improved address parsing with fallbacks (same as _onAdd)
+      String locationText = _locationController.text.trim();
+      List<String> locationParts = locationText.split(',').map((e) => e.trim()).toList();
+      
+      String country = 'Lebanon'; // Default country
+      String city = 'Beirut';     // Default city
+      String street = locationText; // Default to full text if parsing fails
+      String district = '';
+      String postalCode = '';
+
+      if (locationParts.length >= 3) {
+        // Format: Street, City, Country
+        street = locationParts[0];
+        city = locationParts[1];
+        country = locationParts[2];
+        if (locationParts.length > 3) {
+          district = locationParts[1]; // Use second part as district
+          city = locationParts[2];     // Use third part as city
+          country = locationParts[3];  // Use fourth part as country
+        }
+      } else if (locationParts.length == 2) {
+        // Format: Street, City
+        street = locationParts[0];
+        city = locationParts[1];
+      } else if (locationParts.length == 1) {
+        // Only street provided
+        street = locationParts[0];
+      }
+
       // Create address object
       final address = Address(
-        country: _locationController.text.split(',').length > 2 ?
-        _locationController.text.split(',').last.trim() : 'N/A',
-        district: '', // Provide a default even if empty
-        city: _locationController.text.split(',').length > 1 ?
-        _locationController.text.split(',')[1].trim() : 'N/A',
-        street: _locationController.text.split(',').first.trim(),
-        postalCode: '', // Provide a default even if empty
+        country: country,
+        district: district,
+        city: city,
+        street: street,
+        postalCode: postalCode,
         lat: latitude ?? 0.0,
         lng: longitude ?? 0.0,
+      );
+
+      if (!mounted) return;
+
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text("Updating branch..."),
+            ],
+          ),
+          duration: Duration(seconds: 30), // Long duration for upload
+        ),
       );
 
       // Call the service to edit branch with all the required parameters
@@ -921,38 +1283,86 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
         newVideos: _selectedVideos,
       );
 
+      if (!mounted) return;
+
       if (updatedBranch != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Branch updated successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
         // Return the updated branch data to the previous screen
         Navigator.pop(context, {'branch': updatedBranch, 'refresh': true});
       } else {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(content: Text("Failed to update branch")),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to update branch. Please try again."),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Failed to update branch: ${e.toString()}")),
-      // );
+      if (!mounted) return;
+      
+      String errorMessage = "Failed to update branch";
+      
+      if (e.toString().contains("Unauthorized")) {
+        errorMessage = "Session expired. Please login again.";
+      } else if (e.toString().contains("Wholesaler not found")) {
+        errorMessage = "Wholesaler account not found. Please contact support.";
+      } else if (e.toString().contains("Bad request")) {
+        errorMessage = "Please check your input data and try again.";
+      } else if (e.toString().contains("Server error")) {
+        errorMessage = "Server error. Please try again later.";
+      } else if (e.toString().contains("Authentication token not found")) {
+        errorMessage = "Please login again to continue.";
+      } else {
+        errorMessage = "Error: ${e.toString()}";
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
 
   void _onAdd() async {
     if (_nameController.text.isEmpty) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Please enter a name")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please enter a name")),
+      );
       return;
     }
 
+    if (_locationController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please enter a location")),
+      );
+      return;
+    }
+
+    // Check if we have coordinates (either from GPS or manual input)
     if (latitude == null || longitude == null) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Please select a location")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Please set location coordinates. Use 'Auto-pin' or 'Set Coordinates for Manual Location' button."),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
       return;
     }
 
@@ -961,32 +1371,67 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
     });
 
     try {
+      // Improved address parsing with fallbacks
+      String locationText = _locationController.text.trim();
+      List<String> locationParts = locationText.split(',').map((e) => e.trim()).toList();
+      
+      String country = 'Lebanon'; // Default country
+      String city = 'Beirut';     // Default city
+      String street = locationText; // Default to full text if parsing fails
+      String district = '';
+      String postalCode = '';
+
+      if (locationParts.length >= 3) {
+        // Format: Street, City, Country
+        street = locationParts[0];
+        city = locationParts[1];
+        country = locationParts[2];
+        if (locationParts.length > 3) {
+          district = locationParts[1]; // Use second part as district
+          city = locationParts[2];     // Use third part as city
+          country = locationParts[3];  // Use fourth part as country
+        }
+      } else if (locationParts.length == 2) {
+        // Format: Street, City
+        street = locationParts[0];
+        city = locationParts[1];
+      } else if (locationParts.length == 1) {
+        // Only street provided
+        street = locationParts[0];
+      }
+
       // Create address object using the wholesaler_model Address class
       final address = Address(
-        country: _locationController.text.split(',').last.trim(),
-        district: '', // You might want to add a field for this
-        city: _locationController.text.split(',').length > 1
-            ? _locationController.text.split(',')[1].trim()
-            : '',
-        street: _locationController.text.split(',').first.trim(),
-        postalCode: '', // You might want to add a field for this
+        country: country,
+        district: district,
+        city: city,
+        street: street,
+        postalCode: postalCode,
         lat: latitude!,
         lng: longitude!,
       );
+
+      if (!mounted) return;
+
 
       // Call the service to create branch
       final branch = await WholesalerService().createBranch(
         name: _nameController.text,
         location: address,
-        phone: '${countryCode ?? "+961"} ${_phoneController.text}',
+        phone: '${countryCode ?? "+961"} ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
         category: selectedCategory ?? 'Uncategorized',
-        subCategory: selectedSubCategory,
-        description: _descriptionController.text,
+        subCategory: selectedSubCategory ?? '',
+        description: _descriptionController.text.isNotEmpty ? _descriptionController.text : 'No description provided',
         images: _selectedImages,
         videos: _selectedVideos,
       );
 
+      if (!mounted) return;
+
       if (branch != null) {
+        // Show file processing results feedback
+        _showFileProcessingResults(_selectedImages.length, branch.images?.length ?? 0, _selectedVideos.length, branch.videos?.length ?? 0);
+        
         // Clear form
         _nameController.clear();
         _locationController.clear();
@@ -1001,20 +1446,54 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
           selectedSubCategory = null;
         });
 
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(content: Text("Branch added successfully!")),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Branch added successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
 
         Navigator.pop(context, {'refresh': true});
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to add branch. Please try again."),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Failed to add branch: ${e.toString()}")),
-      // );
+      if (!mounted) return;
+      
+      String errorMessage = "Failed to add branch";
+      
+      if (e.toString().contains("Unauthorized")) {
+        errorMessage = "Session expired. Please login again.";
+      } else if (e.toString().contains("Wholesaler not found")) {
+        errorMessage = "Wholesaler account not found. Please contact support.";
+      } else if (e.toString().contains("Bad request")) {
+        errorMessage = "Please check your input data and try again.";
+      } else if (e.toString().contains("Server error")) {
+        errorMessage = "Server error. Please try again later.";
+      } else if (e.toString().contains("Authentication token not found")) {
+        errorMessage = "Please login again to continue.";
+      } else {
+        errorMessage = "Error: ${e.toString()}";
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -1072,5 +1551,22 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
         onChanged: isEnabled ? onChanged : null,
       ),
     );
+  }
+
+  // Helper method to format file size
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  // Helper method to get file size
+  Future<String> _getFileSize(File file) async {
+    try {
+      final size = await file.length();
+      return _formatFileSize(size);
+    } catch (e) {
+      return 'Unknown size';
+    }
   }
 }

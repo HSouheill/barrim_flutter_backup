@@ -6,10 +6,12 @@ import 'package:http/http.dart' as http;
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/sponsorship.dart';
+import '../utils/token_storage.dart';
 import 'api_service.dart';
 
 class SponsorshipService {
   static const String baseUrl = ApiService.baseUrl;
+  static final TokenStorage _tokenStorage = TokenStorage();
 
   // --- Custom HTTP client with proper SSL handling ---
   static http.Client? _customClient;
@@ -41,6 +43,15 @@ class SponsorshipService {
       default:
         throw Exception('Unsupported HTTP method: $method');
     }
+  }
+
+  // Get authentication headers
+  static Future<Map<String, String>> _getHeaders() async {
+    final token = await _tokenStorage.getToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
   }
 
   // Get service provider sponsorships
@@ -109,122 +120,307 @@ class SponsorshipService {
     }
   }
 
-  // Parse sponsorships from API response
-  static List<Sponsorship> parseSponsorships(Map<String, dynamic> response) {
-    print('SponsorshipService.parseSponsorships called with: $response');
-    
-    if (response['success'] != true || response['data'] == null) {
-      print('SponsorshipService: Response not successful or no data');
-      return [];
-    }
-
-    final data = response['data'];
-    print('SponsorshipService: Data extracted: $data');
-    
-    if (data['sponsorships'] == null) {
-      print('SponsorshipService: No sponsorships field in data');
-      return [];
-    }
-
-    final sponsorshipsList = data['sponsorships'] as List;
-    print('SponsorshipService: Sponsorships list length: ${sponsorshipsList.length}');
-    print('SponsorshipService: First sponsorship raw data: ${sponsorshipsList.isNotEmpty ? sponsorshipsList.first : 'empty'}');
-    
-    final parsedSponsorships = sponsorshipsList
-        .map((json) {
-          print('SponsorshipService: Parsing sponsorship JSON: $json');
-          final sponsorship = Sponsorship.fromJson(json);
-          print('SponsorshipService: Parsed sponsorship: ${sponsorship.toJson()}');
-          return sponsorship;
-        })
-        .toList();
-    
-    print('SponsorshipService: Final parsed sponsorships: ${parsedSponsorships.map((s) => s.toJson()).toList()}');
-    return parsedSponsorships;
-  }
-
-  // Parse pagination from API response
-  static SponsorshipPagination? parsePagination(Map<String, dynamic> response) {
-    if (response['success'] != true || response['data'] == null) {
-      return null;
-    }
-
-    final data = response['data'];
-    if (data['pagination'] == null) {
-      return null;
-    }
-
-    return SponsorshipPagination.fromJson(data['pagination']);
-  }
-
-  // Get entity type from API response
-  static String? getEntityType(Map<String, dynamic> response) {
-    if (response['success'] != true || response['data'] == null) {
-      return null;
-    }
-
-    final data = response['data'];
-    return data['entityType'];
-  }
-
-  // Create sponsorship subscription request
-  static Future<Map<String, dynamic>> createSponsorshipSubscriptionRequest({
+  // Create service provider sponsorship request
+  static Future<Map<String, dynamic>> createServiceProviderSponsorshipRequest({
     required String sponsorshipId,
-    required String entityId,
-    required String entityType,
-    required String entityName,
+    String? adminNote,
   }) async {
     try {
+      final headers = await _getHeaders();
       final requestBody = {
         'sponsorshipId': sponsorshipId,
-        'entityType': entityType,
-        'entityId': entityId,
-        'entityName': entityName,
-        'status': 'pending', // Add status field
+        if (adminNote != null && adminNote.isNotEmpty) 'adminNote': adminNote,
       };
       
-      // Get authentication headers
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      
-      final headers = {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
-      
-      print('SponsorshipService: Sending request to $baseUrl/api/sponsorship-subscriptions/request');
-      print('SponsorshipService: Request body: $requestBody');
-      print('SponsorshipService: Headers: $headers');
+      print('Creating service provider sponsorship request');
+      print('Request body: $requestBody');
       
       final response = await _makeRequest(
         'POST',
-        Uri.parse('$baseUrl/api/sponsorship-subscriptions/request'),
+        Uri.parse('$baseUrl/api/sponsorship/request'),
         headers: headers,
         body: jsonEncode(requestBody),
       );
 
-      print('Service: Response status: ${response.statusCode}');
-      print('SponsorshipService: Response body: ${response.body}');
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         return data;
       } else {
         final errorData = jsonDecode(response.body);
-        print('SponsorshipService: Error response: $errorData');
         return {
           'success': false,
-          'message': errorData['message'] ?? 'Failed to create sponsorship subscription request',
+          'message': errorData['message'] ?? 'Failed to create service provider sponsorship request',
           'error': 'HTTP ${response.statusCode}',
         };
       }
     } catch (e) {
-      print('SponsorshipService: Exception: $e');
+      print('Error creating service provider sponsorship request: $e');
       return {
         'success': false,
         'message': 'Network error: ${e.toString()}',
         'error': e.toString(),
       };
+    }
+  }
+
+  // Create wholesaler branch sponsorship request
+  static Future<Map<String, dynamic>> createWholesalerBranchSponsorshipRequest({
+    required String sponsorshipId,
+    required String branchId,
+    String? adminNote,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final requestBody = {
+        'sponsorshipId': sponsorshipId,
+        if (adminNote != null && adminNote.isNotEmpty) 'adminNote': adminNote,
+      };
+      
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/wholesaler/sponsorship/$branchId/request'),
+        headers: headers,
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return data;
+      } else {
+        final errorData = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': errorData['message'] ?? 'Failed to create wholesaler branch sponsorship request',
+          'error': 'HTTP ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Get sponsorship subscription time remaining for wholesaler branch
+  static Future<Map<String, dynamic>> getSponsorshipSubscriptionTimeRemaining({
+    required String branchId,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/sponsorship-subscriptions/wholesaler-branch/$branchId/time-remaining'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data;
+      } else if (response.statusCode == 404) {
+        // No active sponsorship subscription found
+        return {
+          'success': true,
+          'data': {
+            'hasActiveSubscription': false,
+            'message': 'No active sponsorship subscription found',
+          },
+        };
+      } else {
+        final errorData = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': errorData['message'] ?? 'Failed to get sponsorship subscription time remaining',
+          'error': 'HTTP ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Create company branch sponsorship request
+  static Future<Map<String, dynamic>> createCompanyBranchSponsorshipRequest({
+    required String sponsorshipId,
+    required String branchId,
+    String? adminNote,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final requestBody = {
+        'sponsorshipId': sponsorshipId,
+        if (adminNote != null && adminNote.isNotEmpty) 'adminNote': adminNote,
+      };
+      
+      print('Creating company branch sponsorship request for branch: $branchId');
+      print('Request body: $requestBody');
+      
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/companies/sponsorship/$branchId/request'),
+        headers: headers,
+        body: jsonEncode(requestBody),
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return data;
+      } else {
+        final errorData = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': errorData['message'] ?? 'Failed to create company branch sponsorship request',
+          'error': 'HTTP ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('Error creating company branch sponsorship request: $e');
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Get company branch sponsorship subscription time remaining
+  static Future<Map<String, dynamic>> getCompanyBranchSponsorshipTimeRemaining({
+    required String branchId,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      
+      print('Getting company branch sponsorship time remaining for branch: $branchId');
+      print('Request URL: $baseUrl/api/companies/sponsorship/$branchId/remaining-time');
+      
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/companies/sponsorship/$branchId/remaining-time'),
+        headers: headers,
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Successfully parsed response data: $data');
+        return data;
+      } else if (response.statusCode == 404) {
+        // No active sponsorship subscription found
+        print('No active sponsorship subscription found (404)');
+        return {
+          'success': true,
+          'data': {
+            'hasActiveSubscription': false,
+            'message': 'No active sponsorship subscription found',
+          },
+        };
+      } else {
+        final errorData = jsonDecode(response.body);
+        print('Error response: $errorData');
+        return {
+          'success': false,
+          'message': errorData['message'] ?? 'Failed to get company branch sponsorship subscription time remaining',
+          'error': 'HTTP ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('Error getting company branch sponsorship time remaining: $e');
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Get service provider sponsorship subscription time remaining
+  static Future<Map<String, dynamic>> getServiceProviderSponsorshipTimeRemaining() async {
+    try {
+      final headers = await _getHeaders();
+      
+      print('Getting service provider sponsorship time remaining');
+      print('Request URL: $baseUrl/api/sponsorship/remaining-time');
+      
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/sponsorship/remaining-time'),
+        headers: headers,
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Successfully parsed response data: $data');
+        return data;
+      } else if (response.statusCode == 404) {
+        // No active sponsorship subscription found
+        print('No active sponsorship subscription found (404)');
+        return {
+          'success': true,
+          'data': {
+            'hasActiveSubscription': false,
+            'message': 'No active sponsorship subscription found',
+          },
+        };
+      } else {
+        final errorData = jsonDecode(response.body);
+        print('Error response: $errorData');
+        return {
+          'success': false,
+          'message': errorData['message'] ?? 'Failed to get service provider sponsorship subscription time remaining',
+          'error': 'HTTP ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('Error getting service provider sponsorship time remaining: $e');
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Parse sponsorships from API response
+  static List<Sponsorship> parseSponsorships(Map<String, dynamic> response) {
+    try {
+      if (response['success'] == true && response['data'] != null) {
+        final List<dynamic> sponsorshipsJson = response['data'];
+        return sponsorshipsJson.map((json) => Sponsorship.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error parsing sponsorships: $e');
+      return [];
+    }
+  }
+
+  // Parse pagination from API response
+  static SponsorshipPagination? parsePagination(Map<String, dynamic> response) {
+    try {
+      if (response['pagination'] != null) {
+        return SponsorshipPagination.fromJson(response['pagination']);
+      }
+      return null;
+    } catch (e) {
+      print('Error parsing pagination: $e');
+      return null;
     }
   }
 }

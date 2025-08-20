@@ -13,6 +13,7 @@ class ServiceProvider {
   final int? reviewCount;
   final List<String>? availableWeekdays;
   final List<String>? availableDays;
+  final String? category; // Add category field
 
 
   ServiceProvider({
@@ -27,31 +28,38 @@ class ServiceProvider {
     this.reviewCount,
     this.availableWeekdays,
     this.availableDays,
+    this.category, // Add category parameter
   });
 
 
   factory ServiceProvider.fromJson(Map<String, dynamic> json) {
-    return ServiceProvider(
-      id: json['id'] ?? '',
-      fullName: json['fullName'] ?? '',
-      email: json['email'],
-      phone: json['phone'],
-      serviceProviderInfo: json['serviceProviderInfo'] != null
-          ? ServiceProviderInfo.fromJson(json['serviceProviderInfo'])
-          : null,
-      logoPath: json['logoPath'],
-      location: json['location'] != null
-          ? Location.fromJson(json['location'])
-          : null,
-      rating: json['rating']?.toDouble(),
-      reviewCount: json['reviewCount'],
-      availableWeekdays: json['availableWeekdays'] != null
-          ? List<String>.from(json['availableWeekdays'])
-          : null,
-      availableDays: json['availableDays'] != null
-          ? List<String>.from(json['availableDays'])
-          : null,
-    );
+    try {
+      return ServiceProvider(
+        id: json['id']?.toString() ?? '',
+        fullName: json['fullName']?.toString() ?? '',
+        email: json['email']?.toString(),
+        phone: json['phone']?.toString(),
+        serviceProviderInfo: json['serviceProviderInfo'] != null
+            ? ServiceProviderInfo.fromJson(json['serviceProviderInfo'])
+            : null,
+        logoPath: json['logoPath']?.toString(),
+        location: json['location'] != null
+            ? Location.fromJson(json['location'])
+            : null,
+        rating: json['rating'] != null ? double.tryParse(json['rating'].toString()) : null,
+        reviewCount: json['reviewCount'] != null ? int.tryParse(json['reviewCount'].toString()) : null,
+        availableWeekdays: json['availableWeekdays'] != null
+            ? List<String>.from(json['availableWeekdays'])
+            : null,
+        availableDays: json['availableDays'] != null
+            ? List<String>.from(json['availableDays'])
+            : null,
+        category: json['category']?.toString(), // Parse category field
+      );
+    } catch (e) {
+      debugPrint('Error parsing ServiceProvider from JSON: $e');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -67,6 +75,7 @@ class ServiceProvider {
       'reviewCount': reviewCount,
       'availableWeekdays': availableWeekdays,
       'availableDays': availableDays,
+      'category': category, // Include category field
     };
   }
 }
@@ -98,45 +107,50 @@ class ServiceProviderInfo {
   });
 
   factory ServiceProviderInfo.fromJson(Map<String, dynamic> json) {
-    // Handle yearsExperience which could be int or String
-    int years = 0;
-    if (json['yearsExperience'] is int) {
-      years = json['yearsExperience'];
-    } else if (json['yearsExperience'] is String) {
-      years = int.tryParse(json['yearsExperience']) ?? 0;
-    }
+    try {
+      // Handle yearsExperience which could be int or String
+      int years = 0;
+      if (json['yearsExperience'] is int) {
+        years = json['yearsExperience'];
+      } else if (json['yearsExperience'] is String) {
+        years = int.tryParse(json['yearsExperience']) ?? 0;
+      }
 
-    // Handle description which could be null
-    String? description = json['description'] ?? '';
-    // Handle availableHours and availableDays which could be lists of strings
-    List<String> hours = [];
-    if (json['availableHours'] != null) {
-      hours = List<String>.from(json['availableHours']);
-    }
+      // Handle description which could be null
+      String? description = json['description'] ?? '';
+      // Handle availableHours and availableDays which could be lists of strings
+      List<String> hours = [];
+      if (json['availableHours'] != null) {
+        hours = List<String>.from(json['availableHours']);
+      }
 
-    List<String> days = [];
-    if (json['availableDays'] != null) {
-      days = List<String>.from(json['availableDays']);
-    }
+      List<String> days = [];
+      if (json['availableDays'] != null) {
+        days = List<String>.from(json['availableDays']);
+      }
 
-    // Parse socialLinks if present
-    Map<String, String>? socialLinks;
-    if (json['socialLinks'] != null && json['socialLinks'] is Map) {
-      socialLinks = Map<String, String>.from(json['socialLinks']);
-    }
+      // Parse socialLinks if present
+      Map<String, String>? socialLinks;
+      if (json['socialLinks'] != null && json['socialLinks'] is Map) {
+        socialLinks = Map<String, String>.from(json['socialLinks']);
+      }
 
-    return ServiceProviderInfo(
-      serviceType: json['serviceType'] ?? '',
-      customServiceType: json['customServiceType'],
-      yearsExperience: years,
-      availableHours: hours,
-      availableDays: days,
-      profilePhoto: json['profilePhoto'],
-      description: description,
-      certificateImage: json['certificateImage'],
-      status: json['status'],
-      socialLinks: socialLinks,
-    );
+      return ServiceProviderInfo(
+        serviceType: json['serviceType']?.toString() ?? '',
+        customServiceType: json['customServiceType']?.toString(),
+        yearsExperience: years,
+        availableHours: hours,
+        availableDays: days,
+        profilePhoto: json['profilePhoto']?.toString(),
+        description: description,
+        certificateImage: json['certificateImage']?.toString(),
+        status: json['status']?.toString(),
+        socialLinks: socialLinks,
+      );
+    } catch (e) {
+      debugPrint('Error parsing ServiceProviderInfo from JSON: $e');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -179,16 +193,21 @@ class Location {
 
 
   factory Location.fromJson(Map<String, dynamic> json) {
-    return Location(
-      city: json['city'],
-      country: json['country'],
-      district: json['district'],
-      street: json['street'],
-      postalCode: json['postalCode'],
-      lat: json['lat']?.toDouble(),
-      lng: json['lng']?.toDouble(),
-      allowed: json['allowed'],
-    );
+    try {
+      return Location(
+        city: json['city']?.toString(),
+        country: json['country']?.toString(),
+        district: json['district']?.toString(),
+        street: json['street']?.toString(),
+        postalCode: json['postalCode']?.toString(),
+        lat: json['lat'] != null ? double.tryParse(json['lat'].toString()) : null,
+        lng: json['lng'] != null ? double.tryParse(json['lng'].toString()) : null,
+        allowed: json['allowed'] as bool?,
+      );
+    } catch (e) {
+      debugPrint('Error parsing Location from JSON: $e');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {

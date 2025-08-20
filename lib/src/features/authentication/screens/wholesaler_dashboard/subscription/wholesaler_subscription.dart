@@ -1,11 +1,12 @@
 import 'dart:math';
 import 'dart:io';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../headers/sidebar.dart';
 import '../../../../../models/subscription.dart';
 import '../../../../../models/sponsorship.dart';
+
 import '../../../../../models/wholesaler_model.dart';
 
 import '../../../../../services/wholesaler_service.dart';
@@ -39,6 +40,15 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   String? _selectedBranchId; // Add this to store the selected branch ID
   List<Branch> _branches = []; // Add this to store the branches
   bool _isLoadingWholesalerData = true; // Add this to track loading state
+  Timer? _countdownTimer;
+  String _currentTimeDisplay = '';
+  DateTime? _subscriptionEndDate;
+  final TextEditingController _adminNoteController = TextEditingController();
+
+  // Sponsorship subscription state
+  SponsorshipSubscriptionTimeRemainingData? _sponsorshipSubscriptionData;
+  bool _isLoadingSponsorshipSubscription = false;
+  String? _sponsorshipSubscriptionError;
 
   @override
   void initState() {
@@ -122,6 +132,13 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
           print('Selected branch ID: $_selectedBranchId');
           print('Branch names: ${branches.map((b) => b.name).toList()}');
           print('Branch IDs: ${branches.map((b) => b.id).toList()}');
+          
+          // Update the provider with the selected branch ID
+          final provider = context.read<SubscriptionProvider>();
+          if (_selectedBranchId != null && _selectedBranchId!.isNotEmpty) {
+            provider.setBranchId(_selectedBranchId!);
+            print('Updated provider with branch ID: $_selectedBranchId');
+          }
         }
       }
     } catch (e) {
@@ -136,7 +153,26 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
 
   Future<void> _initializeSubscriptionData() async {
     final provider = context.read<SubscriptionProvider>();
+    
+    // Wait for branches to load first
+    await _loadBranches();
+    
+    // Set the branch ID in the provider if we have one
+    if (_selectedBranchId != null && _selectedBranchId!.isNotEmpty) {
+      provider.setBranchId(_selectedBranchId!);
+      print('Setting branch ID in provider: $_selectedBranchId');
+    }
+    
     await provider.initialize();
+    
+    // Set subscription end date for countdown timer
+    final remainingTimeData = provider.remainingTimeData;
+    if (remainingTimeData?.remainingTime?.endDate != null) {
+      _setSubscriptionEndDate(remainingTimeData!.remainingTime!.endDate);
+    }
+    
+    // Load sponsorship subscription data
+    await _loadSponsorshipSubscriptionData();
     
     // Check if subscription was recently approved
     _checkSubscriptionApprovalStatus();
@@ -156,6 +192,78 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   // Call this method when you want to show the subscription approved dialog
   void showSubscriptionApprovedPopup() {
     _showSubscriptionApprovedDialog();
+  }
+
+    
+
+  // Countdown timer methods
+  void _startCountdownTimer() {
+    _stopCountdownTimer(); // Stop any existing timer
+    
+    if (_subscriptionEndDate != null) {
+      _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) {
+          _updateCountdownDisplay();
+        } else {
+          timer.cancel();
+        }
+      });
+    }
+  }
+
+  void _stopCountdownTimer() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+  }
+
+  void _updateCountdownDisplay() {
+    if (_subscriptionEndDate == null) return;
+    
+    final now = DateTime.now();
+    final endDate = _subscriptionEndDate!;
+    
+    if (endDate.isBefore(now)) {
+      // Subscription has expired
+      setState(() {
+        _currentTimeDisplay = 'Expired';
+      });
+      _stopCountdownTimer();
+      return;
+    }
+    
+    final difference = endDate.difference(now);
+    
+    // Calculate remaining time
+    final days = difference.inDays;
+    final hours = difference.inHours % 24;
+    final minutes = difference.inMinutes % 60;
+    final seconds = difference.inSeconds % 60;
+    
+    // Format the time display
+    String timeDisplay = '';
+    if (days > 0) {
+      timeDisplay += '${days}d ';
+    }
+    if (hours > 0 || days > 0) {
+      timeDisplay += '${hours.toString().padLeft(2, '0')}h ';
+    }
+    if (minutes > 0 || hours > 0 || days > 0) {
+      timeDisplay += '${minutes.toString().padLeft(2, '0')}m ';
+    }
+    timeDisplay += '${seconds.toString().padLeft(2, '0')}s';
+    
+    setState(() {
+      _currentTimeDisplay = timeDisplay.trim();
+    });
+  }
+
+  void _setSubscriptionEndDate(DateTime? endDate) {
+    _subscriptionEndDate = endDate;
+    if (endDate != null) {
+      _startCountdownTimer();
+    } else {
+      _stopCountdownTimer();
+    }
   }
 
   Future<void> _loadSponsorships() async {
@@ -188,10 +296,312 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
     }
   }
 
+  Future<void> _loadSponsorshipSubscriptionData() async {
+    if (_selectedBranchId == null || _selectedBranchId!.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingSponsorshipSubscription = true;
+      _sponsorshipSubscriptionError = null;
+    });
+
+    try {
+      final response = await SponsorshipService.getSponsorshipSubscriptionTimeRemaining(
+        branchId: _selectedBranchId!,
+      );
+
+      if (mounted) {
+        if (response['success'] == true) {
+          print('UI: Response success, data field: ${response['data']}');
+          print('UI: Data field type: ${response['data'].runtimeType}');
+          
+          // Test parsing with sample data first
+          try {
+            final testData = {
+              'hasActiveSubscription': true,
+              'timeRemaining': {
+                'totalSeconds': 86400,
+                'totalMinutes': 1440,
+                'totalHours': 24,
+                'totalDays': 1,
+                'formatted': '1 day'
+              },
+              'message': 'Test data'
+            };
+            final testParsed = SponsorshipSubscriptionTimeRemainingData.fromJson(testData);
+            print('UI: Test parsing successful: $testParsed');
+          } catch (testError) {
+            print('UI: Test parsing failed: $testError');
+          }
+          
+          try {
+            final parsedData = SponsorshipSubscriptionTimeRemainingData.fromJson(response['data']);
+            print('UI: Successfully parsed data: $parsedData');
+            setState(() {
+              _sponsorshipSubscriptionData = parsedData;
+              _sponsorshipSubscriptionError = null;
+              _isLoadingSponsorshipSubscription = false;
+            });
+          } catch (parseError) {
+            print('UI: Error parsing data: $parseError');
+            print('UI: Raw data: ${response['data']}');
+            setState(() {
+              _sponsorshipSubscriptionError = 'Failed to parse sponsorship subscription data: $parseError';
+              _isLoadingSponsorshipSubscription = false;
+            });
+          }
+        } else {
+          setState(() {
+            _sponsorshipSubscriptionError = response['message'] ?? 'Failed to load sponsorship subscription data';
+            _isLoadingSponsorshipSubscription = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _sponsorshipSubscriptionError = 'Failed to load sponsorship subscription data: ${e.toString()}';
+          _isLoadingSponsorshipSubscription = false;
+        });
+      }
+    }
+  }
+  
+  // Check if there are existing sponsorship requests for the selected branch
+  Future<bool> _hasExistingSponsorshipRequests() async {
+    if (_selectedBranchId == null || _selectedBranchId!.isEmpty) {
+      return false;
+    }
+    
+    try {
+      // This would ideally call an API endpoint to check existing requests
+      // For now, we'll return false and handle this on the backend
+      return false;
+    } catch (e) {
+      print('Error checking existing sponsorship requests: $e');
+      return false;
+    }
+  }
+  
+  // Show sponsorship confirmation dialog
+  Future<bool> _showSponsorshipConfirmationDialog(Sponsorship sponsorship) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.confirmation_number,
+                color: const Color(0xFF2079C2),
+                size: 28,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Confirm Sponsorship Request',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF2079C2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Please confirm your sponsorship request details:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                SizedBox(height: 20),
+                
+                // Sponsorship details
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.store, color: Colors.blue[700], size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Branch: ${_getBranchName(_selectedBranchId)}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(Icons.card_giftcard, color: Colors.blue[700], size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Package: ${sponsorship.title ?? 'Unknown Package'}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.attach_money, color: Colors.blue[700], size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Price: \$${(sponsorship.price ?? 0).toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.schedule, color: Colors.blue[700], size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Duration: ${sponsorship.duration ?? 0} days',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Admin note if provided
+                ...(_adminNoteController.text.trim().isNotEmpty ? [
+                  SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.note, color: Colors.orange[700], size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Your Note:',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          _adminNoteController.text.trim(),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.orange[700],
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] : []),
+                
+                SizedBox(height: 20),
+                Text(
+                  'After confirmation, your request will be sent to the admin team for review.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2079C2),
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Confirm Request'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
   void _toggleSidebar() {
     setState(() {
       _isSidebarOpen = !_isSidebarOpen;
     });
+  }
+
+  String _getBranchName(String? branchId) {
+    if (branchId == null) return 'Unknown Branch';
+    try {
+      final branch = _branches.firstWhere((b) => b.id == branchId);
+      return branch.name;
+    } catch (e) {
+      return 'Unknown Branch';
+    }
   }
 
   void _closeSidebar() {
@@ -673,93 +1083,351 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      body: Consumer<SubscriptionProvider>(
-        builder: (context, provider, child) {
-          return Stack(
+      body: Stack(
+        children: [
+          Column(
             children: [
-              Column(
-                children: [
-                           WholesalerHeader(logoUrl: _logoUrl),
-
-                  Expanded(
-                    child: provider.isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : provider.hasError
-                        ? SizedBox.shrink()
-                        : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(height: 10),
-
-                          _buildSectionTitle('Wholesaler Subscriptions'),
-                          const SizedBox(height: 24),
-
-                          // Subscription plans in horizontal layout
-                          if (provider.availablePlans.isNotEmpty) ...[
-                            _buildSubscriptionPlansRow(provider),
-                            const SizedBox(height: 40),
-                          ] else ...[
-                            Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(20.0),
-                                child: Text(
-                                  'No subscription plans available at the moment',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[600],
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
+              WholesalerHeader(logoUrl: _logoUrl),
+              Expanded(
+                child: _isLoadingWholesalerData
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text(
+                              'Loading wholesaler data...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
                               ),
                             ),
-                            const SizedBox(height: 40),
                           ],
+                        ),
+                      )
+                    : _selectedBranchId == null || _selectedBranchId!.isEmpty
+                        ? _buildBranchSelectionView()
+                        : _buildSubscriptionView(),
+              ),
+            ],
+          ),
 
-                          // Time Left Section - Only show if user has active subscription
-                          if (provider.hasActiveSubscription) ...[
-                            _buildTimeLeftSection(provider),
-                            const SizedBox(height: 40),
+          // Sidebar overlay
+          if (_isSidebarOpen)
+            GestureDetector(
+              onTap: _closeSidebar,
+              child: Container(
+                color: Colors.black.withOpacity(0.5),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Sidebar(
+                        onCollapse: _closeSidebar,
+                        parentContext: context,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
-                          ],
-
-                          // Sponsorship Section
-                          _buildSponsorshipSection(),
-
-                          const SizedBox(height: 40),
-                        ],
+  Widget _buildBranchSelectionView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          _buildSectionTitle('Select Your Branch'),
+          const SizedBox(height: 24),
+          
+          if (_branches.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(40.0),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.store,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No branches available',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'You need to create at least one branch to access subscriptions',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _loadBranches,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Refresh'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2079C2),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Column(
+              children: [
+                Text(
+                  'Choose a branch to view subscription options:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                
+                // Branch selection dropdown
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select Branch',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedBranchId,
+                        decoration: InputDecoration(
+                          labelText: 'Branch',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        items: _branches.map((branch) {
+                          return DropdownMenuItem<String>(
+                            value: branch.id,
+                            child: Text(branch.name),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _selectedBranchId = newValue;
+                          });
+                          
+                          // Clear sponsorship selection and admin note when changing branches
+                          _selectedSponsorshipId = null;
+                          _adminNoteController.clear();
+                          
+                          // Update the provider with the new branch ID
+                          if (newValue != null && newValue.isNotEmpty) {
+                            final provider = context.read<SubscriptionProvider>();
+                            provider.setBranchId(newValue);
+                            print('Updated provider with new branch ID: $newValue');
+                            
+                            // Refresh subscription data for the new branch
+                            provider.refreshAllData().then((_) {
+                              // Update countdown timer for new branch
+                              final remainingTimeData = provider.remainingTimeData;
+                              if (remainingTimeData?.remainingTime?.endDate != null) {
+                                _setSubscriptionEndDate(remainingTimeData!.remainingTime!.endDate);
+                              } else {
+                                _setSubscriptionEndDate(null);
+                              }
+                            });
+                            
+                            // Load sponsorship subscription data for the new branch
+                            _loadSponsorshipSubscriptionData();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Continue button
+                if (_selectedBranchId != null && _selectedBranchId!.isNotEmpty)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // The view will automatically switch when _selectedBranchId is set
+                        setState(() {});
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2079C2),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Continue to Subscriptions',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 
-              // Sidebar overlay
-              if (_isSidebarOpen)
-                GestureDetector(
-                  onTap: _closeSidebar,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.5),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          bottom: 0,
-                          child: Sidebar(
-                            onCollapse: _closeSidebar,
-                            parentContext: context,
+  Widget _buildSubscriptionView() {
+    return Consumer<SubscriptionProvider>(
+      builder: (context, provider, child) {
+        return provider.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : provider.hasError
+            ? SizedBox.shrink()
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 10),
+
+                    // Branch info header
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.store,
+                            color: const Color(0xFF2079C2),
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Selected Branch',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  _getBranchName(_selectedBranchId),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF2079C2),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedBranchId = null;
+                              });
+                            },
+                            child: const Text('Change Branch'),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('Wholesaler Subscriptions'),
+                    const SizedBox(height: 24),
+
+                    // Subscription plans in horizontal layout
+                    if (provider.availablePlans.isNotEmpty) ...[
+                      _buildSubscriptionPlansRow(provider),
+                      const SizedBox(height: 40),
+                    ] else ...[
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Text(
+                            'No subscription plans available at the moment',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+
+                    
+
+
+                    // Time Left Section - Show if there's any subscription data
+                    if (provider.remainingTimeData != null) ...[
+                      _buildTimeLeftSection(provider),
+                      const SizedBox(height: 40),
+                    ],
+
+                    // Sponsorship Section
+                    _buildSponsorshipSection(),
+
+                    const SizedBox(height: 40),
+                  ],
                 ),
-            ],
-          );
-        },
-      ),
+              );
+      },
     );
   }
 
@@ -795,96 +1463,117 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
     final remainingTime = provider.formattedRemainingTime;
     final progress = provider.subscriptionProgress;
     final progressValue = (double.tryParse(progress ?? '0') ?? 0) / 100;
+    final hasActiveSubscription = provider.hasActiveSubscription;
 
     return Column(
       children: [
-        _buildSectionTitle('Time Left'),
-        const SizedBox(height: 24),
-
         Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+          
           child: Column(
             children: [
-              // Custom circular progress with partial circle design
-              SizedBox(
-                width: 200,
-                height: 200,
-                child: CustomPaint(
-                  painter: CircularTimerPainter(
-                    progress: 1 - progressValue, // Reverse for countdown
-                    isExpiringSoon: provider.isExpiringSoon,
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          remainingTime ?? '0D:0H:0M',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2196F3),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
+              
+
+              // Time remaining display
+              if (remainingTime != null && remainingTime.isNotEmpty) ...[
+                Text(
+                  'Time Left',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
                   ),
                 ),
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // Cancel subscription button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: provider.isCancellingSubscription 
-                    ? null 
-                    : () => _handleCancelSubscription(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 16),
+                
+                // Custom circular progress with partial circle design
+                SizedBox(
+                  width: 210,
+                  height: 210,
+                  child: CustomPaint(
+                    painter: CircularTimerPainter(
+                      progress: 1 - progressValue, // Reverse for countdown
+                      isExpiringSoon: provider.isExpiringSoon,
                     ),
-                  ),
-                  child: provider.isCancellingSubscription
-                    ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                 _currentTimeDisplay.isNotEmpty 
+                                    ? _currentTimeDisplay 
+                                    : (remainingTime ?? 'Loading...'),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF2196F3),
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 8),
-                          Text('Cancelling...'),
-                        ],
-                      )
-                    : const Text(
-                        'Cancel Subscription',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
+                            if (provider.isExpiringSoon) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Expiring Soon!',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
+                    ),
+                  ),
                 ),
-              ),
+                
+                const SizedBox(height: 20),
+              ] else ...[
+                // No time remaining data
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 48,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No Time Data Available',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Time remaining information will appear here once your subscription is active.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+              
             ],
           ),
         ),
@@ -898,6 +1587,250 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
         _buildSectionTitle('Sponsorship'), 
         
         const SizedBox(height: 24),
+        
+        // Sponsorship Subscription Time Remaining Section
+        if (_sponsorshipSubscriptionData != null && _sponsorshipSubscriptionData!.hasActiveSubscription) ...[
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.timer,
+                      color: Colors.green[700],
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Active Sponsorship Subscription',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _loadSponsorshipSubscriptionData,
+                      icon: Icon(
+                        Icons.refresh,
+                        color: Colors.green[600],
+                        size: 20,
+                      ),
+                      tooltip: 'Refresh sponsorship data',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Time remaining display
+                if (_sponsorshipSubscriptionData!.timeRemaining != null) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Time Remaining:',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _sponsorshipSubscriptionData!.timeRemaining!.formatted ?? 'Loading...',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '${_sponsorshipSubscriptionData!.timeRemaining!.days ?? 0}',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green[700],
+                              ),
+                            ),
+                            Text(
+                              'Days',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                
+                // Sponsorship details
+                if (_sponsorshipSubscriptionData!.sponsorship != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sponsorship Package:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green[700],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.card_giftcard, color: Colors.green[600], size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _sponsorshipSubscriptionData!.sponsorship!.title ?? 'Unknown Package',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.attach_money, color: Colors.green[600], size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              '\$${(_sponsorshipSubscriptionData!.sponsorship!.price ?? 0).toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.green[600],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Icon(Icons.schedule, color: Colors.green[600], size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${_sponsorshipSubscriptionData!.sponsorship!.duration ?? 0} days',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.green[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ] else if (_isLoadingSponsorshipSubscription) ...[
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: const Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text(
+                    'Loading sponsorship subscription data...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ] else if (_sponsorshipSubscriptionError != null) ...[
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red[200]!),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: Colors.red[700],
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Error Loading Sponsorship Data',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _sponsorshipSubscriptionError!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.red[600],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: _loadSponsorshipSubscriptionData,
+                  child: Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
         
         Container(
           padding: const EdgeInsets.all(24),
@@ -1097,6 +2030,20 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                           setState(() {
                             _selectedBranchId = newValue;
                           });
+                          
+                          // Clear sponsorship selection and admin note when changing branches
+                          _selectedSponsorshipId = null;
+                          _adminNoteController.clear();
+                          
+                          // Update the provider with the new branch ID
+                          if (newValue != null && newValue.isNotEmpty) {
+                            final provider = context.read<SubscriptionProvider>();
+                            provider.setBranchId(newValue);
+                            print('Updated provider with new branch ID: $newValue');
+                            
+                            // Refresh subscription data for the new branch
+                            provider.refreshAllData();
+                          }
                         },
                       ),
                     ],
@@ -1108,6 +2055,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                 
                 const SizedBox(height: 16),
               ],
+
               
               // Get Sponsored button
               SizedBox(
@@ -1352,11 +2300,34 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   }
 
   Future<void> _submitSponsorshipRequest() async {
+    // Validate sponsorship selection
     if (_selectedSponsorshipId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select a sponsorship first'),
           backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Validate branch selection
+    if (_selectedBranchId == null || _selectedBranchId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a branch first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Validate wholesaler ID
+    if (_wholesalerId == null || _wholesalerId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wholesaler information not loaded. Please refresh and try again.'),
+          backgroundColor: Colors.red,
         ),
       );
       return;
@@ -1375,19 +2346,49 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
       );
       return;
     }
+    
+    // Find the selected sponsorship to validate it exists
+    final selectedSponsorship = _sponsorships.firstWhere(
+      (s) => s.id == originalSponsorshipId,
+      orElse: () => Sponsorship(),
+    );
+    
+    if (selectedSponsorship.id == null || selectedSponsorship.id!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selected sponsorship not found. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-    setState(() {
-      _isSubmittingSponsorship = true;
-    });
+    try {
+      // Check if we have the branch ID
+      if (_selectedBranchId == null || _selectedBranchId!.isEmpty) {
+        throw Exception('No branch selected. Please try again.');
+      }
 
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return WillPopScope(
-          onWillPop: () async => false, // Prevent back button from closing dialog
-          child: AlertDialog(
+      print('Submitting sponsorship request with branch ID: $_selectedBranchId');
+      
+      // Show confirmation dialog FIRST
+      final shouldProceed = await _showSponsorshipConfirmationDialog(selectedSponsorship);
+      if (!shouldProceed) {
+        // User cancelled, don't proceed
+        return;
+      }
+
+      // Only show loading dialog and set state AFTER user confirms
+      setState(() {
+        _isSubmittingSponsorship = true;
+      });
+
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: true, // Allow user to dismiss if needed
+        builder: (BuildContext context) {
+          return AlertDialog(
             content: Row(
               children: [
                 SizedBox(
@@ -1399,30 +2400,33 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                   ),
                 ),
                 SizedBox(width: 20),
-                Text(
-                  'Sending request to admin...',
-                  style: TextStyle(fontSize: 16),
+                Expanded(
+                  child: Text(
+                    'Sending request to admin...',
+                    style: TextStyle(fontSize: 16),
+                  ),
                 ),
               ],
             ),
-          ),
-        );
-      },
-    );
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  setState(() {
+                    _isSubmittingSponsorship = false;
+                  });
+                },
+                child: Text('Cancel'),
+              ),
+            ],
+          );
+        },
+      );
 
-    try {
-      // Check if we have the branch ID
-      if (_selectedBranchId == null || _selectedBranchId!.isEmpty) {
-        throw Exception('No branch selected. Please try again.');
-      }
-
-      print('Submitting sponsorship request with branch ID: $_selectedBranchId');
-
-      final response = await SponsorshipService.createSponsorshipSubscriptionRequest(
+      final response = await SponsorshipService.createWholesalerBranchSponsorshipRequest(
         sponsorshipId: originalSponsorshipId,
-        entityType: 'wholesaler_branch',
-        entityId: _selectedBranchId!, // Use the selected branch ID
-        entityName: 'Wholesaler Branch',
+        branchId: _selectedBranchId!, // Use the selected branch ID
+        adminNote: _adminNoteController.text.trim().isNotEmpty ? _adminNoteController.text.trim() : null,
       );
 
       if (mounted) {
@@ -1451,16 +2455,19 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
           );
           
           // Show success dialog with sponsorship details
-          final selectedSponsorship = _sponsorships.firstWhere(
-            (s) => s.id == originalSponsorshipId,
-            orElse: () => Sponsorship(),
-          );
           _showSponsorshipSuccessDialog(selectedSponsorship);
           
-          // Reset selection
+          // Reset selection and clear admin note
           setState(() {
             _selectedSponsorshipId = null;
           });
+          _adminNoteController.clear();
+          
+          // Refresh sponsorship data
+          _loadSponsorships();
+          
+          // Refresh sponsorship subscription data
+          _loadSponsorshipSubscriptionData();
         } else {
           // Check if it's an existing request error
           final errorMessage = response['message']?.toString().toLowerCase() ?? '';
@@ -1605,6 +2612,42 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
                       ],
                     ),
                   ),
+                  
+                  // Show admin note if provided
+                  ...(_adminNoteController.text.trim().isNotEmpty ? [
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Your Note:',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            _adminNoteController.text.trim(),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] : []),
+                  
                 const SizedBox(height: 12),
                 Container(
                   padding: EdgeInsets.all(12),
@@ -1680,7 +2723,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
               Text(
                 'Sponsorship Already Exists',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.orange,
                 ),
@@ -1881,6 +2924,9 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
       },
     );
   }
+
+
+  
 
   void _showSponsorshipDialog() {
     showDialog(
@@ -2523,6 +3569,12 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
       );
     }
   }
+    @override
+  void dispose() {
+    _stopCountdownTimer();
+    _adminNoteController.dispose();
+    super.dispose();
+  }
 }
 
 // Add this custom painter class to create the circular timer design
@@ -2571,4 +3623,6 @@ class CircularTimerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => true;
+
+  
 }

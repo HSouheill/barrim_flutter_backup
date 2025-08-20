@@ -145,6 +145,10 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
                 return ServiceProviderHeader(
                   serviceProvider: controller.serviceProvider,
                   isLoading: controller.isLoading,
+                  onLogoNavigation: () {
+                    // Navigate back to the previous screen
+                    Navigator.of(context).pop();
+                  },
                 );
               },
             ),
