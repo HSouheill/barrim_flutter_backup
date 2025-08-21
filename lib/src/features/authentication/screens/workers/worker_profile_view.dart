@@ -61,9 +61,13 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
     super.initState();
     _loadUserProfileImage();
     if (widget.provider != null && widget.provider is Map) {
+      print('ServiceProviderProfile: Received provider data: ${widget.provider}');
       final convertedProvider = _convertMap(widget.provider);
+      print('ServiceProviderProfile: Converted provider data: $convertedProvider');
 
       final mappedData = _mapApiDataToUiData(convertedProvider);
+      print('ServiceProviderProfile: Mapped UI data: $mappedData');
+      
       if (widget.logoUrl != null) {
         mappedData['logoPath'] = widget.logoUrl;
       }
@@ -130,50 +134,69 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
     }).toList();
   }
 
- Future<void> fetchProviderData() async {
-  try {
-    final data = await ApiService.getServiceProviderById(widget.providerId);
-    
-    if (data == null) {
-      setState(() {
-        errorMessage = 'Failed to load provider data';
-        isLoading = false;
-      });
-      return;
-    }
+  Future<void> fetchProviderData() async {
+   try {
+     print('ServiceProviderProfile: Fetching provider data for ID: ${widget.providerId}');
+     final data = await ApiService.getServiceProviderById(widget.providerId);
+     
+     if (data == null) {
+       setState(() {
+         errorMessage = 'Failed to load provider data';
+         isLoading = false;
+       });
+       return;
+     }
 
-    // Convert Map<dynamic, dynamic> to Map<String, dynamic> recursively
-    final convertedData = _convertMap(data);
+     print('ServiceProviderProfile: Fetched provider data: $data');
+     
+     // Convert Map<dynamic, dynamic> to Map<String, dynamic> recursively
+     final convertedData = _convertMap(data);
+     print('ServiceProviderProfile: Converted fetched data: $convertedData');
 
-    final mappedData = _mapApiDataToUiData(convertedData);
+     final mappedData = _mapApiDataToUiData(convertedData);
+     print('ServiceProviderProfile: Mapped fetched data: $mappedData');
 
-    setState(() {
-      providerData = mappedData;
-      isLoading = false;
-    });
-  } catch (e) {
-    setState(() {
-      errorMessage = 'Error loading provider data: ${e.toString()}';
-      isLoading = false;
-    });
-  }
-}
+     setState(() {
+       providerData = mappedData;
+       isLoading = false;
+     });
+   } catch (e) {
+     print('ServiceProviderProfile: Error fetching provider data: $e');
+     setState(() {
+       errorMessage = 'Error loading provider data: ${e.toString()}';
+       isLoading = false;
+     });
+   }
+ }
 
   Map<String, dynamic> _mapApiDataToUiData(Map<String, dynamic> apiData) {
+    print('ServiceProviderProfile: Mapping API data: $apiData');
+    
     final spInfo = apiData['serviceProviderInfo'] ?? {};
-    final location = apiData['location'] ?? {};
+    print('ServiceProviderProfile: ServiceProviderInfo: $spInfo');
+    
+    // Try to get location from multiple sources
+    final location = apiData['location'] ?? 
+                    apiData['contactInfo']?['address'] ?? 
+                    apiData['contactInfo'] ?? {};
+    print('ServiceProviderProfile: Location data: $location');
+    
     final socialLinks = apiData['socialLinks'] ?? {};
+    print('ServiceProviderProfile: Social links: $socialLinks');
 
     // Defensive logoPath mapping
     final logoPathRaw = apiData['logoPath'];
     final logoPath = (logoPathRaw != null && logoPathRaw.toString().isNotEmpty)
         ? getFullImageUrl(logoPathRaw.toString())
         : null;
+    print('ServiceProviderProfile: Logo path: $logoPathRaw -> $logoPath');
 
-    return {
+    final Map<String, dynamic> finalData = {
       'id': widget.providerId,
-      'name': apiData['fullName']?.toString() ?? 'Unknown',
-      'position': '${_getYearsExperience(spInfo['yearsExperience'])} Years of Experience',
+      'name': apiData['fullName']?.toString() ?? apiData['businessName']?.toString() ?? 'Unknown',
+      'position': spInfo['yearsExperience'] != null 
+          ? '${_getYearsExperience(spInfo['yearsExperience'])} Years of Experience'
+          : '0 Years of Experience',
       'rating': _getProviderRating(apiData),
       'jobTitle': spInfo['serviceType']?.toString() ?? 'Service Provider',
       'location': _getLocationString(location),
@@ -206,6 +229,9 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
       'availableDays': spInfo['availableDays']?.cast<String>() ?? [],
       'emergencyStatus': spInfo['status']?.toString() ?? 'Not Available',
     };
+    
+    print('ServiceProviderProfile: Final mapped data: $finalData');
+    return finalData;
   }
 
   String _getLocationString(Map location) {
@@ -242,8 +268,11 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
       return provider['bio'].toString();
     }
 
-    // If no description is found, return a default message
-    return 'No description available for this service provider.';
+    // If no description is found, create a personalized default message
+    String providerName = provider['fullName']?.toString() ?? provider['businessName']?.toString() ?? 'service provider';
+    String serviceType = spInfo['serviceType']?.toString() ?? provider['category']?.toString() ?? 'service';
+    
+    return '$providerName is a professional $serviceType with experience in their field.';
   }
 
   int _getProviderRating(Map provider) {

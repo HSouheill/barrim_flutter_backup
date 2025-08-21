@@ -75,7 +75,7 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     // If still nothing, use default image
     if (photoPath == null || photoPath.isEmpty) {
       print('No profile photo found for provider: ${provider['fullName'] ?? "Unknown"}');
-      return '';
+      return 'assets/logo/barrim_logo1.png'; // Return default image path instead of empty string
     }
 
     // If it's already a full URL, fix the duplicate uploads issue
@@ -131,7 +131,8 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
         providers = providers.where((provider) {
           // Use ONLY the root level status, ignore serviceProviderInfo status
           final status = provider['status'];
-          print('Provider: ${provider['fullName']}, Root Status: $status');
+          String displayName = provider['fullName'] ?? provider['businessName'] ?? 'Unknown';
+          print('Provider: $displayName, Root Status: $status');
           if (status != 'active') return false;
           return true;
         }).toList();
@@ -412,14 +413,29 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
                   onRefresh: _loadServiceProviders,
                   child: SingleChildScrollView(
                     physics: AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      children: [
-                        // Display all categories
-                        ..._categoryOrder.map((category) => _buildCategorySection(category)).toList(),
+                                         child: Column(
+                       children: [
+                         // Debug: Show category information
+                         if (_categoryOrder.isEmpty)
+                           Padding(
+                             padding: const EdgeInsets.all(16.0),
+                             child: Center(
+                               child: Column(
+                                 children: [
+                                   Text('Debug Info:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                   Text('Total providers: ${_serviceProviders.length}'),
+                                   Text('Categories: ${_categoryOrder.length}'),
+                                   Text('Categorized providers: ${_categorizedProviders.keys.toList()}'),
+                                 ],
+                               ),
+                             ),
+                           ),
+                         // Display all categories
+                         ..._categoryOrder.map((category) => _buildCategorySection(category)).toList(),
 
-                        SizedBox(height: 20), // Bottom padding
-                      ],
-                    ),
+                         SizedBox(height: 20), // Bottom padding
+                       ],
+                     ),
                   ),
                 ),
               ),
@@ -455,6 +471,13 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
   // Build a category section
   Widget _buildCategorySection(String category) {
     List<dynamic> providersInCategory = _categorizedProviders[category] ?? [];
+    
+    // Debug logging
+    print('Building category section for: $category');
+    print('Providers in category: ${providersInCategory.length}');
+    if (providersInCategory.isNotEmpty) {
+      print('First provider in category: ${providersInCategory[0]}');
+    }
 
     return Column(
       children: [
@@ -471,28 +494,37 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
           children: providersInCategory.map((provider) {
             // Calculate the image path here
             String providerImagePath = _formatProfilePhotoUrl(provider);
+            
+            // Debug logging for each provider
+            String displayName = provider['fullName'] ?? provider['businessName'] ?? 'Unknown';
+            print('Building ProfileCard for provider: $displayName');
+            print('Provider data: $provider');
 
             return ProfileCard(
-              name: provider['fullName'] ?? 'Unknown',
+              name: provider['fullName'] ?? provider['businessName'] ?? 'Unknown',
               isVerified: provider['serviceProviderInfo'] != null &&
                   provider['serviceProviderInfo']['yearsExperience'] != null &&
                   _getYearsExperience(provider['serviceProviderInfo']['yearsExperience']) > 5,
-              experience: "${_getYearsExperience(provider['serviceProviderInfo']['yearsExperience'])} Years of Experience",
+              experience: provider['serviceProviderInfo'] != null && 
+                  provider['serviceProviderInfo']['yearsExperience'] != null
+                  ? "${_getYearsExperience(provider['serviceProviderInfo']['yearsExperience'])} Years of Experience"
+                  : "1 Year of Experience",
               description: _getProviderDescription(provider, category),
               rating: _getProviderRating(provider),
               imagePath: providerImagePath,
               onMessage: () {},
-              onView: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ServiceProviderProfile(
-                      providerId: provider['_id'] ?? provider['id'],
-                      logoUrl: providerImagePath, // Use the local variable we created above
-                    ),
-                  ),
-                );
-              },
+                             onView: () {
+                 Navigator.push(
+                   context,
+                   MaterialPageRoute(
+                     builder: (context) => ServiceProviderProfile(
+                       provider: provider, // Pass the full provider data
+                       providerId: provider['_id'] ?? provider['id'],
+                       logoUrl: providerImagePath, // Use the local variable we created above
+                     ),
+                   ),
+                 );
+               },
               provider: provider,
             );
           }).toList(),
@@ -528,10 +560,12 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     // If no description found, create a generic one
     if (description == null || description.isEmpty) {
       String categoryLower = category.toLowerCase();
+      String providerName = provider['fullName'] ?? provider['businessName'] ?? 'service provider';
+      
       if (categoryLower == 'other') {
-        return "A professional service provider with experience in their field.";
+        return "$providerName is a professional service provider with experience in their field.";
       } else {
-        return "A professional $categoryLower with experience in service.";
+        return "$providerName is a professional $categoryLower with experience in service.";
       }
     }
 
@@ -586,9 +620,14 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     for (var provider in providers) {
       String serviceType = 'Other'; // Default category
 
+      // Try to get service type from multiple sources
       if (provider['serviceProviderInfo'] != null &&
           provider['serviceProviderInfo']['serviceType'] != null) {
         serviceType = provider['serviceProviderInfo']['serviceType'].toString();
+      } else if (provider['category'] != null && 
+                 provider['category'].toString().isNotEmpty) {
+        // Use the root level category field as fallback
+        serviceType = provider['category'].toString();
       }
 
       // Convert to title case for display
@@ -597,6 +636,11 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
               ? '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}'
               : '')
           .join(' ');
+
+      // Ensure we have a valid category name
+      if (displayServiceType.isEmpty) {
+        displayServiceType = 'Other';
+      }
 
       // Add to the category map
       if (!categorizedProviders.containsKey(displayServiceType)) {
@@ -611,6 +655,10 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
       _categorizedProviders = categorizedProviders;
       _categoryOrder = categoryOrder;
     });
+    
+    // Debug: Print categorization results
+    print('Categorized providers: $_categorizedProviders');
+    print('Category order: $_categoryOrder');
   }
 
   // Update filter application method

@@ -27,7 +27,6 @@ class PrivacyPolicy {
 
 ### 1.4 Technical Information
 - Device information
-- App usage data
 - Crash reports
 - Performance data
 
