@@ -170,26 +170,102 @@ class _BookingSectionState extends State<BookingSection> {
         _isLoading = true;
       });
 
+      print("Loading time slots for provider: ${widget.serviceProvider.id}");
+      print("Selected date: $_selectedDate");
+      print("Provider available hours: ${widget.serviceProvider.serviceProviderInfo?.availableHours}");
+      print("Provider available days: ${widget.serviceProvider.serviceProviderInfo?.availableDays}");
+
       final slots = await _bookingService!.getAvailableTimeSlots(
         widget.serviceProvider.id,
         _selectedDate,
       );
 
+      print("Received time slots: $slots");
+
+      // If no slots returned from API, generate them locally based on provider availability
+      List<String> finalSlots = slots;
+      if (slots.isEmpty) {
+        print("No slots from API, generating locally...");
+        finalSlots = _generateLocalTimeSlots();
+        print("Generated local time slots: $finalSlots");
+      }
+
       setState(() {
-        _availableTimeSlots = slots;
+        _availableTimeSlots = finalSlots;
         _selectedTimeSlot = null;
         _isLoading = false;
       });
     } catch (e) {
       print("Error loading time slots: $e");
+      
+      // Even if API fails, try to generate slots locally
+      print("API failed, generating local time slots as fallback...");
+      final localSlots = _generateLocalTimeSlots();
+      print("Generated fallback time slots: $localSlots");
+      
       setState(() {
         _isLoading = false;
-        _availableTimeSlots = [];
+        _availableTimeSlots = localSlots;
       });
+    }
+  }
 
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Failed to load available time slots: $e')),
-      // );
+  // Generate time slots locally based on provider's available hours
+  List<String> _generateLocalTimeSlots() {
+    final availableHours = widget.serviceProvider.serviceProviderInfo?.availableHours;
+    if (availableHours == null || availableHours.isEmpty) {
+      print("No available hours found, using default 9 AM to 5 PM");
+      return _generateTimeSlotsFromRange('09:00', '17:00');
+    }
+
+    if (availableHours.length >= 2) {
+      final startTime = availableHours[0];
+      final endTime = availableHours[1];
+      print("Generating slots from $startTime to $endTime");
+      return _generateTimeSlotsFromRange(startTime, endTime);
+    }
+
+    // Fallback to default hours
+    return _generateTimeSlotsFromRange('09:00', '17:00');
+  }
+
+  // Generate time slots in 1-hour intervals from start to end time
+  List<String> _generateTimeSlotsFromRange(String startTime, String endTime) {
+    List<String> slots = [];
+    
+    try {
+      // Parse start and end times
+      final startParts = startTime.split(':');
+      final endParts = endTime.split(':');
+      
+      if (startParts.length != 2 || endParts.length != 2) {
+        print("Invalid time format, using default slots");
+        return ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+      }
+      
+      int startHour = int.parse(startParts[0]);
+      int startMinute = int.parse(startParts[1]);
+      int endHour = int.parse(endParts[0]);
+      int endMinute = int.parse(endParts[1]);
+      
+      // Convert to minutes for easier calculation
+      int startMinutes = startHour * 60 + startMinute;
+      int endMinutes = endHour * 60 + endMinute;
+      
+      // Generate slots every hour
+      for (int minutes = startMinutes; minutes < endMinutes; minutes += 60) {
+        int hour = minutes ~/ 60;
+        int minute = minutes % 60;
+        String timeSlot = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+        slots.add(timeSlot);
+      }
+      
+      print("Generated $slots.length time slots: $slots");
+      return slots;
+    } catch (e) {
+      print("Error generating time slots: $e");
+      // Return default slots if parsing fails
+      return ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
     }
   }
 
@@ -214,6 +290,7 @@ class _BookingSectionState extends State<BookingSection> {
   }
 
   void _selectDate(DateTime date) {
+    print("User selected date: ${DateFormat('yyyy-MM-dd').format(date)} (${DateFormat('EEEE, MMM d, yyyy').format(date)})");
     setState(() {
       _selectedDate = date;
       _selectedTimeSlot = null;
@@ -222,6 +299,8 @@ class _BookingSectionState extends State<BookingSection> {
   }
 
   void _selectTimeSlot(String timeSlot) {
+    print("User selected time slot: $timeSlot");
+    print("Full booking selection - Date: ${DateFormat('yyyy-MM-dd').format(_selectedDate)} (${DateFormat('EEEE, MMM d, yyyy').format(_selectedDate)}), Time: $timeSlot");
     setState(() {
       _selectedTimeSlot = timeSlot;
     });
@@ -419,6 +498,17 @@ class _BookingSectionState extends State<BookingSection> {
       if (userId == null) {
         throw Exception('User ID not found');
       }
+
+      // Log the booking details
+      print("=== BOOKING DETAILS ===");
+      print("Provider ID: ${widget.serviceProvider.id}");
+      print("User ID: $userId");
+      print("Selected Date: ${DateFormat('yyyy-MM-dd').format(_selectedDate)} (${DateFormat('EEEE, MMM d, yyyy').format(_selectedDate)})");
+      print("Selected Time: $_selectedTimeSlot");
+      print("Phone: $_countryCode${_phoneController.text}");
+      print("Details: ${_detailsController.text}");
+      print("Is Emergency: $_isEmergency");
+      print("=======================");
 
       final booking = Booking(
         userId: userId,

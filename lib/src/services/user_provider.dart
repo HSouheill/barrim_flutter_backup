@@ -13,6 +13,7 @@ class UserProvider extends ChangeNotifier {
   String? _error;
   User? _user;
   String? _token;
+  String? _rememberMeToken; // Add remember me token field
   bool _isInitialized = false;
 
   Map<String, dynamic>? get userData => _userData;
@@ -20,6 +21,7 @@ class UserProvider extends ChangeNotifier {
   String? get error => _error;
   User? get user => _user;
   String? get token => _token;
+  String? get rememberMeToken => _rememberMeToken; // Getter for remember me token
   bool get isLoggedIn => _user != null && _token != null;
   bool get isInitialized => _isInitialized;
 
@@ -57,6 +59,18 @@ class UserProvider extends ChangeNotifier {
         print('Session is invalid or expired, session cleared');
         await _clearStoredData();
       }
+
+      // Load remember me token from storage
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final storedRememberMeToken = prefs.getString('remember_me_token');
+        if (storedRememberMeToken != null) {
+          _rememberMeToken = storedRememberMeToken;
+          print('Remember me token loaded from storage');
+        }
+      } catch (e) {
+        print('Error loading remember me token: $e');
+      }
     } catch (e) {
       print('Error initializing session: $e');
       await _clearStoredData();
@@ -73,6 +87,15 @@ class UserProvider extends ChangeNotifier {
     _token = null;
     _user = null;
     _userData = null;
+    _rememberMeToken = null; // Clear remember me token
+    
+    // Clear remember me token from storage
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('remember_me_token');
+    } catch (e) {
+      print('Error clearing remember me token: $e');
+    }
   }
 
   // Set user data
@@ -90,6 +113,13 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Set remember me token
+  void setRememberMeToken(String token) {
+    _rememberMeToken = token;
+    _saveRememberMeToken(token);
+    notifyListeners();
+  }
+
   // Save token to storage
   Future<void> _saveToken(String token) async {
     if (_userData != null) {
@@ -97,6 +127,16 @@ class UserProvider extends ChangeNotifier {
         token: token,
         userData: json.encode(_userData!),
       );
+    }
+  }
+
+  // Save remember me token to storage
+  Future<void> _saveRememberMeToken(String token) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('remember_me_token', token);
+    } catch (e) {
+      print('Error saving remember me token: $e');
     }
   }
 
@@ -156,6 +196,7 @@ class UserProvider extends ChangeNotifier {
     _userData = null;
     _user = null;
     _token = null;
+    _rememberMeToken = null; // Clear remember me token
     
     // Clear stored data
     await _clearStoredData();

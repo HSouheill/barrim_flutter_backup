@@ -230,8 +230,15 @@ class _SignupUserPage3State extends State<SignupUserPage3> {
                                   // Save selected deals to userData
                                   final updatedUserData = {
                                     ...widget.userData,
-                                    'selectedDeals': selectedDeals,
+                                    'interestedDeals': selectedDeals,
                                   };
+                                  
+                                  // Debug print to see what deals are selected
+                                  print('=== SIGNUP USER PAGE 3 DEBUG ===');
+                                  print('Selected deals: $selectedDeals');
+                                  print('Updated userData: $updatedUserData');
+                                  print('=====================================');
+                                  
                                   // Navigate to next page
                                   Navigator.push(
                                     context,

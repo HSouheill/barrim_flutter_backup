@@ -25,6 +25,7 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
   String? _errorMessage;
   String? _profileImagePath;
   bool _isUsingNetworkImage = false;
+  bool _isLoading = true;
 
   // Controllers for editable fields
   final TextEditingController _phoneController = TextEditingController(text: '+961 01 234 567');
@@ -44,15 +45,29 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
     _loadUserData();
   }
 
+  // Refresh user data - can be called manually or when returning to page
+  Future<void> _refreshUserData() async {
+    await _loadUserData();
+  }
+
+  
+
+  
   // Load user profile data
   Future<void> _loadUserData() async {
     print('PersonalInformationPage: _loadUserData started');
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
       final userData = await ApiService.getUserData();
       print('PersonalInformationPage: Received user data: $userData');
 
       setState(() {
+        _isLoading = false;
         // Handle profile picture
         if (userData['profilePic'] != null && userData['profilePic'].toString().isNotEmpty) {
           String profilePic = userData['profilePic'];
@@ -82,31 +97,122 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
         }
 
         // Load user data into form fields if available
-        if (userData['phone'] != null) {
-          _phoneController.text = userData['phone'];
+        // Phone number
+        if (userData['phone'] != null && userData['phone'].toString().isNotEmpty) {
+          _phoneController.text = userData['phone'].toString();
+          print('PersonalInformationPage: Set phone: ${_phoneController.text}');
+        } else {
+          print('PersonalInformationPage: No phone number found in user data');
         }
-        if (userData['location'] != null && userData['location'] is Map) {
-          final location = userData['location'] as Map;
-          if (location['city'] != null) {
-            _cityController.text = location['city'];
+
+        // Location data - handle different possible structures
+        if (userData['location'] != null) {
+          print('PersonalInformationPage: Location data found: ${userData['location']}');
+          
+          if (userData['location'] is Map) {
+            final location = userData['location'] as Map;
+            
+            // City
+            if (location['city'] != null && location['city'].toString().isNotEmpty) {
+              _cityController.text = location['city'].toString();
+              print('PersonalInformationPage: Set city: ${_cityController.text}');
+            }
+            
+            // Street/Address
+            if (location['street'] != null && location['street'].toString().isNotEmpty) {
+              _locationController.text = location['street'].toString();
+              print('PersonalInformationPage: Set street: ${_locationController.text}');
+            } else if (location['address'] != null && location['address'].toString().isNotEmpty) {
+              _locationController.text = location['address'].toString();
+              print('PersonalInformationPage: Set address: ${_locationController.text}');
+            }
+            
+            // Postal code
+            if (location['postalCode'] != null && location['postalCode'].toString().isNotEmpty) {
+              _postalCodeController.text = location['postalCode'].toString();
+              print('PersonalInformationPage: Set postal code: ${_postalCodeController.text}');
+            }
+          } else if (userData['location'] is String) {
+            // If location is just a string, use it as the street/address
+            _locationController.text = userData['location'];
+            print('PersonalInformationPage: Set location string: ${_locationController.text}');
           }
-          if (location['street'] != null) {
-            _locationController.text = location['street'];
-          }
-          if (location['postalCode'] != null) {
-            _postalCodeController.text = location['postalCode'];
-          }
+        } else {
+          print('PersonalInformationPage: No location data found in user data');
         }
-        if (userData['dateOfBirth'] != null) {
-          _dobController.text = userData['dateOfBirth'];
+
+        // Date of birth
+        if (userData['dateOfBirth'] != null && userData['dateOfBirth'].toString().isNotEmpty) {
+          _dobController.text = userData['dateOfBirth'].toString();
+          print('PersonalInformationPage: Set DOB: ${_dobController.text}');
+        } else if (userData['dob'] != null && userData['dob'].toString().isNotEmpty) {
+          _dobController.text = userData['dob'].toString();
+          print('PersonalInformationPage: Set DOB from dob field: ${_dobController.text}');
+        } else {
+          print('PersonalInformationPage: No date of birth found in user data');
         }
-        if (userData['gender'] != null) {
-          _selectedGender = userData['gender'];
+
+        // Gender
+        if (userData['gender'] != null && userData['gender'].toString().isNotEmpty) {
+          _selectedGender = userData['gender'].toString();
+          print('PersonalInformationPage: Set gender: $_selectedGender');
+        } else {
+          print('PersonalInformationPage: No gender found in user data, using default: $_selectedGender');
+        }
+
+        // Referral code
+        if (userData['referralCode'] != null && userData['referralCode'].toString().isNotEmpty) {
+          _referralCodeController.text = userData['referralCode'].toString();
+          print('PersonalInformationPage: Set referral code: ${_referralCodeController.text}');
+        } else {
+          print('PersonalInformationPage: No referral code found in user data');
+        }
+
+        // Type of deals - check multiple possible fields
+        if (userData['interestedDeals'] != null && userData['interestedDeals'] is List) {
+          final deals = userData['interestedDeals'] as List;
+          if (deals.isNotEmpty) {
+            _dealsController.text = deals.join(', ');
+            print('PersonalInformationPage: Set deals from interestedDeals: ${_dealsController.text}');
+          }
+        } else if (userData['dealTypes'] != null && userData['dealTypes'].toString().isNotEmpty) {
+          _dealsController.text = userData['dealTypes'].toString();
+          print('PersonalInformationPage: Set deals from dealTypes: ${_dealsController.text}');
+        } else if (userData['deals'] != null && userData['deals'].toString().isNotEmpty) {
+          _dealsController.text = userData['deals'].toString();
+          print('PersonalInformationPage: Set deals from deals field: ${_dealsController.text}');
+        } else {
+          print('PersonalInformationPage: No deals information found in user data');
+        }
+
+        // Additional fields that might be available
+        if (userData['fullName'] != null) {
+          print('PersonalInformationPage: User full name: ${userData['fullName']}');
+        }
+        if (userData['email'] != null) {
+          print('PersonalInformationPage: User email: ${userData['email']}');
+        }
+        if (userData['userType'] != null) {
+          print('PersonalInformationPage: User type: ${userData['userType']}');
+        }
+
+        print('PersonalInformationPage: All form fields populated successfully');
+        
+        // Show success message if data was loaded
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile data loaded successfully'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       });
     } catch (e) {
       print('PersonalInformationPage: Error in _loadUserData: $e');
       setState(() {
+        _isLoading = false;
         _errorMessage = 'Failed to load profile data: ${e.toString()}';
       });
     }
@@ -287,6 +393,8 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
     }
   }
 
+
+
   @override
   void dispose() {
     _phoneController.dispose();
@@ -326,7 +434,9 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                     IconButton(
                       icon: const Icon(Icons.arrow_back, color: Colors.blue),
                       onPressed: () {
-                        Navigator.pop(context);
+                        
+                          Navigator.pop(context);
+                        
                       },
                     ),
                     const Text(
@@ -337,6 +447,8 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                         color: Colors.blue,
                       ),
                     ),
+                    
+                    
                   ],
                 ),
               ),
@@ -361,14 +473,20 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                   ),
                 ),
               Expanded(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                           // Phone Number
                           _buildLabel('Phone Number'),
                           _buildEditableField(_phoneController, 'Enter phone number'),
@@ -464,6 +582,11 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                             child: ElevatedButton(
                               onPressed: () async {
                                 if (_formKey.currentState!.validate()) {
+                                  setState(() {
+                                    _isLoading = true;
+                                    _errorMessage = null;
+                                  });
+                                  
                                   try {
                                     await ApiService.updatePersonalInformation(
                                       phone: _phoneController.text,
@@ -480,13 +603,34 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                                       },
                                     );
 
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Personal information updated successfully')),
-                                    );
+                                    setState(() {
+                                      _isLoading = false;
+                                    });
+
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Personal information updated successfully'),
+                                          backgroundColor: Colors.green,
+                                          duration: Duration(seconds: 3),
+                                        ),
+                                      );
+                                    }
                                   } catch (e) {
-                                    // ScaffoldMessenger.of(context).showSnackBar(
-                                    //   SnackBar(content: Text('Error: ${e.toString()}')),
-                                    // );
+                                    setState(() {
+                                      _isLoading = false;
+                                      _errorMessage = 'Failed to update: ${e.toString()}';
+                                    });
+                                    
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error updating information: ${e.toString()}'),
+                                          backgroundColor: Colors.red,
+                                          duration: Duration(seconds: 4),
+                                        ),
+                                      );
+                                    }
                                   }
                                 }
                               },
@@ -555,23 +699,51 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
   }
 
   Widget _buildEditableField(TextEditingController controller, String hintText) {
+    final isModified = _isFieldModified(controller, hintText);
+    
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         filled: true,
-        fillColor: Colors.grey.shade200,
+        fillColor: isModified ? Colors.blue.shade50 : Colors.grey.shade200,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(
+            color: isModified ? Colors.blue : Colors.transparent,
+            width: isModified ? 2 : 0,
+          ),
         ),
         hintText: hintText,
+        suffixIcon: isModified 
+            ? Icon(Icons.edit, color: Colors.blue, size: 16)
+            : null,
       ),
       style: const TextStyle(
         fontSize: 16,
         color: Colors.black87,
       ),
     );
+  }
+
+  // Check if a specific field has been modified
+  bool _isFieldModified(TextEditingController controller, String hintText) {
+    switch (hintText) {
+      case 'Enter phone number':
+        return controller.text != '+961 01 234 567';
+      case 'Enter location':
+        return controller.text != 'Beirut';
+      case 'Enter referral code':
+        return controller.text != '123456';
+      case 'Enter city':
+        return controller.text != 'Beirut';
+      case 'Enter postal code':
+        return controller.text != '1234';
+      case 'Enter deal types':
+        return controller.text != 'Example Business';
+      default:
+        return false;
+    }
   }
 
   Widget _buildGenderDropdown() {

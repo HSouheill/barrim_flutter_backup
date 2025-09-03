@@ -214,6 +214,16 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
 
   void _parseSponsorshipSubscriptionData(Map<String, dynamic> data) {
     try {
+      // Debug logging for raw sponsorship data
+      print('=== RAW SPONSORSHIP SUBSCRIPTION DATA ===');
+      print('Raw data: $data');
+      print('hasActiveSubscription: ${data['hasActiveSubscription']}');
+      print('timeRemaining: ${data['timeRemaining']}');
+      print('subscription: ${data['subscription']}');
+      print('sponsorship: ${data['sponsorship']}');
+      print('entityInfo: ${data['entityInfo']}');
+      print('==========================================');
+      
       final hasActiveSubscription = data['hasActiveSubscription'] ?? false;
       
       if (hasActiveSubscription && data['timeRemaining'] != null) {
@@ -463,6 +473,15 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       );
 
       if (mounted) {
+        // Debug: Print raw API response
+        print('=== SPONSORSHIPS API RESPONSE ===');
+        print('Raw response: $response');
+        print('Success: ${response['success']}');
+        print('Message: ${response['message']}');
+        print('Data length: ${response['data']?.length ?? 0}');
+        print('Pagination: ${response['pagination']}');
+        print('================================');
+        
         final sponsorships = SponsorshipService.parseSponsorships(response);
         setState(() {
           _sponsorships = sponsorships;
@@ -471,12 +490,28 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
           _isLoadingSponsorships = false;
         });
         
-        // Debug: Print sponsorship IDs
-        print('Loaded ${sponsorships.length} sponsorships:');
+        // Debug: Print detailed sponsorship information
+        print('=== PARSED SPONSORSHIPS ===');
+        print('Total sponsorships loaded: ${sponsorships.length}');
+        print('Pagination info: $_sponsorshipPagination');
+        
         for (var i = 0; i < sponsorships.length; i++) {
           final sponsorship = sponsorships[i];
-          print('  Sponsorship $i: ID=${sponsorship.id}, Length=${sponsorship.id?.length ?? 0}');
+          print('--- Sponsorship $i ---');
+          print('  ID: ${sponsorship.id}');
+          print('  Title: ${sponsorship.title}');
+          print('  Price: ${sponsorship.price}');
+          print('  Duration: ${sponsorship.duration} days');
+          print('  Discount: ${sponsorship.discount}');
+          print('  Start Date: ${sponsorship.startDate}');
+          print('  End Date: ${sponsorship.endDate}');
+          print('  Created By: ${sponsorship.createdBy}');
+          print('  Created At: ${sponsorship.createdAt}');
+          print('  Updated At: ${sponsorship.updatedAt}');
+          print('  ID Length: ${sponsorship.id?.length ?? 0}');
+          print('  Is Valid ObjectID: ${sponsorship.id?.length == 24 ? "Yes" : "No"}');
         }
+        print('============================');
       }
     } catch (e) {
       if (mounted) {
@@ -755,11 +790,7 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
                           Expanded(
                             child: _buildSectionTitle('Service Provider Subscriptions'),
                           ),
-                          IconButton(
-                            onPressed: _loadSubscriptionData,
-                            icon: Icon(Icons.refresh, color: Colors.blue),
-                            tooltip: 'Refresh subscription plans',
-                          ),
+                         
                         ],
                       ),
                       const SizedBox(height: 24),
@@ -1298,19 +1329,8 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
     return Container(
       child: Column(
         children: [
-          // Section title with refresh button
-          Row(
-            children: [
-              Expanded(
-                child: _buildSectionTitle('Time Left'),
-              ),
-              IconButton(
-                onPressed: _loadSubscriptionData,
-                icon: Icon(Icons.refresh, color: Colors.blue),
-                tooltip: 'Refresh subscription status',
-              ),
-            ],
-          ),
+          // Section title
+          _buildSectionTitle('Time Left'),
           const SizedBox(height: 24),
           
           // Main time remaining widget
@@ -1382,43 +1402,17 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
     return Container(
       child: Column(
         children: [
-          // Section title with refresh button
-          Row(
-            children: [
-              Expanded(
-                child: _buildSectionTitle('Sponsorship Status'),
-              ),
-              IconButton(
-                onPressed: _loadSponsorshipSubscriptionData,
-                icon: Icon(Icons.refresh, color: Colors.blue),
-                tooltip: 'Refresh sponsorship status',
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          
+        
           // Sponsorship subscription content
           Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
+            // padding: const EdgeInsets.all(24),
+           
             child: Column(
               children: [
                 // Check if we have sponsorship subscription data
                 if (_remainingTimeData?.hasActiveSubscription == true)
                   _buildActiveSponsorshipStatus()
-                else
-                  _buildNoSponsorshipStatus(),
+              
               ],
             ),
           ),
@@ -1429,8 +1423,23 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
 
   Widget _buildActiveSponsorshipStatus() {
     final remaining = _remainingTimeData?.remainingTime;
-    if (remaining == null) return _buildNoSponsorshipStatus();
     
+    // Debug logging for sponsorship data
+    print('=== SPONSORSHIP DATA DEBUG ===');
+    print('_remainingTimeData: $_remainingTimeData');
+    print('remaining: $remaining');
+    if (remaining != null) {
+      print('remaining.days: ${remaining.days}');
+      print('remaining.hours: ${remaining.hours}');
+      print('remaining.minutes: ${remaining.minutes}');
+      print('remaining.formatted: ${remaining.formatted}');
+      print('remaining.percentageUsed: ${remaining.percentageUsed}');
+      print('remaining.endDate: ${remaining.endDate}');
+    }
+    print('==============================');
+    
+    if (remaining == null) return const SizedBox.shrink();
+
     final percentUsed = double.tryParse((remaining.percentageUsed ?? '0').replaceAll('%', '')) ?? 0;
     final percentLeft = 1 - (percentUsed / 100);
     
@@ -1501,60 +1510,11 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
     );
   }
 
-  Widget _buildNoSponsorshipStatus() {
-    return Column(
-      children: [
-        Icon(
-          Icons.star,
-          size: 64,
-          color: Colors.grey[400],
-        ),
-        SizedBox(height: 16),
-        Text(
-          'No Active Sponsorship',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
-          ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          'You don\'t have an active sponsorship subscription.',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[500],
-          ),
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(height: 16),
-        Text(
-          'Apply for sponsorships below to get featured on our platform!',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[400],
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
 
   Widget _buildSponsorshipSection() {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildSectionTitle('Sponsorship'),
-            ),
-            IconButton(
-              onPressed: _loadSponsorships,
-              icon: Icon(Icons.refresh, color: Colors.blue),
-              tooltip: 'Refresh sponsorships',
-            ),
-          ],
-        ),
+        _buildSectionTitle('Sponsorship'),
         const SizedBox(height: 24),
         
                 
@@ -1803,6 +1763,10 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
       return '1 Year';
     } else if (days >= 180) {
       return '6 Months';
+    } else if (days >= 90) {
+      return '3 Months';
+    } else if (days >= 60) {
+      return '2 Months';
     } else if (days >= 30) {
       return '1 Month';
     } else if (days >= 15) {

@@ -47,19 +47,29 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
   void initState() {
     super.initState();
     print('CompanyProfileSettings: initState called');
-    _fetchCompanyData();
+    // Load data immediately when the page is created
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchCompanyData();
+    });
   }
 
   // Fetch company data from the backend
   Future<void> _fetchCompanyData() async {
     print('CompanyProfileSettings: Fetching company data');
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    
+    if (!mounted) return;
+    
+    // Only show loading if this is the initial load and we don't have any data yet
+    if (_companyData == null) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       print('CompanyProfileSettings: Calling company service');
+      
       // Fetch company data
       final company = await _companyService.getCompanyData();
       print('CompanyProfileSettings: Company data fetched: ${company.businessName}');
@@ -111,12 +121,24 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
         userEmail = '';
       }
 
+      if (!mounted) return;
+
       setState(() {
         _companyData = company;
-        // Update to use the correct logo field from API response
-        _logoUrl = company.logo != null && company.logo!.isNotEmpty
-            ? '${ApiService.baseUrl}/${company.logo}'
-            : null;
+        
+        // Handle logo URL properly
+        if (company.logo != null && company.logo!.isNotEmpty) {
+          // Check if it's already a full URL
+          if (company.logo!.startsWith('http')) {
+            _logoUrl = company.logo;
+          } else {
+            // Construct full URL
+            _logoUrl = '${ApiService.baseUrl}/${company.logo}';
+          }
+        } else {
+          _logoUrl = null;
+        }
+        
         print('CompanyProfileSettings: Logo field from company: ${company.logo}');
         print('CompanyProfileSettings: _logoUrl set to: $_logoUrl');
         _isUsingNetworkImage = _logoUrl != null && _logoUrl!.isNotEmpty;
@@ -128,16 +150,23 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
         _emailController.text = userEmail;
         print('CompanyProfileSettings: Email set: ${_emailController.text}');
       });
+      
+      print('CompanyProfileSettings: Data loaded successfully');
+      
     } catch (e) {
       print('CompanyProfileSettings: Error fetching data: $e');
-      setState(() {
-        _errorMessage = 'Failed to load company data: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load company data: $e';
+        });
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         print('CompanyProfileSettings: Loading complete, isLoading = $_isLoading');
-      });
+      }
     }
   }
 
@@ -388,9 +417,7 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
+      body: Column(
         children: [
           // Company Header
           CompanyAppHeader(
@@ -400,13 +427,39 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
 
           // Profile settings content
           Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
+            child: RefreshIndicator(
+              onRefresh: _fetchCompanyData,
+              child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
                     const SizedBox(height: 24),
+
+                    // // Show loading indicator only when fetching data
+                    // if (_isLoading && _companyData == null)
+                    //   const Padding(
+                    //     padding: EdgeInsets.symmetric(vertical: 16.0),
+                    //     child: Row(
+                    //       mainAxisAlignment: MainAxisAlignment.center,
+                    //       children: [
+                    //         SizedBox(
+                    //           width: 20,
+                    //           height: 20,
+                    //           child: CircularProgressIndicator(strokeWidth: 2),
+                    //         ),
+                    //         SizedBox(width: 12),
+                    //         Text(
+                    //           'Loading profile data...',
+                    //           style: TextStyle(
+                    //             fontSize: 14,
+                    //             color: Colors.grey,
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
 
                     // Profile picture
                     GestureDetector(
@@ -468,6 +521,30 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
                             color: Colors.red,
                             fontWeight: FontWeight.w500,
                           ),
+                        ),
+                      ),
+
+                    // Show refresh loading indicator
+                    if (_isLoading && _companyData != null)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Refreshing...',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
 
@@ -831,6 +908,7 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
               ),
             ),
           ),
+          )
         ],
       ),
     );

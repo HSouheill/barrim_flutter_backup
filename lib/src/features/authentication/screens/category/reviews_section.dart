@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../services/api_service.dart';
 import '../../../../models/branch_review.dart'; // Import the BranchReview model
-import 'package:barrim/src/components/secure_network_image.dart';
+import '../../../../components/secure_network_image.dart';
+import '../../../../utils/bad_word_filter.dart';
 
 class ReviewsSection extends StatefulWidget {
   final Map<String, dynamic> branch;
@@ -26,6 +27,10 @@ class _ReviewsSectionState extends State<ReviewsSection> {
   int _userRating = 0;
   bool _isSubmitting = false;
   String? _profileImagePath;
+  
+  // Bad word detection variables
+  bool _hasInappropriateContent = false;
+  List<dynamic> _detectedBadWords = [];
 
 
   @override
@@ -44,6 +49,9 @@ class _ReviewsSectionState extends State<ReviewsSection> {
     print('Using Branch ID: $branchId');
 
     _loadReviews();
+    
+    // Add listener for real-time bad word detection
+    _commentController.addListener(_checkForBadWords);
   }
 
   // Helper method to get branch ID from multiple possible fields
@@ -68,8 +76,29 @@ class _ReviewsSectionState extends State<ReviewsSection> {
     }
   }
 
+  // Check for bad words in real-time
+  void _checkForBadWords() {
+    final text = _commentController.text;
+    if (text.isEmpty) {
+      setState(() {
+        _hasInappropriateContent = false;
+        _detectedBadWords = [];
+      });
+      return;
+    }
+
+    final hasBadWords = BadWordFilter.containsBadWords(text);
+    final badWords = hasBadWords ? BadWordFilter.getBadWordsFound(text) : [];
+
+    setState(() {
+      _hasInappropriateContent = hasBadWords;
+      _detectedBadWords = badWords;
+    });
+  }
+
   @override
   void dispose() {
+    _commentController.removeListener(_checkForBadWords);
     _commentController.dispose();
     super.dispose();
   }
@@ -158,6 +187,27 @@ class _ReviewsSectionState extends State<ReviewsSection> {
     if (_userRating == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select a rating')),
+      );
+      return;
+    }
+
+    // Check for inappropriate content
+    final commentText = _commentController.text.trim();
+    if (BadWordFilter.containsBadWords(commentText)) {
+      final badWords = BadWordFilter.getBadWordsFound(commentText);
+      final shouldContinue = await BadWordFilter.showBadWordWarningDialog(context, badWords);
+      
+      if (!shouldContinue) {
+        return; // User chose to cancel
+      }
+      
+      // User acknowledged but we still prevent submission
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please remove inappropriate language from your review before submitting.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
       );
       return;
     }
@@ -338,15 +388,54 @@ class _ReviewsSectionState extends State<ReviewsSection> {
           SizedBox(height: 12),
 
           // Comment text field
-          TextField(
-            controller: _commentController,
-            decoration: InputDecoration(
-              hintText: 'Write your review here...',
-              border: OutlineInputBorder(),
-              filled: true,
-              fillColor: Colors.white,
-            ),
-            maxLines: 3,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _commentController,
+                decoration: InputDecoration(
+                  hintText: 'Write your review here...',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 3,
+              ),
+              // Bad word warning indicator
+              if (_hasInappropriateContent)
+                Container(
+                  margin: EdgeInsets.only(top: 8),
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        size: 16,
+                        color: Colors.red.shade700,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Inappropriate content detected',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.red.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
           SizedBox(height: 12),
 

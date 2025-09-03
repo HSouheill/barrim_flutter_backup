@@ -90,8 +90,8 @@ We may update this policy. We will notify you of significant changes via the app
 
 For privacy-related questions or requests:
 - Email: privacy@barrim.online
-- Address: [Your Business Address]
-- Phone: [Your Phone Number]
+- Address: Aley, Lebanon
+- Phone: 71 907 483
 
 ## 11. Data Processing Legal Basis
 

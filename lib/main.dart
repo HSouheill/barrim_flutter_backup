@@ -2,6 +2,7 @@ import 'package:barrim/src/services/google_auth_service.dart';
 import 'package:barrim/src/services/notification_service.dart';
 import 'package:barrim/src/services/notification_provider.dart';
 import 'package:barrim/src/services/user_provider.dart';
+import 'package:barrim/src/services/google_maps_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
@@ -15,6 +16,19 @@ Future<void> main() async {
 
   // Firebase initialization removed to avoid Apple sign-in conflicts
   print("Firebase Core not initialized - using native Apple sign-in");
+
+  // Initialize Google Maps services
+  print("Initializing Google Maps services...");
+  try {
+    final mapsInitialized = await GoogleMapsService.initialize();
+    if (mapsInitialized) {
+      print("Google Maps services initialized successfully");
+    } else {
+      print("Warning: Google Maps services failed to initialize");
+    }
+  } catch (e) {
+    print("Error during Google Maps initialization: $e");
+  }
 
   // Initialize notification service
   final notificationService = NotificationService();

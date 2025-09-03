@@ -47,6 +47,8 @@
 	<string>This app needs access to camera to take photos for your company logo</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs access to location when open to show your current location on the map and provide location-based services.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs access to your location to provide location-based services including showing nearby businesses, enabling location-based search and filtering, providing directions, and delivering location-relevant notifications. Location data helps us show you the most relevant services and businesses in your area, improve search results, and provide accurate navigation assistance.</string>
 
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs access to microphone for camera functionality</string>

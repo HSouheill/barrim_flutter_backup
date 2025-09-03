@@ -504,48 +504,6 @@ class _CategoriesPageState extends State<CategoriesPage> {
                       );
                     }
                     
-                    if (_filteredCategories.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.category_outlined,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'No categories available',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Categories will appear here once they are added to the backend.\nCurrently showing: ${_allCategories.length} categories',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[500],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            SizedBox(height: 16),
-                            if (_allCategories.isNotEmpty)
-                              Text(
-                                'Available categories: ${_allCategories.map((c) => c.title).join(', ')}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[400],
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                          ],
-                        ),
-                      );
-                    }
                     
                     return RefreshIndicator(
                       onRefresh: _loadCategories,

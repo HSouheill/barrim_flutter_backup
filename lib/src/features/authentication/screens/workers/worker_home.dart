@@ -66,8 +66,13 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
   String _formatProfilePhotoUrl(dynamic provider) {
     String? photoPath;
 
-    // Check for logoPath first
-    if (provider['logoPath'] != null && provider['logoPath'].toString().isNotEmpty) {
+    // Check for logo field first (this is the actual field name in the API response)
+    if (provider['logo'] != null && provider['logo'].toString().isNotEmpty) {
+      photoPath = provider['logo'].toString();
+      print('Found logo: $photoPath');
+    }
+    // Check for logoPath as fallback
+    else if (provider['logoPath'] != null && provider['logoPath'].toString().isNotEmpty) {
       photoPath = provider['logoPath'].toString();
       print('Found logoPath: $photoPath');
     }
@@ -203,9 +208,15 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     }
 
     // Fallback options if no custom logo was found
-    if (provider['logoPath'] != null && provider['logoPath'].toString().isNotEmpty) {
+    // Check for logo field first (this is the actual field name in the API response)
+    if (provider['logo'] != null && provider['logo'].toString().isNotEmpty) {
+      String logoPath = provider['logo'].toString();
+      return logoPath.startsWith('http') ? logoPath : 'https://barrim.online/$logoPath';
+    }
+    // Check for logoPath as fallback
+    else if (provider['logoPath'] != null && provider['logoPath'].toString().isNotEmpty) {
       String logoPath = provider['logoPath'].toString();
-              return logoPath.startsWith('http') ? logoPath : 'https://barrim.online$logoPath';
+      return logoPath.startsWith('http') ? logoPath : 'https://barrim.online/$logoPath';
     }
 
     // If still no logo, return default
@@ -502,13 +513,8 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
 
             return ProfileCard(
               name: provider['fullName'] ?? provider['businessName'] ?? 'Unknown',
-              isVerified: provider['serviceProviderInfo'] != null &&
-                  provider['serviceProviderInfo']['yearsExperience'] != null &&
-                  _getYearsExperience(provider['serviceProviderInfo']['yearsExperience']) > 5,
-              experience: provider['serviceProviderInfo'] != null && 
-                  provider['serviceProviderInfo']['yearsExperience'] != null
-                  ? "${_getYearsExperience(provider['serviceProviderInfo']['yearsExperience'])} Years of Experience"
-                  : "1 Year of Experience",
+              isVerified: _getYearsExperience(_getYearsExperienceFromProvider(provider)) > 5,
+              experience: "${_getYearsExperience(_getYearsExperienceFromProvider(provider))} Years of Experience",
               description: _getProviderDescription(provider, category),
               rating: _getProviderRating(provider),
               imagePath: providerImagePath,
@@ -594,12 +600,34 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     return 4; // Default rating
   }
 
+  // Helper method to get years of experience from provider data
+  dynamic _getYearsExperienceFromProvider(dynamic provider) {
+    // First check serviceProviderInfo.yearsExperience
+    if (provider['serviceProviderInfo'] != null && 
+        provider['serviceProviderInfo']['yearsExperience'] != null) {
+      return provider['serviceProviderInfo']['yearsExperience'];
+    }
+    
+    // Fallback to root level yearsExperience
+    if (provider['yearsExperience'] != null) {
+      return provider['yearsExperience'];
+    }
+    
+    // Default to 1 if no experience data found
+    return 1;
+  }
+
   // Helper method to get years of experience as int
   int _getYearsExperience(dynamic yearsExp) {
+    if (yearsExp == null) {
+      return 1; // Default value if null
+    }
     if (yearsExp is int) {
       return yearsExp;
     } else if (yearsExp is String) {
       return int.tryParse(yearsExp) ?? 1;
+    } else if (yearsExp is double) {
+      return yearsExp.round();
     }
     return 1; // Default value
   }
@@ -621,7 +649,9 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
       String serviceType = 'Other'; // Default category
 
       // Try to get service type from multiple sources
-      if (provider['serviceProviderInfo'] != null &&
+      if (provider['serviceType'] != null && provider['serviceType'].toString().isNotEmpty) {
+        serviceType = provider['serviceType'].toString();
+      } else if (provider['serviceProviderInfo'] != null &&
           provider['serviceProviderInfo']['serviceType'] != null) {
         serviceType = provider['serviceProviderInfo']['serviceType'].toString();
       } else if (provider['category'] != null && 
@@ -674,8 +704,9 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     if (_filters.selectedSkills.isNotEmpty) {
       print('Filtering by skills: ${_filters.selectedSkills}'); // Debug log
       filteredProviders = filteredProviders.where((provider) {
-        if (provider['serviceProviderInfo'] == null) return false;
-        String serviceType = provider['serviceProviderInfo']['serviceType']?.toString().toLowerCase() ?? '';
+        // Get service type from root level first, then fallback to serviceProviderInfo
+        String serviceType = provider['serviceType']?.toString().toLowerCase() ?? 
+                           provider['serviceProviderInfo']?['serviceType']?.toString().toLowerCase() ?? '';
         bool matches = _filters.selectedSkills.any((skill) => 
           serviceType.contains(skill.toLowerCase()));
         print('Provider $serviceType matches skills: $matches'); // Debug log
@@ -687,7 +718,10 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     if (_filters.emergencyOnly) {
       print('Filtering emergency only'); // Debug log
       filteredProviders = filteredProviders.where((provider) {
-        bool isDriver = provider['serviceProviderInfo']?['serviceType']?.toString().toLowerCase() == 'driver';
+        // Get service type from root level first, then fallback to serviceProviderInfo
+        String serviceType = provider['serviceType']?.toString().toLowerCase() ?? 
+                           provider['serviceProviderInfo']?['serviceType']?.toString().toLowerCase() ?? '';
+        bool isDriver = serviceType == 'driver';
         print('Provider is driver: $isDriver'); // Debug log
         return isDriver;
       }).toList();
@@ -717,8 +751,12 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
         case SortOption.emergency:
           // Sort drivers to the top
           filteredProviders.sort((a, b) {
-            bool isDriverA = a['serviceProviderInfo']?['serviceType']?.toString().toLowerCase() == 'driver';
-            bool isDriverB = b['serviceProviderInfo']?['serviceType']?.toString().toLowerCase() == 'driver';
+            String serviceTypeA = a['serviceType']?.toString().toLowerCase() ?? 
+                                 a['serviceProviderInfo']?['serviceType']?.toString().toLowerCase() ?? '';
+            String serviceTypeB = b['serviceType']?.toString().toLowerCase() ?? 
+                                 b['serviceProviderInfo']?['serviceType']?.toString().toLowerCase() ?? '';
+            bool isDriverA = serviceTypeA == 'driver';
+            bool isDriverB = serviceTypeB == 'driver';
             return isDriverB ? 1 : (isDriverA ? -1 : 0);
           });
           break;
@@ -939,8 +977,10 @@ class ProfileCard extends StatelessWidget {
 
   // Check if provider is a driver
   bool _isDriverProvider() {
-    if (provider != null && provider['serviceProviderInfo'] != null) {
-      String? serviceType = provider['serviceProviderInfo']['serviceType']?.toString().toLowerCase();
+    if (provider != null) {
+      // Get service type from root level first, then fallback to serviceProviderInfo
+      String? serviceType = provider['serviceType']?.toString().toLowerCase() ?? 
+                           provider['serviceProviderInfo']?['serviceType']?.toString().toLowerCase();
       return serviceType == 'driver';
     }
     return false;

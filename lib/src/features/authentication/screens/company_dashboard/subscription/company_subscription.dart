@@ -952,17 +952,17 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   Widget _buildSponsorshipSubscriptionSection() {
-    print('DEBUG: _buildSponsorshipSubscriptionSection called');
-    print('DEBUG: _sponsorshipSubscriptionData: $_sponsorshipSubscriptionData');
-    print('DEBUG: _isLoadingSponsorshipSubscription: $_isLoadingSponsorshipSubscription');
-    print('DEBUG: _sponsorshipSubscriptionError: $_sponsorshipSubscriptionError');
+    // print('DEBUG: _buildSponsorshipSubscriptionSection called');
+    // print('DEBUG: _sponsorshipSubscriptionData: $_sponsorshipSubscriptionData');
+    // print('DEBUG: _isLoadingSponsorshipSubscription: $_isLoadingSponsorshipSubscription');
+    // print('DEBUG: _sponsorshipSubscriptionError: $_sponsorshipSubscriptionError');
     
-    if (_sponsorshipSubscriptionData != null) {
-      print('DEBUG: hasActiveSubscription: ${_sponsorshipSubscriptionData!.hasActiveSubscription}');
-      print('DEBUG: timeRemaining: ${_sponsorshipSubscriptionData!.timeRemaining?.toJson()}');
-      print('DEBUG: sponsorship: ${_sponsorshipSubscriptionData!.sponsorship?.toJson()}');
-      print('DEBUG: entityInfo: ${_sponsorshipSubscriptionData!.entityInfo?.toJson()}');
-    }
+    // if (_sponsorshipSubscriptionData != null) {
+    //   print('DEBUG: hasActiveSubscription: ${_sponsorshipSubscriptionData!.hasActiveSubscription}');
+    //   print('DEBUG: timeRemaining: ${_sponsorshipSubscriptionData!.timeRemaining?.toJson()}');
+    //   print('DEBUG: sponsorship: ${_sponsorshipSubscriptionData!.sponsorship?.toJson()}');
+    //   print('DEBUG: entityInfo: ${_sponsorshipSubscriptionData!.entityInfo?.toJson()}');
+    // }
     
     return Column(
       children: [
@@ -1949,25 +1949,25 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     final hasRegularSubscription = _remainingTimeData?.hasActiveSubscription == true;
     final hasSponsorshipSubscription = _sponsorshipSubscriptionData?.hasActiveSubscription == true;
     
-    print('DEBUG: _buildRemainingTimeWidget called');
-    print('DEBUG: hasRegularSubscription: $hasRegularSubscription');
-    print('DEBUG: hasSponsorshipSubscription: $hasSponsorshipSubscription');
-    print('DEBUG: _remainingTimeData: $_remainingTimeData');
-    print('DEBUG: _sponsorshipSubscriptionData: $_sponsorshipSubscriptionData');
+    // print('DEBUG: _buildRemainingTimeWidget called');
+    // print('DEBUG: hasRegularSubscription: $hasRegularSubscription');
+    // print('DEBUG: hasSponsorshipSubscription: $hasSponsorshipSubscription');
+    // print('DEBUG: _remainingTimeData: $_remainingTimeData');
+    // print('DEBUG: _sponsorshipSubscriptionData: $_sponsorshipSubscriptionData');
     
-    if (_sponsorshipSubscriptionData != null) {
-      print('DEBUG: Sponsorship subscription data details:');
-      print('DEBUG: - hasActiveSubscription: ${_sponsorshipSubscriptionData!.hasActiveSubscription}');
-      print('DEBUG: - timeRemaining: ${_sponsorshipSubscriptionData!.timeRemaining?.toJson()}');
-      print('DEBUG: - sponsorship: ${_sponsorshipSubscriptionData!.sponsorship?.toJson()}');
-    }
+    // if (_sponsorshipSubscriptionData != null) {
+    //   print('DEBUG: Sponsorship subscription data details:');
+    //   print('DEBUG: - hasActiveSubscription: ${_sponsorshipSubscriptionData!.hasActiveSubscription}');
+    //   print('DEBUG: - timeRemaining: ${_sponsorshipSubscriptionData!.timeRemaining?.toJson()}');
+    //   print('DEBUG: - sponsorship: ${_sponsorshipSubscriptionData!.sponsorship?.toJson()}');
+    // }
     
     if (!hasRegularSubscription && !hasSponsorshipSubscription) {
       print('DEBUG: No active subscriptions found, returning empty widget');
       return const SizedBox.shrink();
     }
     
-    print('DEBUG: Building remaining time widget with subscriptions');
+    // print('DEBUG: Building remaining time widget with subscriptions');
     
     return Container(
       child: Column(
@@ -2060,21 +2060,21 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   Widget _buildSponsorshipSubscriptionTimeWidget() {
-    print('DEBUG: _buildSponsorshipSubscriptionTimeWidget called');
+    // print('DEBUG: _buildSponsorshipSubscriptionTimeWidget called');
     final data = _sponsorshipSubscriptionData!;
     final timeRemaining = data.timeRemaining;
     
-    print('DEBUG: data: $data');
-    print('DEBUG: timeRemaining: $timeRemaining');
-    print('DEBUG: timeRemaining.toJson(): ${timeRemaining?.toJson()}');
+    // print('DEBUG: data: $data');
+    // print('DEBUG: timeRemaining: $timeRemaining');
+    // print('DEBUG: timeRemaining.toJson(): ${timeRemaining?.toJson()}');
     
     if (timeRemaining == null) {
-      print('DEBUG: No time remaining data, returning empty widget');
+      // print('DEBUG: No time remaining data, returning empty widget');
       return const SizedBox.shrink();
     }
     
-    print('DEBUG: Building sponsorship subscription widget with time remaining');
-    print('DEBUG: days: ${timeRemaining.days}, hours: ${timeRemaining.hours}, minutes: ${timeRemaining.minutes}');
+    // print('DEBUG: Building sponsorship subscription widget with time remaining');
+    // print('DEBUG: days: ${timeRemaining.days}, hours: ${timeRemaining.hours}, minutes: ${timeRemaining.minutes}');
     
     return Container(
       padding: const EdgeInsets.all(24),

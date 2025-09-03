@@ -695,11 +695,18 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                                       'lng': _longitude ?? 0.0,
                                     };
 
+                                    // Debug print to see what address data is being passed
+                                    print('=== SIGNUP USER PAGE 4 DEBUG ===');
+                                    print('Address data: $addressData');
+                                    final finalUserData = {...widget.userData, 'address': addressData};
+                                    print('Updated userData: $finalUserData');
+                                    print('=====================================');
+
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => SignupUserPage5(
-                                          userData: {...widget.userData, 'address': addressData},
+                                          userData: finalUserData,
                                         ),
                                       ),
                                     );

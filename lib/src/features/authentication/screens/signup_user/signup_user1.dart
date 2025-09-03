@@ -108,28 +108,95 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
     }
   }
 
+  /// Handles Google Sign-In using the integrated googleAuthEndpoint
+  /// This method uses the GoogleSignInProvider which communicates with
+  /// the backend endpoint: /api/auth/google-auth-without-firebase
   Future<void> _handleGoogleSignIn() async {
     setState(() {
       _isGoogleLoading = true;
     });
+    
     try {
+      print('Starting Google sign-in process...');
       final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
       final result = await provider.googleLogin();
+      
       setState(() {
         _isGoogleLoading = false;
       });
+      
       if (result != null) {
+        print('Google sign-in successful, processing user data...');
+        
+        // Update UserProvider with user data and token
         final userProvider = Provider.of<UserProvider>(context, listen: false);
         userProvider.setUser(result['user']);
         userProvider.setToken(result['token']);
+        
         final userData = result['user'] ?? {};
         final userType = userData['userType'] ?? 'user';
+        
+        print('User type detected: $userType');
+        print('User data: ${userData['email']} - ${userData['fullName']}');
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Google sign-in successful!'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        // Add a small delay to ensure Google Maps services are ready
+        // This prevents crashes when navigating immediately after Google Sign-In
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Navigate to appropriate dashboard
         _navigateAfterLogin(userType, result);
+      } else {
+        print('Google sign-in was canceled or failed');
+        // Don't show error message if user canceled
+        if (provider.error != null && !provider.error!.contains('canceled')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Google sign-in failed: ${provider.error}'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
+      print('Error during Google sign-in: $e');
       setState(() {
         _isGoogleLoading = false;
       });
+      
+      // Show error message to user
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Google sign-in error: ${e.toString().contains('Exception:') ? e.toString().split('Exception: ')[1] : e.toString()}',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
     }
   }
 
@@ -677,6 +744,7 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                           SizedBox(height: constraints.maxHeight * 0.02),
 
                           // Social Login Buttons
+                          // Google Sign-In uses the integrated googleAuthEndpoint: /api/auth/google-auth-without-firebase
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -747,23 +815,34 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
   }
 
   Widget _buildSocialLoginButton(BuildContext context, String iconPath, double size, {Function()? onPressed}) {
-    return InkWell(
-      onTap: onPressed,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white),
-        ),
-        child: Center(
-          child: SizedBox(
-            width: size * 0.5,
-            height: size * 0.5,
-            child: Image.asset(
-              iconPath,
-              fit: BoxFit.contain,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(size / 2),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Center(
+            child: SizedBox(
+              width: size * 0.5,
+              height: size * 0.5,
+              child: Image.asset(
+                iconPath,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
         ),

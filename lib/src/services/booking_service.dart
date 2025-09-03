@@ -59,6 +59,9 @@ class BookingService {
       // Format date as YYYY-MM-DD for API query
       final formattedDate = DateFormat('yyyy-MM-dd').format(date);
 
+      print('BookingService: Fetching time slots for provider $providerId on date $formattedDate');
+      print('BookingService: API URL: $baseUrl/api/bookings/available-slots/$providerId?date=$formattedDate');
+
       final response = await _makeRequest(
         'GET',
         Uri.parse('$baseUrl/api/bookings/available-slots/$providerId?date=$formattedDate'),
@@ -68,17 +71,24 @@ class BookingService {
         },
       );
 
+      print('BookingService: Response status: ${response.statusCode}');
+      print('BookingService: Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
 
         if (data['status'] == 200 && data['data'] != null) {
           // Convert the data to List<String>
-          return List<String>.from(data['data']);
+          final slots = List<String>.from(data['data']);
+          print('BookingService: Parsed time slots: $slots');
+          return slots;
         } else {
           // Return empty list if no slots available
+          print('BookingService: No time slots available or invalid response');
           return [];
         }
       } else {
+        print('BookingService: API error - Status: ${response.statusCode}, Body: ${response.body}');
         throw Exception('Failed to load time slots: ${response.statusCode}');
       }
     } catch (e) {

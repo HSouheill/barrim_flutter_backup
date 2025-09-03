@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as google_maps;
 import 'package:latlong2/latlong.dart' as latlong;
 import 'google_maps_wrapper.dart';
 import 'animated_location_marker.dart';
+import '../services/google_maps_service.dart';
 
 class MapComponent extends StatefulWidget {
   final GoogleMapsWrapper mapController;
@@ -32,21 +33,58 @@ class MapComponent extends StatefulWidget {
 
 class _MapComponentState extends State<MapComponent> {
   google_maps.GoogleMapController? _googleMapController;
+  bool _isMapReady = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureMapReady();
+  }
+
+  Future<void> _ensureMapReady() async {
+    try {
+      // Wait for Google Maps services to be ready
+      final isReady = await GoogleMapsService.waitForServices(timeoutSeconds: 15);
+      
+      if (mounted) {
+        setState(() {
+          _isMapReady = isReady;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error ensuring map readiness: $e');
+      if (mounted) {
+        setState(() {
+          _isMapReady = false;
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   void _onMapCreated(google_maps.GoogleMapController controller) {
-    _googleMapController = controller;
-    
-    // Set the controller in our wrapper
-    widget.mapController.setController(controller);
-    
-    // Move to current location if available
-    if (widget.currentLocation != null) {
-      controller.animateCamera(
-        google_maps.CameraUpdate.newLatLngZoom(
-          google_maps.LatLng(widget.currentLocation!.latitude, widget.currentLocation!.longitude),
-          15.0,
-        ),
-      );
+    try {
+      _googleMapController = controller;
+      
+      // Set the controller in our wrapper
+      widget.mapController.setController(controller);
+      
+      // Apply custom map style to hide all places
+      _applyCustomMapStyle(controller);
+      
+      // Move to current location if available
+      if (widget.currentLocation != null) {
+        controller.animateCamera(
+          google_maps.CameraUpdate.newLatLngZoom(
+            google_maps.LatLng(widget.currentLocation!.latitude, widget.currentLocation!.longitude),
+            15.0,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error in _onMapCreated: $e');
     }
   }
 
@@ -70,76 +108,77 @@ class _MapComponentState extends State<MapComponent> {
     // Add waypoint markers - preserve original markers with their dynamic colors
     for (int i = 0; i < widget.wayPointMarkers.length; i++) {
       final marker = widget.wayPointMarkers[i];
-      
-      if (marker is google_maps.Marker) {
-        // Google Maps marker - use it directly to preserve the dynamic icon
-        markers.add(marker);
-      } else {
-        // flutter_map marker - try to extract position and create a basic marker
-        try {
-          latlong.LatLng? position;
-          if (marker is Map) {
-            final point = marker['point'];
-            if (point != null) {
-              position = latlong.LatLng(point['latitude'], point['longitude']);
-            }
-          } else {
-            // Try to access point property dynamically
-            final point = (marker as dynamic).point;
-            if (point != null) {
-              position = latlong.LatLng(point.latitude, point.longitude);
-            }
-          }
-          
-          if (position != null) {
-            markers.add(
-              google_maps.Marker(
-                markerId: google_maps.MarkerId('waypoint_$i'),
-                position: google_maps.LatLng(position.latitude, position.longitude),
-                icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue),
-                onTap: () {
-                  // Handle marker tap if needed
-                },
-              ),
-            );
-          }
-        } catch (e) {
-          print('Error extracting position from marker: $e');
-          continue;
+      if (marker is Map<String, dynamic> && marker['position'] != null) {
+        final position = marker['position'] as latlong.LatLng;
+        final category = marker['category'] as String?;
+        
+        // Get marker color based on category
+        google_maps.BitmapDescriptor markerIcon;
+        if (category != null && _categoryColors.containsKey(category)) {
+          markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(_categoryColors[category]!);
+        } else {
+          markerIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue);
         }
+        
+        markers.add(
+          google_maps.Marker(
+            markerId: google_maps.MarkerId('waypoint_$i'),
+            position: google_maps.LatLng(position.latitude, position.longitude),
+            icon: markerIcon,
+            infoWindow: google_maps.InfoWindow(
+              title: marker['title'] ?? 'Waypoint $i',
+              snippet: category ?? 'Unknown category',
+            ),
+          ),
+        );
       }
     }
 
     return markers;
   }
 
+  // Category colors for markers
+  static const Map<String, double> _categoryColors = {
+    'restaurant': google_maps.BitmapDescriptor.hueRed,
+    'cafe': google_maps.BitmapDescriptor.hueOrange,
+    'shopping': google_maps.BitmapDescriptor.hueYellow,
+    'entertainment': google_maps.BitmapDescriptor.hueGreen,
+    'health': google_maps.BitmapDescriptor.hueBlue,
+    'transport': google_maps.BitmapDescriptor.hueViolet,
+    'other': google_maps.BitmapDescriptor.hueAzure,
+  };
+
   Set<google_maps.Polyline> _buildGooglePolylines() {
     final Set<google_maps.Polyline> polylines = {};
 
-    // Add primary route
+    // Primary route
     if (widget.primaryRouteCoordinates.isNotEmpty) {
+      final googleCoordinates = widget.primaryRouteCoordinates.map((coord) {
+        return google_maps.LatLng(coord.latitude, coord.longitude);
+      }).toList();
+
       polylines.add(
         google_maps.Polyline(
-          polylineId: google_maps.PolylineId('primary_route'),
-          points: widget.primaryRouteCoordinates
-              .map((point) => google_maps.LatLng(point.latitude, point.longitude))
-              .toList(),
-          color: widget.usingPrimaryRoute ? Colors.blue : Colors.blue.withOpacity(0.5),
-          width: widget.usingPrimaryRoute ? 4 : 2,
+          polylineId: const google_maps.PolylineId('primary_route'),
+          points: googleCoordinates,
+          color: widget.usingPrimaryRoute ? Colors.blue : Colors.grey,
+          width: 5,
         ),
       );
     }
 
-    // Add alternative route
+    // Alternative route
     if (widget.alternativeRouteCoordinates.isNotEmpty) {
+      final googleCoordinates = widget.alternativeRouteCoordinates.map((coord) {
+        return google_maps.LatLng(coord.latitude, coord.longitude);
+      }).toList();
+
       polylines.add(
         google_maps.Polyline(
-          polylineId: google_maps.PolylineId('alternative_route'),
-          points: widget.alternativeRouteCoordinates
-              .map((point) => google_maps.LatLng(point.latitude, point.longitude))
-              .toList(),
-          color: widget.usingPrimaryRoute ? Colors.purple.withOpacity(0.5) : Colors.purple,
-          width: widget.usingPrimaryRoute ? 2 : 4,
+          polylineId: const google_maps.PolylineId('alternative_route'),
+          points: googleCoordinates,
+          color: widget.usingPrimaryRoute ? Colors.grey : Colors.purple,
+          width: 5,
         ),
       );
     }
@@ -149,14 +188,40 @@ class _MapComponentState extends State<MapComponent> {
 
   @override
   Widget build(BuildContext context) {
+    // Show loading indicator while checking map readiness
+    if (_isLoading) {
+      return Container(
+        color: Colors.grey[100],
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Loading map...',
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Check if Google Maps services are available
+    if (!_isMapReady || !GoogleMapsService.isInitialized) {
+      return GoogleMapsService.getFallbackWidget(
+        message: 'Google Maps are not available.\nPlease try again later.',
+        backgroundColor: Colors.grey[100]!,
+        textColor: Colors.grey[600]!,
+      );
+    }
+
     return Stack(
       children: [
-        google_maps.GoogleMap(
-          onMapCreated: (google_maps.GoogleMapController controller) {
-            _onMapCreated(controller);
-            // Apply custom styling to hide Google's business data
-            _applyCustomMapStyle(controller);
-          },
+        // Try to create the map safely
+        GoogleMapsService.createSafeGoogleMap(
+          onMapCreated: _onMapCreated,
           initialCameraPosition: google_maps.CameraPosition(
             target: widget.currentLocation != null 
                 ? google_maps.LatLng(widget.currentLocation!.latitude, widget.currentLocation!.longitude)
@@ -185,22 +250,22 @@ class _MapComponentState extends State<MapComponent> {
           trafficEnabled: false, // Disable traffic data
           buildingsEnabled: false, // Disable 3D buildings
           indoorViewEnabled: false, // Disable indoor maps
+        ) ?? GoogleMapsService.getFallbackWidget(
+          message: 'Failed to load map.\nPlease try again.',
+          backgroundColor: Colors.red[50]!,
+          textColor: Colors.red[700]!,
         ),
-        
-
       ],
     );
   }
 
-
-
   void _applyCustomMapStyle(google_maps.GoogleMapController controller) {
-    // Soft custom map style with decreased contrast and white streets
+    // Custom map styling to hide ALL places and business data
     const String customMapStyle = '''
     [
       {
         "featureType": "poi",
-        "elementType": "labels",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -209,6 +274,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "poi.business",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -217,6 +283,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "poi.attraction",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -225,6 +292,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "poi.government",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -233,6 +301,16 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "poi.medical",
+        "elementType": "all",
+        "stylers": [
+          {
+            "visibility": "off"
+          }
+        ]
+      },
+      {
+        "featureType": "poi.park",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -241,6 +319,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "poi.place_of_worship",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -249,6 +328,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "poi.school",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -257,6 +337,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "poi.sports_complex",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -265,7 +346,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "transit",
-        "elementType": "labels",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -274,6 +355,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "transit.line",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
@@ -282,164 +364,34 @@ class _MapComponentState extends State<MapComponent> {
       },
       {
         "featureType": "transit.station",
+        "elementType": "all",
         "stylers": [
           {
             "visibility": "off"
-          }
-        ]
-      },
-      {
-        "featureType": "water",
-        "elementType": "labels",
-        "stylers": [
-          {
-            "visibility": "off"
-          }
-        ]
-      },
-      {
-        "featureType": "road",
-        "elementType": "labels",
-        "stylers": [
-          {
-            "visibility": "off"
-          }
-        ]
-      },
-      {
-        "featureType": "road.arterial",
-        "elementType": "labels",
-        "stylers": [
-          {
-            "visibility": "off"
-          }
-        ]
-      },
-      {
-        "featureType": "road.highway",
-        "elementType": "labels",
-        "stylers": [
-          {
-            "visibility": "off"
-          }
-        ]
-      },
-      {
-        "featureType": "road.local",
-        "elementType": "labels",
-        "stylers": [
-          {
-            "visibility": "off"
-          }
-        ]
-      },
-      {
-        "featureType": "road.arterial",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#ffffff"
-          }
-        ]
-      },
-      {
-        "featureType": "road.highway",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#ffffff"
-          }
-        ]
-      },
-      {
-        "featureType": "road.local",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#ffffff"
-          }
-        ]
-      },
-      {
-        "featureType": "road",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#ffffff"
           }
         ]
       },
       {
         "featureType": "landscape",
-        "elementType": "geometry",
+        "elementType": "labels",
         "stylers": [
           {
-            "color": "#f8f9fa"
-          }
-        ]
-      },
-      {
-        "featureType": "landscape.natural",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#e8f5e8"
-          }
-        ]
-      },
-      {
-        "featureType": "landscape.man_made",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#f5f5f5"
-          }
-        ]
-      },
-      {
-        "featureType": "water",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#b3d9ff"
-          }
-        ]
-      },
-      {
-        "featureType": "poi.park",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#d4edda"
+            "visibility": "off"
           }
         ]
       },
       {
         "featureType": "administrative",
-        "elementType": "geometry",
+        "elementType": "labels",
         "stylers": [
           {
-            "color": "#fff8e1"
-          }
-        ]
-      },
-      {
-        "featureType": "poi",
-        "elementType": "geometry",
-        "stylers": [
-          {
-            "color": "#ffeaa7"
+            "visibility": "off"
           }
         ]
       }
     ]
     ''';
 
-    try {
-      controller.setMapStyle(customMapStyle);
-      print('Soft map style applied successfully - Decreased contrast with white streets');
-    } catch (e) {
-      print('Error applying soft map style: $e');
-    }
+    controller.setMapStyle(customMapStyle);
   }
 }

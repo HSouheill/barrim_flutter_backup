@@ -127,7 +127,7 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        SizedBox(height: MediaQuery.of(context).size.height * 0.21),
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
                         CustomHeader(currentPageIndex: 3, totalPages: 4, subtitle: 'Service Provider', onBackPressed: () => Navigator.pop(context)),
                         Padding(
                           padding: EdgeInsets.symmetric(horizontal: constraints.maxWidth * 0.06),

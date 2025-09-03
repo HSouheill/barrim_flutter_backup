@@ -76,7 +76,7 @@ Edit `lib/src/utils/terms_of_service.dart` and update:
 ### 2.3 Create Privacy Policy Web Page
 
 Create a public webpage with your privacy policy accessible at:
-`https://barrim.online/privacy-policy`
+`https://privacy.barrim.online`
 
 ## 📱 **Step 3: Test Your App**
 

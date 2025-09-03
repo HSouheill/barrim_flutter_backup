@@ -42,14 +42,14 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  // For certification image
-  File? _certificationImage;
-  String? _certificationImagePath;
+  // For multiple certification images
+  List<File> _certificationImages = [];
+  List<String> _certificationImagePaths = [];
 
   // For time selection
   List<TimeSlot> _timeSlots = [];
 
-  // Available days for service
+  // Available days for service (stored as date strings in YYYY-MM-DD format)
   List<String> _availableDays = [];
 
   // Service provider data
@@ -72,8 +72,9 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
   void initState() {
     super.initState();
     _initializeControllers();
-    _loadLocationData();
-    _loadServiceProviderData();
+    _loadLocationData().then((_) {
+      _loadServiceProviderData();
+    });
 
     // Initialize with one empty time slot
     _timeSlots.add(TimeSlot(
@@ -104,9 +105,17 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
 
   Future<void> _loadServiceProviderData() async {
     try {
+      setState(() {
+        isLoading = true;
+      });
+      
+      print('Loading service provider data...');
       final provider = await _serviceProviderService.getServiceProviderData();
+      print('Service provider data loaded successfully: ${provider.fullName}');
+      
       setState(() {
         _serviceProvider = provider;
+        isLoading = false;
         _phoneController.text = provider.phone ?? '';
         _serviceTypeController.text = provider.serviceProviderInfo?.serviceType ?? '';
         _yearsExperienceController.text =
@@ -129,6 +138,7 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
         // Set available days if they exist
         if (provider.serviceProviderInfo?.availableDays != null) {
           _availableDays = provider.serviceProviderInfo!.availableDays!;
+          print('Loaded availableDays: $_availableDays');
         }
 
         // Load available hours if they exist
@@ -165,10 +175,18 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
           }
         }
       });
+      print('Service provider data loaded and form populated successfully');
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Failed to load service provider data: $e')),
-      // );
+      setState(() {
+        isLoading = false;
+      });
+      print('Failed to load service provider data: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load service provider data: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -203,8 +221,8 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
 
       if (pickedFile != null) {
         setState(() {
-          _certificationImage = File(pickedFile.path);
-          _certificationImagePath = pickedFile.path;
+          _certificationImages.add(File(pickedFile.path));
+          _certificationImagePaths.add(pickedFile.path);
         });
       }
     } catch (e) {
@@ -212,6 +230,13 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
       //   SnackBar(content: Text('Failed to pick image: $e')),
       // );
     }
+  }
+
+  void _removeCertificationImage(int index) {
+    setState(() {
+      _certificationImages.removeAt(index);
+      _certificationImagePaths.removeAt(index);
+    });
   }
 
   Future<void> _saveServiceProviderData() async {
@@ -247,24 +272,37 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
         },
       };
 
-      // Upload certification image if selected
-      if (_certificationImage != null) {
-        await _serviceProviderService.uploadCertificateImage(_certificationImage!);
-      }
 
-      // Call the update service
-      await _serviceProviderService.updateServiceProviderProfile(
+
+      print('Updating service provider info with certificates...');
+      print('Form data: $updateData');
+      print('Certificate count: ${_certificationImages.length}');
+
+      // Call the update service with the form data and certificates
+      await _serviceProviderService.updateServiceProviderInfo(
         businessName: _serviceProvider?.fullName ?? '',
         email: _serviceProvider?.email,
+        additionalData: updateData, // Pass the form data
+        certificateFiles: _certificationImages.isNotEmpty ? _certificationImages : null, // Pass certificates
+      ).timeout(
+        Duration(seconds: 60), // 60 second timeout for the entire operation
+        onTimeout: () {
+          throw Exception('Profile update timed out. Please try again.');
+        },
       );
+
+      print('Service provider info updated successfully');
 
       // Close loading dialog
       Navigator.of(context).pop();
 
       // Show success message
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(content: Text('Profile updated successfully')),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       // Close loading dialog if open
       if (Navigator.of(context).canPop()) {
@@ -272,9 +310,12 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
       }
 
       // Show error message
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Failed to update profile: $e')),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update profile: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -293,7 +334,12 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
               children: [
                 CircularProgressIndicator(),
                 SizedBox(width: 20),
-                Text("Saving profile..."),
+                Expanded(
+                  child: Text(
+                    "Saving profile...",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
               ],
             ),
           ),
@@ -313,6 +359,10 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
             onLogoNavigation: () {
               // Navigate back to the previous screen
               Navigator.of(context).pop();
+            },
+            onRefresh: () {
+              // Refresh the service provider data
+              _loadServiceProviderData();
             },
           ),
           Expanded(
@@ -463,34 +513,95 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
   }
 
   Widget _buildCertificationUpload() {
-    return GestureDetector(
-      onTap: _pickCertificationImage,
-      child: Container(
-        height: 120,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: _certificationImage != null
-            ? ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            _certificationImage!,
-            fit: BoxFit.cover,
-          ),
-        )
-            : Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.upload_file, size: 40, color: Colors.grey),
-            SizedBox(height: 8),
-            Text(
-              'Upload Certification',
-              style: TextStyle(color: Colors.grey),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Display existing certificates
+        if (_certificationImages.isNotEmpty) ...[
+          Text(
+            'Uploaded Certificates (${_certificationImages.length})',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
             ),
-          ],
+          ),
+          SizedBox(height: 8),
+          Container(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _certificationImages.length,
+              itemBuilder: (context, index) {
+                return Container(
+                  width: 120,
+                  margin: EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          _certificationImages[index],
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () => _removeCertificationImage(index),
+                          child: Container(
+                            padding: EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+        
+        // Add certificate button
+        GestureDetector(
+          onTap: _pickCertificationImage,
+          child: Container(
+            height: 120,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.upload_file, size: 40, color: Colors.grey),
+                SizedBox(height: 8),
+                Text(
+                  'Add Certificate',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -507,9 +618,22 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
             ),
             TextButton(
               onPressed: () {
-                // Apply to all months functionality
+                // Apply to all months functionality - select all weekdays for the current month
                 setState(() {
-                  _availableDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                  _availableDays.clear();
+                  final year = _focusedDay.year;
+                  final month = _focusedDay.month;
+                  final daysInMonth = DateTime(year, month + 1, 0).day;
+                  
+                  for (int day = 1; day <= daysInMonth; day++) {
+                    final date = DateTime(year, month, day);
+                    final weekday = date.weekday;
+                    // Add Monday (1) through Friday (5)
+                    if (weekday >= 1 && weekday <= 5) {
+                      final dateString = DateFormat('yyyy-MM-dd').format(date);
+                      _availableDays.add(dateString);
+                    }
+                  }
                 });
               },
               child: Text(
@@ -721,21 +845,22 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
                   date.month == DateTime.now().month &&
                   date.day == DateTime.now().day;
 
-              final dayName = DateFormat('EEEE').format(date);
-              final isAvailable = _availableDays.contains(dayName);
+              final dateString = DateFormat('yyyy-MM-dd').format(date);
+              final isAvailable = _availableDays.contains(dateString);
 
               return GestureDetector(
                 onTap: () {
                   if (isCurrentMonth) {
-                    setState(() {
-                      _selectedDay = date;
-                      // Toggle availability for this day
-                      if (_availableDays.contains(dayName)) {
-                        _availableDays.remove(dayName);
-                      } else {
-                        _availableDays.add(dayName);
-                      }
-                    });
+                                          setState(() {
+                        _selectedDay = date;
+                        // Toggle availability for this day
+                        final dateString = DateFormat('yyyy-MM-dd').format(date);
+                        if (_availableDays.contains(dateString)) {
+                          _availableDays.remove(dateString);
+                        } else {
+                          _availableDays.add(dateString);
+                        }
+                      });
                   }
                 },
                 child: Container(

@@ -288,9 +288,7 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
                                     if (_selectedIndustry != null && !_isLoadingCategories)
                                       SizedBox(height: verticalSpacing),
 
-                                    // Show error message if categories failed to load
-                                    if (_categoriesError != null)
-                                      _buildErrorMessage(_categoriesError!, labelFontSize),
+
 
                                     // Referral Code
                                     _buildReferralField(labelFontSize, inputTextFontSize),
@@ -360,29 +358,42 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
     }
 
     if (_subCategoriesMap.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Category',
-            style: GoogleFonts.nunito(
-              color: const Color(0xFFDBD5D5),
-              fontSize: labelFontSize,
-              fontWeight: FontWeight.w500,
-            ),
+      return DropdownButtonFormField<String>(
+        value: _selectedIndustry,
+        style: GoogleFonts.nunito(
+          color: Colors.white,
+          fontSize: textFontSize,
+        ),
+        dropdownColor: const Color(0xFF05054F),
+        decoration: InputDecoration(
+          labelText: 'Category',
+          labelStyle: GoogleFonts.nunito(
+            color: const Color(0xFFDBD5D5),
+            fontSize: labelFontSize,
+            fontWeight: FontWeight.w500,
           ),
-          SizedBox(height: 8),
-          Container(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text(
-              'No categories available',
-              style: GoogleFonts.nunito(
-                color: Colors.red,
-                fontSize: textFontSize,
-              ),
-            ),
+          enabledBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.white, width: 1.0),
           ),
-        ],
+          focusedBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.white, width: 1.0),
+          ),
+          contentPadding: const EdgeInsets.only(bottom: 2),
+        ),
+        items: [], // Empty items list
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedIndustry = newValue;
+            _selectedSubCategory = null;
+          });
+        },
+        icon: const Icon(Icons.arrow_drop_down, color: Colors.white, size: 38),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Please select your business category';
+          }
+          return null;
+        },
       );
     }
 
@@ -632,44 +643,7 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
     );
   }
 
-  Widget _buildErrorMessage(String errorMessage, double labelFontSize) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            errorMessage,
-            style: GoogleFonts.nunito(
-              color: Colors.red,
-              fontSize: labelFontSize * 0.8,
-            ),
-          ),
-          SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () {
-              _loadCategories();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: Text(
-              'Retry',
-              style: GoogleFonts.nunito(
-                fontSize: labelFontSize * 0.7,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildNextButton(BoxConstraints constraints, double fontSize) {
     return Center(

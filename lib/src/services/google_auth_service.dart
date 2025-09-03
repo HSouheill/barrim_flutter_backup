@@ -10,7 +10,12 @@ import 'package:barrim/src/services/api_service.dart';
 import 'package:barrim/src/utils/api_constants.dart';
 
 class GoogleSignInProvider extends ChangeNotifier {
-  final googleSignIn = GoogleSignIn();
+  final googleSignIn = GoogleSignIn(
+    scopes: [
+      'email',
+      'profile',
+    ],
+  );
   GoogleSignInAccount? _user;
   GoogleSignInAccount get user => _user!;
   bool _isLoading = false;
@@ -71,6 +76,8 @@ class GoogleSignInProvider extends ChangeNotifier {
       try {
         // Sign out first to ensure fresh login
         await googleSignIn.signOut();
+        
+        // Force a new sign-in to get fresh tokens
         final googleUser = await googleSignIn.signIn();
         if (googleUser == null) {
           _isLoading = false;
@@ -106,6 +113,31 @@ class GoogleSignInProvider extends ChangeNotifier {
         throw Exception('Failed to get ID token from Google authentication');
       }
 
+      // Debug: Check token expiration
+      try {
+        final parts = googleAuth.idToken!.split('.');
+        if (parts.length >= 2) {
+          final payload = parts[1];
+          // Fix base64 padding
+          String paddedPayload = payload;
+          while (paddedPayload.length % 4 != 0) {
+            paddedPayload += '=';
+          }
+          final decodedPayload = base64Url.decode(paddedPayload);
+          final payloadMap = jsonDecode(utf8.decode(decodedPayload));
+          final exp = payloadMap['exp'];
+          final iat = payloadMap['iat'];
+          final currentTime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+          
+          print("Token debug - exp: $exp, iat: $iat, current: $currentTime");
+          if (exp != null && currentTime > exp) {
+            print("WARNING: Token appears to be expired!");
+          }
+        }
+      } catch (e) {
+        print("Could not decode token for debugging: $e");
+      }
+
       // Send the Google ID token to your backend using the new endpoint
       http.Response? response;
       int retryCount = 0;
@@ -118,13 +150,17 @@ class GoogleSignInProvider extends ChangeNotifier {
 
           final apiUrl = '${ApiService.baseUrl}${ApiConstants.googleAuthEndpoint}';
           print("API URL: $apiUrl");
+          print("Base URL: ${ApiService.baseUrl}");
+          print("Endpoint: ${ApiConstants.googleAuthEndpoint}");
 
-          // New request body structure - only send idToken
+          // Request body structure - backend expects idToken
           final requestBody = {
             'idToken': googleAuth.idToken,
           };
 
           print("Request body: ${jsonEncode(requestBody)}");
+          print("Token length: ${googleAuth.idToken?.length}");
+          print("Token starts with: ${googleAuth.idToken?.substring(0, 20)}...");
 
           response = await _makeRequest(
             'POST',
@@ -160,8 +196,9 @@ class GoogleSignInProvider extends ChangeNotifier {
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // New response structure from the updated endpoint
+        // Response structure from the backend endpoint
         final token = responseData['token'];
+        final refreshToken = responseData['refreshToken'];
         final userData = responseData['user'];
 
         // Save token
@@ -169,6 +206,12 @@ class GoogleSignInProvider extends ChangeNotifier {
           await ApiService.saveToken(token);
         } else {
           throw Exception('Invalid response: Missing token');
+        }
+
+        // Save refresh token if available
+        if (refreshToken != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('refresh_token', refreshToken);
         }
 
         // Save user data
@@ -189,7 +232,16 @@ class GoogleSignInProvider extends ChangeNotifier {
         };
       } else {
         // Handle error response
-        String errorMessage = responseData['error'] ?? 'Failed to authenticate with backend';
+        String errorMessage;
+        if (response.statusCode == 401) {
+          errorMessage = responseData['error'] ?? 'Invalid Google credentials';
+        } else if (response.statusCode == 400) {
+          errorMessage = responseData['error'] ?? 'Invalid request format';
+        } else if (response.statusCode == 500) {
+          errorMessage = responseData['error'] ?? 'Server error occurred';
+        } else {
+          errorMessage = responseData['error'] ?? 'Failed to authenticate with backend';
+        }
         throw Exception('$errorMessage (Status: ${response.statusCode})');
       }
     } catch (e) {

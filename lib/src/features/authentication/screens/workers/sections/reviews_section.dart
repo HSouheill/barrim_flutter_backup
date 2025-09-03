@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../../../../models/review.dart';
 import '../../../../../services/api_service.dart';
+import '../../../../../utils/bad_word_filter.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 
 class ReviewsSection extends StatefulWidget {
@@ -29,6 +30,10 @@ class _ReviewsSectionState extends State<ReviewsSection> {
   File? _selectedMedia;
   bool _isMediaUploading = false;
   String? _mediaType; // 'image' or 'video'
+  
+  // Bad word detection variables
+  bool _hasInappropriateContent = false;
+  List<dynamic> _detectedBadWords = [];
 
   // Constants for media validation
   static const int _maxImageSizeInMB = 5;
@@ -39,6 +44,9 @@ class _ReviewsSectionState extends State<ReviewsSection> {
   void initState() {
     super.initState();
     _fetchReviews();
+    
+    // Add listener for real-time bad word detection
+    _commentController.addListener(_checkForBadWords);
   }
 
   Future<void> _fetchReviews() async {
@@ -220,6 +228,27 @@ class _ReviewsSectionState extends State<ReviewsSection> {
       return;
     }
 
+    // Check for inappropriate content
+    final commentText = _commentController.text.trim();
+    if (BadWordFilter.containsBadWords(commentText)) {
+      final badWords = BadWordFilter.getBadWordsFound(commentText);
+      final shouldContinue = await BadWordFilter.showBadWordWarningDialog(context, badWords);
+      
+      if (!shouldContinue) {
+        return; // User chose to cancel
+      }
+      
+      // User acknowledged but we still prevent submission
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please remove inappropriate language from your review before submitting.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
     });
@@ -281,6 +310,33 @@ class _ReviewsSectionState extends State<ReviewsSection> {
     return ApiService.baseUrl.endsWith('/')
         ? ApiService.baseUrl + cleanPath
         : ApiService.baseUrl + '/' + cleanPath;
+  }
+
+  // Check for bad words in real-time
+  void _checkForBadWords() {
+    final text = _commentController.text;
+    if (text.isEmpty) {
+      setState(() {
+        _hasInappropriateContent = false;
+        _detectedBadWords = [];
+      });
+      return;
+    }
+
+    final hasBadWords = BadWordFilter.containsBadWords(text);
+    final badWords = hasBadWords ? BadWordFilter.getBadWordsFound(text) : [];
+
+    setState(() {
+      _hasInappropriateContent = hasBadWords;
+      _detectedBadWords = badWords;
+    });
+  }
+
+  @override
+  void dispose() {
+    _commentController.removeListener(_checkForBadWords);
+    _commentController.dispose();
+    super.dispose();
   }
 
   @override
@@ -388,7 +444,7 @@ class _ReviewsSectionState extends State<ReviewsSection> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // User avatar - blue circle (outside the container), positioned slightly lower
               Padding(
@@ -417,29 +473,71 @@ class _ReviewsSectionState extends State<ReviewsSection> {
                     children: [
                       // Top row with text field and stars
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Add Review text field
                           Expanded(
-                            child: TextField(
-                              controller: _commentController,
-                              decoration: InputDecoration(
-                                hintText: 'Add Review',
-                                hintStyle: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextField(
+                                  controller: _commentController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Add Review',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  maxLines: 1,
                                 ),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                              maxLines: 1,
+                                // Bad word warning indicator
+                                if (_hasInappropriateContent)
+                                  Container(
+                                    margin: EdgeInsets.only(top: 4),
+                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.red.shade200),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.warning_amber,
+                                          size: 14,
+                                          color: Colors.red.shade700,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            'Inappropriate content detected',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.red.shade700,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
 
-                          // Rating stars
+                          // Rating stars - with proper spacing
+                          SizedBox(width: 8),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: List.generate(
                               5,
-                                  (index) => GestureDetector(
+                              (index) => GestureDetector(
                                 onTap: () {
                                   setState(() {
                                     selectedRating = index + 1;
@@ -467,52 +565,57 @@ class _ReviewsSectionState extends State<ReviewsSection> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           // Left side - media icons with functionality
-                          Row(
-                            children: [
-                              GestureDetector(
-                                onTap: _isMediaUploading ? null : () => _showMediaPickerModal(),
-                                child: Icon(
-                                  _selectedMedia != null ? Icons.edit : Icons.photo_camera_outlined,
-                                  color: _isMediaUploading ? Colors.grey : Colors.blue,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              if (_selectedMedia != null)
+                          Flexible(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                                 GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedMedia = null;
-                                      _mediaType = null;
-                                    });
-                                  },
-                                  child: const Icon(
-                                    Icons.close,
-                                    color: Colors.red,
+                                  onTap: _isMediaUploading ? null : () => _showMediaPickerModal(),
+                                  child: Icon(
+                                    _selectedMedia != null ? Icons.edit : Icons.photo_camera_outlined,
+                                    color: _isMediaUploading ? Colors.grey : Colors.blue,
                                     size: 20,
                                   ),
                                 ),
-                            ],
+                                const SizedBox(width: 12),
+                                if (_selectedMedia != null)
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedMedia = null;
+                                        _mediaType = null;
+                                      });
+                                    },
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
 
                           // Post button
-                          _isSubmitting
-                              ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
-                          )
-                              : GestureDetector(
-                            onTap: _submitReview,
-                            child: Padding(
-                              padding: const EdgeInsets.all(4.0), // Add padding to increase tap target
-                              child: Text(
-                                'Post',
-                                style: TextStyle(
-                                  color: Colors.blue,
-                                  fontWeight: FontWeight.w600,
+                          Flexible(
+                            child: _isSubmitting
+                                ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                                : GestureDetector(
+                              onTap: _submitReview,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4.0), // Add padding to increase tap target
+                                child: Text(
+                                  'Post',
+                                  style: TextStyle(
+                                    color: Colors.blue,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ),

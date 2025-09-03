@@ -30,6 +30,8 @@ import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
 import '../category/categories.dart';
+import '../../../../services/google_maps_service.dart';
+import 'notification.dart';
 
 class UserDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -627,9 +629,21 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
 
   void _toggleSidebar() {
+    print('_toggleSidebar called - Current state: $_isSidebarOpen');
     setState(() {
       _isSidebarOpen = !_isSidebarOpen;
     });
+    print('_toggleSidebar completed - New state: $_isSidebarOpen');
+  }
+
+  void _closeSidebar() {
+    print('_closeSidebar called - Current state: $_isSidebarOpen');
+    if (_isSidebarOpen) {
+      setState(() {
+        _isSidebarOpen = false;
+      });
+      print('_closeSidebar completed - Sidebar closed');
+    }
   }
 
 // Test widget to verify restaurant icon is loading
@@ -2293,16 +2307,48 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   @override
   Widget build(BuildContext context) {
     print('Building UserDashboard, _selectedPlace: ${_selectedPlace?['name'] ?? 'NULL'}');
+    
+    // Safety check: Ensure Google Maps services are ready before building
+    // This prevents crashes when the dashboard tries to create map widgets
+    if (!GoogleMapsService.isInitialized) {
+      print('Google Maps services not ready, showing loading screen');
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Initializing map services...',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Please wait...',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     return Scaffold(
       body: GestureDetector(
         onTap: () {
+          print('GestureDetector tapped - Sidebar open: $_isSidebarOpen');
           if (!_isMapExpanded) {
             setState(() {
               _isMapExpanded = true;
             });
           }
-          if (_isSidebarOpen) _toggleSidebar();
+          if (_isSidebarOpen) {
+            print('Closing sidebar via tap');
+            _closeSidebar();
+          }
         },
+        behavior: HitTestBehavior.opaque, // Ensure taps are detected even on transparent areas
         child: Stack(
 
           children: [
@@ -2338,8 +2384,12 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 AppHeader(
                   profileImagePath: _profileImagePath,
                   onNotificationTap: () {
-                    print('User Data: ${widget.userData}');
-                    print('Profile Pic Path: $_profileImagePath');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NotificationsPage(),
+                      ),
+                    );
                   },
                   onProfileTap: () {
                     Navigator.push(
@@ -2635,6 +2685,16 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 onLocationCardTap: () {
                   // Handle location card tap
                 },
+              ),
+            // Semi-transparent overlay when sidebar is open
+            if (_isSidebarOpen)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: _closeSidebar,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.3),
+                  ),
+                ),
               ),
             AnimatedPositioned(
               duration: Duration(milliseconds: 300),

@@ -17,6 +17,7 @@ import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
 import 'package:barrim/src/utils/authService.dart';
+import 'worker_home.dart';
 
 class ServiceProviderProfile extends StatefulWidget {
   final dynamic provider;
@@ -194,17 +195,15 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
     final Map<String, dynamic> finalData = {
       'id': widget.providerId,
       'name': apiData['fullName']?.toString() ?? apiData['businessName']?.toString() ?? 'Unknown',
-      'position': spInfo['yearsExperience'] != null 
-          ? '${_getYearsExperience(spInfo['yearsExperience'])} Years of Experience'
+      'position': _getYearsExperienceFromProvider(apiData) != null 
+          ? '${_getYearsExperience(_getYearsExperienceFromProvider(apiData))} Years of Experience'
           : '0 Years of Experience',
       'rating': _getProviderRating(apiData),
       'jobTitle': spInfo['serviceType']?.toString() ?? 'Service Provider',
       'location': _getLocationString(location),
-      'languages': spInfo['languages']?.cast<String>() ?? ['English'],
-      'skills': spInfo['skills']?.cast<String>() ?? [],
       'description': _getProviderDescription(apiData),
       'availability': {
-        'emergencyStatus': spInfo['status']?.toString() ?? 'Not Available',
+        // 'emergencyStatus': spInfo['status']?.toString() ?? 'Not Available',
         'calendar': spInfo['calendar'] ?? {},
         'hours': spInfo['availableHours'] ?? {
           'morning': false,
@@ -227,7 +226,8 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
       'serviceType': spInfo['serviceType'],
       'customServiceType': spInfo['customServiceType'],
       'availableDays': spInfo['availableDays']?.cast<String>() ?? [],
-      'emergencyStatus': spInfo['status']?.toString() ?? 'Not Available',
+      // 'emergencyStatus': spInfo['status']?.toString() ?? 'Not Available',
+      'yearsExperience': apiData['yearsExperience'],
     };
     
     print('ServiceProviderProfile: Final mapped data: $finalData');
@@ -270,7 +270,9 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
 
     // If no description is found, create a personalized default message
     String providerName = provider['fullName']?.toString() ?? provider['businessName']?.toString() ?? 'service provider';
-    String serviceType = spInfo['serviceType']?.toString() ?? provider['category']?.toString() ?? 'service';
+    String serviceType = provider['serviceType']?.toString() ?? 
+                        spInfo['serviceType']?.toString() ?? 
+                        provider['category']?.toString() ?? 'service';
     
     return '$providerName is a professional $serviceType with experience in their field.';
   }
@@ -284,7 +286,27 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
     return 0;
   }
 
+  // Helper method to get years of experience from provider data
+  dynamic _getYearsExperienceFromProvider(Map provider) {
+    // First check serviceProviderInfo.yearsExperience
+    if (provider['serviceProviderInfo'] != null && 
+        provider['serviceProviderInfo']['yearsExperience'] != null) {
+      return provider['serviceProviderInfo']['yearsExperience'];
+    }
+    
+    // Fallback to root level yearsExperience
+    if (provider['yearsExperience'] != null) {
+      return provider['yearsExperience'];
+    }
+    
+    // Default to 0 if no experience data found
+    return 0;
+  }
+
   int _getYearsExperience(dynamic years) {
+    if (years == null) {
+      return 0; // Default value if null
+    }
     if (years is num) return years.round();
     if (years is String) return int.tryParse(years) ?? 0;
     return 0;
@@ -434,8 +456,9 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
                           phone: providerData['phoneNumber'],
                           serviceProviderInfo: ServiceProviderInfo(
                             serviceType: providerData['jobTitle'] ?? 'Service Provider',
-                            yearsExperience: int.tryParse(providerData['position']?.toString().split(' ')[0] ?? '0') ?? 0,
-                            availableDays: const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+                            yearsExperience: _getYearsExperience(_getYearsExperienceFromProvider(providerData)),
+                            availableDays: providerData['availableDays']?.cast<String>() ?? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+                            availableHours: providerData['availability']?['hours']?.cast<String>() ?? ['09:00', '17:00'],
                           ),
                           location: null,
                         ),
@@ -465,7 +488,7 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
           AnimatedPositioned(
             duration: Duration(milliseconds: 300),
             curve: Curves.easeInOut,
-            right: _isSidebarOpen ? 0 : -160,
+            right: _isSidebarOpen ? 0 : -200,
             top: 0,
             bottom: 0,
             child: _buildSidebar(context),
@@ -477,7 +500,7 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
 
   Widget _buildSidebar(BuildContext context) {
     return Container(
-      width: 160,
+      width: 200,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -563,6 +586,11 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
                   onTap: () {
                     setState(() {
                       _isSidebarOpen = false;
+                    });
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => DriversGuidesPage()),
+                      );
                     });
                   },
                 ),

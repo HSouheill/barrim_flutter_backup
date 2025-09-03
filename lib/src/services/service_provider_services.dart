@@ -197,6 +197,113 @@ class ServiceProviderService {
     }
   }
 
+  // Update service provider info with multipart form data
+  Future<void> updateServiceProviderInfo({
+    required String businessName,
+    String? email,
+    String? currentPassword,
+    String? newPassword,
+    Map<String, dynamic>? additionalData,
+    List<File>? certificateFiles,
+  }) async {
+    try {
+      final token = await _tokenStorage.getToken();
+      if (token == null) throw Exception('No token found');
+      
+      // Create multipart request
+      var request = http.MultipartRequest(
+        'PUT',
+        Uri.parse('$baseUrl/api/service-provider/update'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      
+      // Add basic fields
+      request.fields['fullName'] = businessName;
+      if (email != null && email.isNotEmpty) {
+        request.fields['email'] = email;
+      }
+      if (newPassword != null && newPassword.isNotEmpty) {
+        request.fields['password'] = newPassword;
+      }
+      
+      // Add additional data fields
+      if (additionalData != null) {
+        if (additionalData['phone'] != null) {
+          request.fields['phone'] = additionalData['phone'];
+        }
+        if (additionalData['serviceType'] != null) {
+          request.fields['serviceType'] = additionalData['serviceType'];
+        }
+        if (additionalData['yearsExperience'] != null) {
+          request.fields['yearsExperience'] = additionalData['yearsExperience'].toString();
+        }
+        if (additionalData['availableDays'] != null) {
+          // Send availableDays as JSON string in multipart form
+          List<String> availableDays = List<String>.from(additionalData['availableDays']);
+          request.fields['availableDays'] = json.encode(availableDays);
+          print('Sending availableDays: $availableDays');
+          print('Sending availableDays as JSON: ${json.encode(availableDays)}');
+        }
+        if (additionalData['availableHours'] != null) {
+          // Send availableHours as JSON string in multipart form
+          List<String> availableHours = List<String>.from(additionalData['availableHours']);
+          request.fields['availableHours'] = json.encode(availableHours);
+          print('Sending availableHours: $availableHours');
+          print('Sending availableHours as JSON: ${json.encode(availableHours)}');
+        }
+        if (additionalData['location'] != null) {
+          // Send location as JSON string in multipart form
+          Map<String, dynamic> location = additionalData['location'];
+          request.fields['location'] = json.encode(location);
+          print('Sending location as JSON: ${json.encode(location)}');
+        }
+      }
+      
+      // Add certificate files if provided
+      if (certificateFiles != null && certificateFiles.isNotEmpty) {
+        for (File certificateFile in certificateFiles) {
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              'certificates',
+              certificateFile.path,
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        }
+      }
+      
+      print('Updating service provider info with data: ${request.fields}');
+      print('Certificate files count: ${request.files.length}');
+      
+      // Send multipart request
+      final client = await _getCustomClient();
+      var response = await http.Response.fromStream(await client.send(request));
+      
+      print('Service provider info update response status: ${response.statusCode}');
+      print('Service provider info update response body: ${response.body}');
+      
+      if (response.statusCode != 200) {
+        String errorMessage = 'Failed to update service provider info';
+        
+        try {
+          if (response.body.trim().startsWith('<html>') || response.body.trim().startsWith('<!DOCTYPE')) {
+            errorMessage = 'Server error occurred while updating service provider info. Please try again later.';
+          } else {
+            final responseData = json.decode(response.body);
+            errorMessage = responseData['message'] ?? 'Failed to update service provider info';
+          }
+        } catch (parseError) {
+          if (response.body.isNotEmpty && response.body.length < 200) {
+            errorMessage = 'Server response: ${response.body}';
+          }
+        }
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      throw Exception('Error updating service provider info: $e');
+    }
+  }
+
   Future<void> updateServiceProviderProfileWithLogo({
     required String businessName,
     String? email,

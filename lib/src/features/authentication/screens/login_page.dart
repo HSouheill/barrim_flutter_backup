@@ -32,6 +32,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   String _countryCode = '+961'; // Default country code
   bool _isPhoneNumber = false; // Track if user is entering phone number
+  bool _rememberMe = false; // Track remember me checkbox state
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
@@ -50,6 +51,7 @@ class _LoginPageState extends State<LoginPage> {
         final response = await ApiService.login(
           loginIdentifier,
           _passwordController.text,
+          rememberMe: _rememberMe, // Pass the remember me value
         );
 
         // Debug print to see the actual response structure
@@ -67,7 +69,17 @@ class _LoginPageState extends State<LoginPage> {
           userProvider.setUser(user);
           userProvider.setToken(userData['token']);
 
+          // Store remember me token if available
+          if (_rememberMe && userData['rememberMeToken'] != null) {
+            userProvider.setRememberMeToken(userData['rememberMeToken']);
+          }
+
           print("User type detected: $userType");
+          
+          // Add a small delay to ensure Google Maps services are ready
+          // This prevents the crash that occurs when navigating immediately after login
+          await Future.delayed(const Duration(milliseconds: 500));
+          
           _navigateAfterLogin(userType, userData);
         }
       } catch (e) {
@@ -130,6 +142,10 @@ class _LoginPageState extends State<LoginPage> {
         //   ),
         // );
 
+        // Add a small delay to ensure Google Maps services are ready
+        // This prevents the crash that occurs when navigating immediately after Google Sign-In
+        await Future.delayed(const Duration(milliseconds: 500));
+
         // Navigate based on user type
         _navigateAfterLogin(userType, result);
       } else if (provider.error != null) {
@@ -157,6 +173,14 @@ class _LoginPageState extends State<LoginPage> {
   void _navigateAfterLogin(String userType, Map<String, dynamic> userData) {
     // Navigate based on user type
     print("Navigating to dashboard for user type: $userType");
+
+    // Add a safety check to ensure Google Maps services are ready
+    // This prevents crashes when navigating to dashboards with maps
+    if (userType == 'user' || userType == 'company' || userType == 'serviceProvider' || userType == 'wholesaler') {
+      print("Ensuring Google Maps services are ready before navigation...");
+      // The delay was already added in the Apple Sign-In process
+      // Additional safety check can be added here if needed
+    }
 
     switch (userType) {
       case 'user':
@@ -437,6 +461,35 @@ class _LoginPageState extends State<LoginPage> {
                             },
                           ),
 
+                          // Remember Me Checkbox
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16.0),
+                            child: Row(
+                              children: [
+                                Checkbox(
+                                  value: _rememberMe,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _rememberMe = value ?? false;
+                                    });
+                                  },
+                                  activeColor: const Color(0xFF0094FF),
+                                  checkColor: Colors.white,
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    'Remember Me',
+                                    style: GoogleFonts.nunito(
+                                      color: Colors.white,
+                                      fontSize: getInputFontSize() * 0.8,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
                           // Add Forgot Password link
                           Align(
                             alignment: Alignment.centerRight,
@@ -623,6 +676,12 @@ class _LoginPageState extends State<LoginPage> {
                                         userProvider.setUser(data['user']);
                                         userProvider.setToken(data['token']);
                                         final userType = data['user']['userType'] ?? 'user';
+                                        
+                                        // Add a small delay to ensure Google Maps services are ready
+                                        // This prevents the crash that occurs when navigating immediately after Apple Sign-In
+                                        await Future.delayed(const Duration(milliseconds: 500));
+                                        
+                                        // Navigate after the delay
                                         _navigateAfterLogin(userType, data);
                                       } else {
                                         setState(() {

@@ -176,55 +176,8 @@ class DescriptionSection extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
-              // Languages Row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Languages: ',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      (_formatList(providerData['languages']) ?? 'English') ?? 'English',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
               // Skills Row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Skills: ',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      (_formatList(providerData['skills']) ?? 'No skills specified') ?? 'No skills specified',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+              
 
               // Service Type Row
               Row(
@@ -252,29 +205,29 @@ class DescriptionSection extends StatelessWidget {
               const SizedBox(height: 12),
 
               // Emergency Status Row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Emergency Status: ',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      (providerData['emergencyStatus'] ?? 'Not Available') ?? 'Not Available',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: providerData['emergencyStatus'] == 'Available' ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+              // Row(
+              //   crossAxisAlignment: CrossAxisAlignment.start,
+              //   children: [
+              //     const Text(
+              //       'Emergency Status: ',
+              //       style: TextStyle(
+              //         fontSize: 15,
+              //         color: Colors.black87,
+              //       ),
+              //     ),
+              //     Expanded(
+              //       child: Text(
+              //         (providerData['emergencyStatus'] ?? 'Not Available') ?? 'Not Available',
+              //         style: TextStyle(
+              //           fontSize: 15,
+              //           color: providerData['emergencyStatus'] == 'Available' ? Colors.green : Colors.red,
+              //           fontWeight: FontWeight.w500,
+              //         ),
+              //       ),
+              //     ),
+              //   ],
+              // ),
+              // const SizedBox(height: 12),
 
               // Description Row
               Row(

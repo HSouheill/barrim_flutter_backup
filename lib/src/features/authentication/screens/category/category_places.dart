@@ -596,15 +596,23 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
       return Center(child: Text('No branches found for this category or related categories'));
     }
 
+    // Get featured branches
+    final featuredBranches = _getFeaturedBranches();
+    
+    // Get remaining branches (excluding featured ones)
+    final remainingBranches = _filteredBranches.where((branch) => 
+      !featuredBranches.any((featured) => featured['_id'] == branch['_id'])
+    ).toList();
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Featured Section - Take the top rated branches
-          if (_filteredBranches.isNotEmpty)
+          if (featuredBranches.isNotEmpty)
             CategorySection(
               title: 'Featured',
-              branches: _getFeaturedBranches().map((branch) => BranchCard(
+              branches: featuredBranches.map((branch) => BranchCard(
                 branch: branch,
                 onTap: () => _navigateToBranchDetails(branch),
               )).toList(),
@@ -613,25 +621,15 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
           // Category filter chips
           _buildCategoryFilters(),
 
-          // All Branches Section
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'All ${_getCategoryTitle(widget.categoryId)} & Related (${_filteredBranches.length} results)',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+
           ListView.builder(
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
-            itemCount: _filteredBranches.length,
+            itemCount: remainingBranches.length,
             itemBuilder: (context, index) {
               return BranchCard(
-                branch: _filteredBranches[index],
-                onTap: () => _navigateToBranchDetails(_filteredBranches[index]),
+                branch: remainingBranches[index],
+                onTap: () => _navigateToBranchDetails(remainingBranches[index]),
               );
             },
           ),

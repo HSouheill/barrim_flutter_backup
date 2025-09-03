@@ -36,6 +36,13 @@ class CompanyService {
         companyData: companyData,
       );
 
+      // Print the data being posted to backend
+      print('=== COMPANY SIGNUP DATA POSTED TO BACKEND ===');
+      print('Endpoint: $baseUrl/api/auth/signup');
+      print('Request Data:');
+      print(jsonEncode(request.toJson()));
+      print('=============================================');
+
       final response = await client.post(
         url,
         headers: {

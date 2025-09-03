@@ -165,7 +165,7 @@ class ApiService {
   // Update the login function in api_service.dart
   // Login request that handles different user types
   static Future<Map<String, dynamic>> login(String emailOrPhone,
-      String password) async {
+      String password, {bool rememberMe = false}) async {
     try {
       // Determine if the input is an email or phone number
       final isEmail = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(emailOrPhone);
@@ -196,6 +196,7 @@ class ApiService {
       // Prepare request body based on input type
       Map<String, dynamic> requestBody = {
         'password': password,
+        'rememberMe': rememberMe, // Add remember me field
       };
 
       // Add email or phone field based on input type
@@ -285,6 +286,27 @@ class ApiService {
   static Future<Map<String, dynamic>> signupUser(
       Map<String, dynamic> userData) async {
     try {
+      // Prepare location data - flatten the structure if it exists
+      Map<String, dynamic> locationData = {};
+      if (userData['location'] != null) {
+        final location = userData['location'] as Map<String, dynamic>;
+        
+        // Extract coordinates
+        locationData['lat'] = location['lat'];
+        locationData['lng'] = location['lng'];
+        
+        // Extract address components and flatten them
+        if (location['address'] != null) {
+          final address = location['address'] as Map<String, dynamic>;
+          locationData['country'] = address['country'] ?? '';
+          locationData['city'] = address['city'] ?? '';
+          locationData['district'] = address['district'] ?? '';
+          locationData['street'] = address['street'] ?? '';
+          locationData['postalCode'] = address['postalCode'] ?? '';
+          locationData['fullAddress'] = address['fullAddress'] ?? '';
+        }
+      }
+
       final Map<String, dynamic> requestData = {
         'email': userData['email'],
         'password': userData['password'],
@@ -295,8 +317,16 @@ class ApiService {
         'phone': userData['phone'] ?? '',
         'referralCode': userData['referralCode'] ?? '',
         'interestedDeals': userData['interestedDeals'] ?? [],
-        'location': userData['location'] ?? null,
+        'location': locationData,
       };
+      
+      // Print the data being posted to backend
+      print('=== USER SIGNUP DATA POSTED TO BACKEND ===');
+      print('Endpoint: $baseUrl/api/auth/signup');
+      print('Request Data:');
+      print(jsonEncode(requestData));
+      print('==========================================');
+      
       // await ApiService.signupBusiness(requestData);
 
       final response = await _makeRequest(
@@ -427,6 +457,17 @@ class ApiService {
         print("$key: $value");
       });
 
+      // Print the complete data being posted to backend
+      print('=== BUSINESS SIGNUP DATA POSTED TO BACKEND ===');
+      print('Endpoint: $baseUrl/api/auth/signup-with-logo');
+      print('Request Fields:');
+      print(jsonEncode(fields));
+      print('Files: ${files.length} file(s)');
+      if (files.isNotEmpty) {
+        print('File names: ${files.map((f) => f.filename).join(', ')}');
+      }
+      print('==============================================');
+
       // Send the request using custom client
       final streamedResponse = await _makeMultipartRequest(
         'POST',
@@ -498,6 +539,17 @@ class ApiService {
         files.add(multipartFile);
       }
 
+      // Print the data being posted to backend
+      print('=== SERVICE PROVIDER SIGNUP WITH LOGO DATA POSTED TO BACKEND ===');
+      print('Endpoint: $baseUrl/api/auth/signup-service-provider-with-logo');
+      print('Request Fields:');
+      print(jsonEncode(fields));
+      print('Files: ${files.length} file(s)');
+      if (files.isNotEmpty) {
+        print('File names: ${files.map((f) => f.filename).join(', ')}');
+      }
+      print('================================================================');
+
       // Send the request using custom client
       final streamedResponse = await _makeMultipartRequest(
         'POST',
@@ -555,6 +607,13 @@ class ApiService {
   static Future<Map<String, dynamic>> signupServiceProvider(
       Map<String, dynamic> userData) async {
     try {
+      // Print the data being posted to backend
+      print('=== SERVICE PROVIDER SIGNUP DATA POSTED TO BACKEND ===');
+      print('Endpoint: $baseUrl/auth/signup');
+      print('Request Data:');
+      print(jsonEncode(userData));
+      print('=====================================================');
+
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/auth/signup'),
@@ -1975,15 +2034,52 @@ class ApiService {
     }
   }
 
-  // Updated method to create a review
+  // Updated method to create a review with multipart form data
   static Future<bool> createReview(Review review) async {
     try {
-      final response = await _makeRequest(
+      // Prepare headers for multipart request (without Content-Type)
+      Map<String, String> headers = await _getMultipartHeaders();
+      
+      // Prepare fields
+      Map<String, String> fields = {
+        'serviceProviderId': review.serviceProviderId,
+        'rating': review.rating.toString(),
+        'comment': review.comment,
+      };
+
+      // Add mediaType if present
+      if (review.mediaType != null && review.mediaType!.isNotEmpty) {
+        fields['mediaType'] = review.mediaType!;
+      }
+
+      // Prepare files
+      List<http.MultipartFile> files = [];
+
+      // Add media file if present
+      if (review.mediaFile != null) {
+        final fileStream = http.ByteStream(review.mediaFile!.openRead());
+        final fileLength = await review.mediaFile!.length();
+        
+        final multipartFile = http.MultipartFile(
+          'mediaFile',
+          fileStream,
+          fileLength,
+          filename: review.mediaFile!.path.split('/').last,
+        );
+        
+        files.add(multipartFile);
+      }
+
+      // Send the request using multipart
+      final streamedResponse = await _makeMultipartRequest(
         'POST',
         Uri.parse('$baseUrl/api/reviews'),
-        headers: await _getHeaders(),
-        body: jsonEncode(review.toJson()),
+        headers: headers,
+        fields: fields,
+        files: files,
       );
+      
+      final response = await http.Response.fromStream(streamedResponse);
 
       print('Create review response: ${response.statusCode}, ${response.body}');
 

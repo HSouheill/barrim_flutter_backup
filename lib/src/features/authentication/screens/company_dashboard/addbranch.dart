@@ -44,6 +44,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
   final ImagePicker _picker = ImagePicker();
   List<File> _selectedImages = [];
   List<File> _selectedVideos = [];
+  List<String> _existingImageUrls = []; // For storing existing image URLs
   bool _isLoadingLocation = false;
 
   // Location data
@@ -209,12 +210,34 @@ class _AddBranchPageState extends State<AddBranchPage> {
       }
     }
 
-    // Load images if available
-    // For edit mode, we would likely need to handle remote images differently
-    // This is a placeholder for that logic
+    // Load existing images if available
     if (branchData['images'] != null && branchData['images'] is List) {
-      // Here you would implement logic to handle existing images
-      // This might involve downloading them or displaying them from URLs
+      List<String> imageUrls = [];
+      print('AddBranchPage: Loading existing images from branch data: ${branchData['images']}');
+      for (var image in branchData['images']) {
+        if (image != null && image is String && image.isNotEmpty) {
+          // Convert relative paths to full URLs if needed
+          String fullUrl = image;
+          if (!image.startsWith('http')) {
+            fullUrl = '${ApiService.baseUrl}/$image';
+          }
+          imageUrls.add(fullUrl);
+          print('AddBranchPage: Added image URL: $fullUrl');
+        }
+      }
+      setState(() {
+        _existingImageUrls = imageUrls;
+      });
+      print('AddBranchPage: Loaded ${imageUrls.length} existing images');
+    } else {
+      print('AddBranchPage: No existing images found in branch data');
+    }
+
+    // Load existing videos if available
+    if (branchData['videos'] != null && branchData['videos'] is List) {
+      // For now, we'll just note that videos exist
+      // In a full implementation, you might want to download and display video thumbnails
+      print('Branch has ${branchData['videos'].length} existing videos');
     }
   }
 
@@ -315,7 +338,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Clear All Media'),
-          content: Text('Are you sure you want to remove all selected images and videos?'),
+          content: Text('Are you sure you want to remove all images and videos?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -326,6 +349,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                 setState(() {
                   _selectedImages.clear();
                   _selectedVideos.clear();
+                  _existingImageUrls.clear();
                 });
                 Navigator.pop(context);
               },
@@ -486,6 +510,130 @@ class _AddBranchPageState extends State<AddBranchPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Existing images preview (for edit mode)
+                  if (widget.isEditMode && _existingImageUrls.isNotEmpty) ...[
+                    // Debug print
+                    Builder(
+                      builder: (context) {
+                        print('AddBranchPage: Rendering existing images section with ${_existingImageUrls.length} images');
+                        return SizedBox.shrink();
+                      },
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Existing Images (${_existingImageUrls.length})",
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _existingImageUrls.clear();
+                                });
+                              },
+                              child: Text(
+                                "Remove All",
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(
+                          height: 120,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _existingImageUrls.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 10.0),
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        _existingImageUrls[index],
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Container(
+                                            width: 100,
+                                            height: 100,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[200],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                value: loadingProgress.expectedTotalBytes != null
+                                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                                    : null,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            width: 100,
+                                            height: 100,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[200],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              Icons.image_not_supported,
+                                              color: Colors.grey[400],
+                                              size: 30,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _existingImageUrls.removeAt(index);
+                                          });
+                                        },
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.red,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 16),
+                  ],
+                  
                   // Selected images preview
                   if (_selectedImages.isNotEmpty) ...[
                     Column(
@@ -495,7 +643,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              "Selected Images (${_selectedImages.length})",
+                              "New Images (${_selectedImages.length})",
                               style: TextStyle(
                                 color: Colors.blue,
                                 fontSize: 14,
@@ -702,7 +850,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            if (_selectedImages.isNotEmpty || _selectedVideos.isNotEmpty) ...[
+                            if (_selectedImages.isNotEmpty || _selectedVideos.isNotEmpty || _existingImageUrls.isNotEmpty) ...[
                               SizedBox(width: 8),
                               Container(
                                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -711,7 +859,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  "${_selectedImages.length + _selectedVideos.length}",
+                                  "${_selectedImages.length + _selectedVideos.length + _existingImageUrls.length}",
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
@@ -981,6 +1129,8 @@ class _AddBranchPageState extends State<AddBranchPage> {
       'phone': '${countryCode ?? "+961"} ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
       'description': _descriptionController.text.isNotEmpty ? _descriptionController.text : "No description",
       'costPerCustomer': _costPerCustomerController.text.isNotEmpty ? double.parse(_costPerCustomerController.text) : null,
+      // Include existing images that should be kept
+      'existingImages': _existingImageUrls,
     };
 
     try {
@@ -1062,6 +1212,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
       setState(() {
         _selectedImages = [];
         _selectedVideos = [];
+        _existingImageUrls = [];
         latitude = null;
         longitude = null;
         selectedCategory = null;

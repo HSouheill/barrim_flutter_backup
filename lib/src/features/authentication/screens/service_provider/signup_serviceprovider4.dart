@@ -480,39 +480,19 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
   }
 
   Widget _buildMonthSelector() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween ,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _formatMonth(_currentDate),
-          style: GoogleFonts.nunito(
-            fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
+        // Top row: Month/Year and navigation arrows
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            GestureDetector(
-              onTap: _toggleApplyToAllMonths,
-              child: Row(
-                children: [
-                  Icon(
-                    _applyToAllMonths
-                        ? Icons.check_box
-                        : Icons.check_box_outline_blank,
-                    size: 16,
-                    color: _applyToAllMonths ? Color(0xFF009DFF) : Colors.grey,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    'Apply for all months',
-                    style: GoogleFonts.nunito(
-                      fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.5,
-                      color: _applyToAllMonths ? Color(0xFF009DFF) : Colors.grey,
-                    ),
-                  ),
-                ],
+            Text(
+              _formatMonth(_currentDate),
+              style: GoogleFonts.nunito(
+                fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
               ),
             ),
             Row(
@@ -528,6 +508,30 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
               ],
             ),
           ],
+        ),
+        // Bottom row: Apply for all months checkbox
+        SizedBox(height: 8),
+        GestureDetector(
+          onTap: _toggleApplyToAllMonths,
+          child: Row(
+            children: [
+              Icon(
+                _applyToAllMonths
+                    ? Icons.check_box
+                    : Icons.check_box_outline_blank,
+                size: 16,
+                color: _applyToAllMonths ? Color(0xFF009DFF) : Colors.grey,
+              ),
+              SizedBox(width: 4),
+              Text(
+                'Apply for all months',
+                style: GoogleFonts.nunito(
+                  fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.5,
+                  color: _applyToAllMonths ? Color(0xFF009DFF) : Colors.grey,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

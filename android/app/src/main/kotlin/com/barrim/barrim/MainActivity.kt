@@ -1,4 +1,4 @@
-package com.Barrim.AppBarrim
+package com.Dev.DevBarrim
 
 import io.flutter.embedding.android.FlutterActivity
 
