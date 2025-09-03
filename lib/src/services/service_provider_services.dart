@@ -197,7 +197,7 @@ class ServiceProviderService {
     }
   }
 
-  // Update service provider info with multipart form data
+  // Update service provider info with proper field structure
   Future<void> updateServiceProviderInfo({
     required String businessName,
     String? email,
@@ -237,25 +237,35 @@ class ServiceProviderService {
         if (additionalData['yearsExperience'] != null) {
           request.fields['yearsExperience'] = additionalData['yearsExperience'].toString();
         }
+        if (additionalData['location'] != null) {
+          Map<String, dynamic> location = additionalData['location'];
+          if (location['country'] != null) {
+            request.fields['country'] = location['country'];
+          }
+          if (location['district'] != null) {
+            request.fields['district'] = location['district'];
+          }
+          if (location['city'] != null) {
+            request.fields['city'] = location['city'];
+          }
+          if (location['street'] != null) {
+            request.fields['street'] = location['street'];
+          }
+          if (location['postalCode'] != null) {
+            request.fields['postalCode'] = location['postalCode'];
+          }
+        }
+        
+        // Handle arrays by sending them as comma-separated strings
         if (additionalData['availableDays'] != null) {
-          // Send availableDays as JSON string in multipart form
           List<String> availableDays = List<String>.from(additionalData['availableDays']);
-          request.fields['availableDays'] = json.encode(availableDays);
+          request.fields['availableDays'] = availableDays.join(',');
           print('Sending availableDays: $availableDays');
-          print('Sending availableDays as JSON: ${json.encode(availableDays)}');
         }
         if (additionalData['availableHours'] != null) {
-          // Send availableHours as JSON string in multipart form
           List<String> availableHours = List<String>.from(additionalData['availableHours']);
-          request.fields['availableHours'] = json.encode(availableHours);
+          request.fields['availableHours'] = availableHours.join(',');
           print('Sending availableHours: $availableHours');
-          print('Sending availableHours as JSON: ${json.encode(availableHours)}');
-        }
-        if (additionalData['location'] != null) {
-          // Send location as JSON string in multipart form
-          Map<String, dynamic> location = additionalData['location'];
-          request.fields['location'] = json.encode(location);
-          print('Sending location as JSON: ${json.encode(location)}');
         }
       }
       
