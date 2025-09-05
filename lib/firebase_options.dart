@@ -66,7 +66,7 @@ class DefaultFirebaseOptions {
     storageBucket: 'barrim-3b45a.firebasestorage.app',
     androidClientId: '307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com',
     iosClientId: '307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com',
-    iosBundleId: 'com.Dev.DevBarrim',
+    iosBundleId: 'com.barrim.barrim',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -77,7 +77,7 @@ class DefaultFirebaseOptions {
     storageBucket: 'barrim-3b45a.firebasestorage.app',
     androidClientId: '307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com',
     iosClientId: '307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com',
-    iosBundleId: 'com.Dev.DevBarrim',
+    iosBundleId: 'com.barrim.barrim',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

@@ -3,6 +3,7 @@ import 'package:barrim/src/services/api_service.dart';
 import 'package:barrim/src/models/user.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import '../utils/session_manager.dart';
 import 'notification_provider.dart';
@@ -15,6 +16,16 @@ class UserProvider extends ChangeNotifier {
   String? _token;
   String? _rememberMeToken; // Add remember me token field
   bool _isInitialized = false;
+  
+  // Secure storage for credentials
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
 
   Map<String, dynamic>? get userData => _userData;
   bool get isLoading => _isLoading;
@@ -192,7 +203,7 @@ class UserProvider extends ChangeNotifier {
   }
 
   // Clear user data (e.g., on logout)
-  Future<void> clearUserData(BuildContext? context) async {
+  Future<void> clearUserData(BuildContext? context, {bool clearCredentials = false}) async {
     _userData = null;
     _user = null;
     _token = null;
@@ -200,6 +211,11 @@ class UserProvider extends ChangeNotifier {
     
     // Clear stored data
     await _clearStoredData();
+    
+    // Clear credentials if requested (e.g., when user explicitly logs out)
+    if (clearCredentials) {
+      await this.clearCredentials();
+    }
     
     // Close WebSocket connection if context is provided
     if (context != null) {
@@ -213,6 +229,62 @@ class UserProvider extends ChangeNotifier {
     }
     
     notifyListeners();
+  }
+
+  // Save credentials for Remember Me functionality
+  Future<void> saveCredentials(String emailOrPhone, String password) async {
+    try {
+      await _secureStorage.write(key: 'saved_email_or_phone', value: emailOrPhone);
+      await _secureStorage.write(key: 'saved_password', value: password);
+      await _secureStorage.write(key: 'remember_me_enabled', value: 'true');
+      print('Credentials saved for Remember Me');
+    } catch (e) {
+      print('Error saving credentials: $e');
+    }
+  }
+
+  // Load saved credentials
+  Future<Map<String, String?>> loadCredentials() async {
+    try {
+      final emailOrPhone = await _secureStorage.read(key: 'saved_email_or_phone');
+      final password = await _secureStorage.read(key: 'saved_password');
+      final rememberMeEnabled = await _secureStorage.read(key: 'remember_me_enabled');
+      
+      if (emailOrPhone != null && password != null && rememberMeEnabled == 'true') {
+        print('Saved credentials loaded');
+        return {
+          'emailOrPhone': emailOrPhone,
+          'password': password,
+          'rememberMe': 'true',
+        };
+      }
+    } catch (e) {
+      print('Error loading credentials: $e');
+    }
+    return {};
+  }
+
+  // Clear saved credentials
+  Future<void> clearCredentials() async {
+    try {
+      await _secureStorage.delete(key: 'saved_email_or_phone');
+      await _secureStorage.delete(key: 'saved_password');
+      await _secureStorage.delete(key: 'remember_me_enabled');
+      print('Saved credentials cleared');
+    } catch (e) {
+      print('Error clearing credentials: $e');
+    }
+  }
+
+  // Check if Remember Me is enabled
+  Future<bool> isRememberMeEnabled() async {
+    try {
+      final rememberMeEnabled = await _secureStorage.read(key: 'remember_me_enabled');
+      return rememberMeEnabled == 'true';
+    } catch (e) {
+      print('Error checking Remember Me status: $e');
+      return false;
+    }
   }
 
   // Refresh session - call this when app resumes

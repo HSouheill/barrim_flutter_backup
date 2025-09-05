@@ -718,8 +718,17 @@ class _ReviewsSectionState extends State<ReviewsSection> {
     if (imageUrl.isNotEmpty) {
         avatar = CircleAvatar(
           radius: 24,
-        backgroundImage: NetworkImage(getFullImageUrl(imageUrl)),
           backgroundColor: Colors.grey[200],
+          child: ClipOval(
+            child: SecureNetworkImage(
+              imageUrl: getFullImageUrl(imageUrl),
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              placeholder: Icon(Icons.person, color: Colors.grey[600], size: 24),
+              errorWidget: (context, url, error) => Icon(Icons.person, color: Colors.grey[600], size: 24),
+            ),
+          ),
         );
     } else {
       avatar = const CircleAvatar(

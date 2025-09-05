@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../utils/token_manager.dart';
 import '../screens/wholesaler_dashboard/wholesaler_settings.dart';
 import '../screens/wholesaler_dashboard/wholesaler_dashboard.dart';
+import '../screens/wholesaler_dashboard/wholesaler_notification_settings.dart';
 
 class WholesalerHeader extends StatelessWidget {
   final VoidCallback? onLogoTap;
@@ -118,10 +119,21 @@ class WholesalerHeader extends StatelessWidget {
             ),
           ),
           SizedBox(width: 12),
-          Icon(
-            Icons.notifications,
-            color: Colors.white,
-            size: 32,
+          InkWell(
+            onTap: () {
+              // Navigate to notification settings page
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => WholesalerNotificationSettingsPage(),
+                ),
+              );
+            },
+            child: Icon(
+              Icons.notifications,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
         ],
       ),

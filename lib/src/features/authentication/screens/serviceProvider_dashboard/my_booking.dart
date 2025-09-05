@@ -64,7 +64,7 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
   Future<void> _initializeBookingService() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token == null || token.isEmpty) {
+      if (token.isEmpty) {
         setState(() {
           _error = "Authentication token not found. Please login again.";
           _isLoading = false;
@@ -84,8 +84,12 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
 
   Future<void> _loadBookings() async {
     // Don't proceed if booking service isn't initialized
-    if (_bookingService == null) return;
+    if (_bookingService == null) {
+      print('SPMyBookingsPage: Booking service is null, cannot load bookings');
+      return;
+    }
 
+    print('SPMyBookingsPage: Starting to load bookings...');
     setState(() {
       _isLoading = true;
       _error = null;
@@ -95,8 +99,13 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
       setState(() {
         _bookingsFuture = _bookingService!.getProviderBookings();
       });
-      await _bookingsFuture; // Wait to catch any errors
+      final bookings = await _bookingsFuture; // Wait to catch any errors
+      print('SPMyBookingsPage: Loaded ${bookings.length} bookings');
+      for (var booking in bookings) {
+        print('SPMyBookingsPage: Booking - ID: ${booking.id}, Status: ${booking.status}, Date: ${booking.bookingDate}');
+      }
     } catch (e) {
+      print('SPMyBookingsPage: Error loading bookings: $e');
       setState(() {
         _error = "Failed to load bookings: $e";
       });
@@ -467,6 +476,16 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
                 FutureBuilder<List<Booking>>(
                   future: _bookingsFuture,
                   builder: (context, snapshot) {
+                    print('SPMyBookingsPage: FutureBuilder - ConnectionState: ${snapshot.connectionState}');
+                    print('SPMyBookingsPage: FutureBuilder - HasData: ${snapshot.hasData}');
+                    print('SPMyBookingsPage: FutureBuilder - HasError: ${snapshot.hasError}');
+                    if (snapshot.hasError) {
+                      print('SPMyBookingsPage: FutureBuilder - Error: ${snapshot.error}');
+                    }
+                    if (snapshot.hasData) {
+                      print('SPMyBookingsPage: FutureBuilder - Data length: ${snapshot.data!.length}');
+                    }
+                    
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     } else if (snapshot.hasError) {
@@ -488,6 +507,7 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
                         ),
                       );
                     } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      print('SPMyBookingsPage: FutureBuilder - No bookings found');
                       return const Center(
                         child: Text('No bookings found'),
                       );
@@ -544,11 +564,44 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 // User Avatar
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: Colors.grey.shade300,
-                                  child: const Icon(
-                                      Icons.person, color: Colors.white),
+                                Builder(
+                                  builder: (context) {
+                                    print('SPMyBookingsPage: Profile pic URL: ${booking.userProfilePic}');
+                                    return CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: Colors.grey.shade300,
+                                      child: booking.userProfilePic?.isNotEmpty == true
+                                          ? ClipOval(
+                                              child: CachedNetworkImage(
+                                                imageUrl: booking.userProfilePic!,
+                                                width: 40,
+                                                height: 40,
+                                                fit: BoxFit.cover,
+                                                placeholder: (context, url) {
+                                                  print('SPMyBookingsPage: Loading profile image: $url');
+                                                  return const Icon(
+                                                    Icons.person, 
+                                                    color: Colors.white,
+                                                    size: 20,
+                                                  );
+                                                },
+                                                errorWidget: (context, url, error) {
+                                                  print('SPMyBookingsPage: Error loading profile image: $url, Error: $error');
+                                                  return const Icon(
+                                                    Icons.person, 
+                                                    color: Colors.white,
+                                                    size: 20,
+                                                  );
+                                                },
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.person, 
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                    );
+                                  },
                                 ),
                                 const SizedBox(width: 12),
 
@@ -563,10 +616,11 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
                                             .spaceBetween,
                                         children: [
                                           Text(
-                                            booking.userId.length > 5
-                                                ? 'User #${booking.userId
-                                                .substring(0, 5)}'
-                                                : 'User #${booking.userId}',
+                                            booking.userFullName?.isNotEmpty == true
+                                                ? booking.userFullName!
+                                                : booking.userId.length > 5
+                                                    ? 'User #${booking.userId.substring(0, 5)}'
+                                                    : 'User #${booking.userId}',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,

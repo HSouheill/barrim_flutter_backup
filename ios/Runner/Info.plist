@@ -53,7 +53,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs access to microphone for camera functionality</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to photo library to select your company logo</string>
+	<string>This app needs access to photo library to select images and videos for your business branches</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app needs access to save images to your photo library</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

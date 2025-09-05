@@ -30,7 +30,7 @@ dependencies {
 }
 
 android {
-    namespace 'com.Dev.DevBarrim'
+    namespace 'com.barrim.barrim'
     compileSdk 36
     ndkVersion '27.0.12077973'
 
@@ -38,6 +38,10 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
         coreLibraryDesugaringEnabled true
+    }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << "-Xlint:-options"
     }
 
     buildFeatures {
@@ -51,7 +55,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId 'com.Dev.DevBarrim'
+        applicationId 'com.barrim.barrim'
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdkVersion flutter.minSdkVersion

@@ -682,20 +682,34 @@ class ServiceProviderService {
     final token = await _tokenStorage.getToken();
     if (token == null) throw Exception('No token found');
 
+    print('ServiceProviderService: Posting reply to review $reviewId');
+    print('ServiceProviderService: Reply text: $replyText');
+    print('ServiceProviderService: Token: ${token.isNotEmpty ? "exists" : "empty"}');
+
+    // Get the service provider data to use the correct ID
+    final serviceProvider = await getServiceProviderData();
+    print('ServiceProviderService: Using service provider ID: ${serviceProvider.id}');
+
     final response = await _makeRequest(
       'POST',
       Uri.parse('$baseUrl/api/reviews/$reviewId/reply'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'X-ServiceProvider-ID': serviceProvider.id, // Add service provider ID header
       },
       body: json.encode({'replyText': replyText}),
     );
 
+    print('ServiceProviderService: Response status: ${response.statusCode}');
+    print('ServiceProviderService: Response body: ${response.body}');
+
     final responseData = json.decode(response.body);
     if (response.statusCode == 200 && responseData['data'] != null) {
+      print('ServiceProviderService: Reply posted successfully');
       return ReviewReply.fromJson(responseData['data']);
     } else {
+      print('ServiceProviderService: Failed to post reply: ${responseData['message']}');
       throw Exception(responseData['message'] ?? 'Failed to post reply');
     }
   }

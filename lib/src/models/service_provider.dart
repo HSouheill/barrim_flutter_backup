@@ -34,8 +34,25 @@ class ServiceProvider {
 
   factory ServiceProvider.fromJson(Map<String, dynamic> json) {
     try {
+      // Try to get the service provider ID from various possible fields
+      String? serviceProviderId;
+      
+      // First try serviceProviderId field (this is the correct service provider ID)
+      if (json['serviceProviderId'] != null) {
+        serviceProviderId = json['serviceProviderId'].toString();
+      }
+      // Then try _id (service provider's _id)
+      else if (json['_id'] != null) {
+        serviceProviderId = json['_id'].toString();
+      }
+      // Finally fall back to id (user's _id)
+      else if (json['id'] != null) {
+        serviceProviderId = json['id'].toString();
+      }
+      
+      final id = serviceProviderId ?? '';
       return ServiceProvider(
-        id: json['id']?.toString() ?? '',
+        id: id,
         fullName: json['fullName']?.toString() ?? '',
         email: json['email']?.toString(),
         phone: json['phone']?.toString(),

@@ -47,6 +47,7 @@ class Review {
   final String? thumbnailUrl;
   final File? mediaFile;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final ReviewReply? reply;
 
   Review({
@@ -63,6 +64,7 @@ class Review {
     this.mediaUrl,
     this.thumbnailUrl,
     this.mediaFile,
+    this.updatedAt,
     this.reply,
   });
 
@@ -82,6 +84,9 @@ class Review {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
+          : null,
       reply: json['reply'] != null ? ReviewReply.fromJson(json['reply']) : null,
     );
   }

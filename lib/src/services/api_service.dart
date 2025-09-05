@@ -1791,7 +1791,6 @@ class ApiService {
       // Check response status
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        print('ApiService: Service provider data retrieved successfully');
 
         if (responseData['status'] == 200) {
           // Store the data locally for offline access
@@ -2011,18 +2010,55 @@ class ApiService {
   // Updated method to get reviews for a service provider
   static Future<List<Review>> getReviewsForProvider(String providerId) async {
     try {
+      // Try without authentication first (public endpoint)
       final response = await _makeRequest(
         'GET',
         Uri.parse('$baseUrl/api/service-providers/$providerId/reviews'),
-        headers: await _getHeaders(),
+        headers: {
+          'Content-Type': 'application/json',
+        },
       );
+
+      print('Reviews API Response Status: ${response.statusCode}');
+      print('Reviews API Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
 
         if (responseData['status'] == 200 && responseData['data'] != null) {
           final List<dynamic> reviewsJson = responseData['data'];
-          return reviewsJson.map((json) => Review.fromJson(json)).toList();
+          print('Found ${reviewsJson.length} reviews in response');
+          
+          final reviews = reviewsJson.map((json) {
+            print('Processing review JSON: $json');
+            try {
+              return Review.fromJson(json);
+            } catch (e) {
+              print('Error parsing review JSON: $e');
+              return null;
+            }
+          }).where((review) => review != null).cast<Review>().toList();
+          
+          print('Successfully parsed ${reviews.length} reviews');
+          return reviews;
+        } else {
+          print('Response status not 200 or data is null: ${responseData['status']}');
+        }
+      } else if (response.statusCode == 401) {
+        // If unauthorized, try with authentication
+        print('Unauthorized, trying with authentication...');
+        final authResponse = await _makeRequest(
+          'GET',
+          Uri.parse('$baseUrl/api/service-providers/$providerId/reviews'),
+          headers: await _getHeaders(),
+        );
+        
+        if (authResponse.statusCode == 200) {
+          final responseData = jsonDecode(authResponse.body);
+          if (responseData['status'] == 200 && responseData['data'] != null) {
+            final List<dynamic> reviewsJson = responseData['data'];
+            return reviewsJson.map((json) => Review.fromJson(json)).toList();
+          }
         }
       }
 

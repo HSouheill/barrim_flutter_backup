@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/service_provider.dart';
 import '../../../services/api_service.dart';
 import '../../../utils/token_manager.dart';
 import '../../../components/secure_network_image.dart';
 import '../screens/serviceProvider_dashboard/sp_settings.dart';
-import '../screens/serviceprovider_dashboard/serviceprovider_dashboard.dart';
+import '../screens/serviceProvider_dashboard/sp_notification.dart';
 
 class ServiceProviderHeader extends StatelessWidget {
   final VoidCallback? onAvatarTap;
@@ -142,10 +141,20 @@ class ServiceProviderHeader extends StatelessWidget {
                     ),
             ),
             SizedBox(width: 12),
-            Icon(
-              Icons.notifications,
-              color: Colors.white,
-              size: 32,
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SPNotificationSettingsPage(),
+                  ),
+                );
+              },
+              child: Icon(
+                Icons.notifications,
+                color: Colors.white,
+                size: 32,
+              ),
             ),
           ],
         ),

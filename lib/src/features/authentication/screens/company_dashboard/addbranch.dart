@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:location/location.dart';
 import 'package:location/location.dart' as loc;
 import 'package:geocoding/geocoding.dart';
@@ -40,10 +39,9 @@ class _AddBranchPageState extends State<AddBranchPage> {
   String? selectedSubCategory;
   String countryCode = '+961';
 
-  // Image and video handling
+  // Image handling
   final ImagePicker _picker = ImagePicker();
   List<File> _selectedImages = [];
-  List<File> _selectedVideos = [];
   List<String> _existingImageUrls = []; // For storing existing image URLs
   bool _isLoadingLocation = false;
 
@@ -243,167 +241,121 @@ class _AddBranchPageState extends State<AddBranchPage> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile> pickedFiles = await _picker.pickMultiImage();
+      // Try pickMultiImage first, but with more conservative settings
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        imageQuality: 70, // Further reduce quality for iOS compatibility
+        maxWidth: 1200,   // Smaller dimensions
+        maxHeight: 1200,  // Smaller dimensions
+      );
+      
       if (pickedFiles.isNotEmpty) {
         List<File> validImages = [];
         
         for (var xFile in pickedFiles) {
-          final file = File(xFile.path);
-          final fileSize = await file.length();
-          final maxSize = 10 * 1024 * 1024; // 10MB limit
-          
-          if (fileSize > maxSize) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Image ${xFile.name} is too large (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB). It will be compressed.'),
-                  duration: Duration(seconds: 3),
-                ),
-              );
+          try {
+            final file = File(xFile.path);
+            
+            // Check if file exists and is readable
+            if (!await file.exists()) {
+              print('File does not exist: ${xFile.path}');
+              continue;
             }
+            
+            final fileSize = await file.length();
+            final maxSize = 10 * 1024 * 1024; // 10MB limit
+            
+            if (fileSize > maxSize) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Image ${xFile.name} is too large (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB). It will be compressed.'),
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
+            
+            // Validate that it's actually an image file
+            if (await _isValidImageFile(file)) {
+              validImages.add(file);
+            } else {
+              print('Invalid image file: ${xFile.path}');
+            }
+          } catch (fileError) {
+            print('Error processing file ${xFile.path}: $fileError');
+            // Continue with other files
           }
-          validImages.add(file);
         }
         
-        setState(() {
-          _selectedImages.addAll(validImages);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error picking images: $e")),
-        );
-      }
-    }
-  }
-
-  Future<void> _pickVideo() async {
-    try {
-      final pickedFile = await _picker.pickVideo(source: ImageSource.gallery);
-      if (pickedFile != null) {
-        setState(() {
-          _selectedVideos.add(File(pickedFile.path));
-        });
-      }
-    } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Error picking video: $e")),
-      // );
-    }
-  }
-
-  Future<void> _pickMultipleVideos() async {
-    try {
-      // Show a dialog to let user pick multiple videos one by one
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text('Add Multiple Videos'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('You can add multiple videos one by one.'),
-                SizedBox(height: 16),
-                Text('Current videos: ${_selectedVideos.length}'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Done'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await _pickVideo(); // Pick one video at a time
-                },
-                child: Text('Add Another Video'),
-              ),
-            ],
-          );
-        },
-      );
-    } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Error picking videos: $e")),
-      // );
-    }
-  }
-
-  void _clearAllMedia() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Clear All Media'),
-          content: Text('Are you sure you want to remove all images and videos?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _selectedImages.clear();
-                  _selectedVideos.clear();
-                  _existingImageUrls.clear();
-                });
-                Navigator.pop(context);
-              },
-              child: Text('Clear All'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showMediaPickerOptions() {
-    showModalBottomSheet(
-        context: context,
-        builder: (context) {
-          return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: Icon(Icons.photo_library, color: Color(0xFF2079C2)),
-                  title: Text('Add Images'),
-                  subtitle: Text('Select multiple images'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImages();
-                  },
-                ),
-                Divider(height: 1),
-                ListTile(
-                  leading: Icon(Icons.videocam, color: Color(0xFF2079C2)),
-                  title: Text('Add Single Video'),
-                  subtitle: Text('Select one video'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickVideo();
-                  },
-                ),
-                Divider(height: 1),
-                ListTile(
-                  leading: Icon(Icons.video_library, color: Color(0xFF2079C2)),
-                  title: Text('Add Multiple Videos'),
-                  subtitle: Text('Select multiple videos'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickMultipleVideos();
-                  },
-                ),
-              ],
-            ),
-          );
+        if (validImages.isNotEmpty) {
+          setState(() {
+            _selectedImages.addAll(validImages);
+          });
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("No valid images were selected")),
+            );
+          }
         }
-    );
+      }
+    } catch (e) {
+      print('Error in _pickImages: $e');
+      if (mounted) {
+        String errorMessage = "Error picking images";
+        
+        // Provide more specific error messages
+        if (e.toString().contains('NSItemProviderErrorDomain')) {
+          errorMessage = "Multiple image picker failed. Try 'Add Single Image' option instead.";
+        } else if (e.toString().contains('permission')) {
+          errorMessage = "Permission denied. Please allow photo library access in Settings.";
+        } else if (e.toString().contains('invalid_image')) {
+          errorMessage = "Invalid image format. Please select JPEG or PNG images.";
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
+
+  // Helper method to validate image files
+  Future<bool> _isValidImageFile(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return false;
+      
+      // Check for common image file signatures
+      if (bytes.length >= 4) {
+        // JPEG signature: FF D8 FF
+        if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+          return true;
+        }
+        // PNG signature: 89 50 4E 47
+        if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+          return true;
+        }
+        // GIF signature: 47 49 46 38
+        if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      print('Error validating image file: $e');
+      return false;
+    }
+  }
+
+
+
+
+
+
 
   Future<void> _getLocation() async {
     setState(() {
@@ -717,107 +669,10 @@ class _AddBranchPageState extends State<AddBranchPage> {
                     ),
                     SizedBox(height: 16),
                   ],
-                  if (_selectedVideos.isNotEmpty) ...[
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              "Selected Videos (${_selectedVideos.length})",
-                              style: TextStyle(
-                                color: Colors.blue,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _selectedVideos.clear();
-                                });
-                              },
-                              child: Text(
-                                "Clear All",
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(
-                          height: 120,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _selectedVideos.length,
-                            itemBuilder: (context, index) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 10.0),
-                                child: Stack(
-                                  children: [
-                                    Container(
-                                      width: 100,
-                                      height: 100,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade300,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Center(
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.videocam, size: 30, color: Colors.grey.shade700),
-                                            SizedBox(height: 4),
-                                            Text(
-                                              "Video ${index + 1}",
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: Colors.grey.shade600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          setState(() {
-                                            _selectedVideos.removeAt(index);
-                                          });
-                                        },
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.red,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            Icons.close,
-                                            color: Colors.white,
-                                            size: 18,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 16),
-                  ],
 
-                  // Combined Add Media Button
+                  // Add Media Button - Directly opens photo gallery
                   GestureDetector(
-                    onTap: _showMediaPickerOptions,
+                    onTap: _pickImages,
                     child: Container(
                       width: double.infinity,
                       height: 60,
@@ -839,8 +694,6 @@ class _AddBranchPageState extends State<AddBranchPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.add_photo_alternate, color: Colors.white),
-                            SizedBox(width: 4),
-                            Icon(Icons.videocam, color: Colors.white),
                             SizedBox(width: 8),
                             Text(
                               "Add Media",
@@ -850,7 +703,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            if (_selectedImages.isNotEmpty || _selectedVideos.isNotEmpty || _existingImageUrls.isNotEmpty) ...[
+                            if (_selectedImages.isNotEmpty || _existingImageUrls.isNotEmpty) ...[
                               SizedBox(width: 8),
                               Container(
                                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -859,7 +712,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  "${_selectedImages.length + _selectedVideos.length + _existingImageUrls.length}",
+                                  "${_selectedImages.length + _existingImageUrls.length}",
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
@@ -907,7 +760,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                                 )).toList(),
                                 onChanged: (value) {
                                   setState(() {
-                                    selectedCategory = value as String?;
+                                    selectedCategory = value;
                                     selectedSubCategory = null;
                                   });
                                 },
@@ -939,7 +792,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                                 )).toList(),
                                 onChanged: (value) {
                                   setState(() {
-                                    selectedSubCategory = value as String?;
+                                    selectedSubCategory = value;
                                   });
                                 },
                                 hint: "Sub Category",
@@ -1126,7 +979,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
       'longitude': longitude ?? 0.0,
       'category': selectedCategory ?? "Uncategorized",
       'subCategory': selectedSubCategory ?? "Uncategorized",
-      'phone': '${countryCode ?? "+961"} ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
+      'phone': '$countryCode ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
       'description': _descriptionController.text.isNotEmpty ? _descriptionController.text : "No description",
       'costPerCustomer': _costPerCustomerController.text.isNotEmpty ? double.parse(_costPerCustomerController.text) : null,
       // Include existing images that should be kept
@@ -1141,7 +994,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
       }
 
       // Call API service to update branch with compressed images
-      await ApiService.updateBranch(widget.token, branchId, updatedBranchData, compressedImages, _selectedVideos);
+      await ApiService.updateBranch(widget.token, branchId, updatedBranchData, compressedImages, []);
 
       // ScaffoldMessenger.of(context).showSnackBar(
       //   SnackBar(content: Text("Branch updated successfully!")),
@@ -1202,7 +1055,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
       }
 
       // Call API to upload branch with compressed images
-      await ApiService.uploadBranchData(branchData, compressedImages, _selectedVideos);
+      await ApiService.uploadBranchData(branchData, compressedImages, []);
 
       // Clear form
       _nameController.clear();
@@ -1211,7 +1064,6 @@ class _AddBranchPageState extends State<AddBranchPage> {
       _descriptionController.clear();
       setState(() {
         _selectedImages = [];
-        _selectedVideos = [];
         _existingImageUrls = [];
         latitude = null;
         longitude = null;

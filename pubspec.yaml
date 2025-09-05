@@ -1,8 +1,8 @@
 name: barrim
-description: "A new Flutter project."
+description: "Discover the best of your neighborhood with Barrim."
 publish_to: 'none'
 
-version: 1.0.4+2
+version: 1.0.12+2
 
 environment:
   sdk: ^3.7.0

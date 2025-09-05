@@ -74,6 +74,17 @@ class _LoginPageState extends State<LoginPage> {
             userProvider.setRememberMeToken(userData['rememberMeToken']);
           }
 
+          // Save credentials if Remember Me is checked
+          if (_rememberMe) {
+            await userProvider.saveCredentials(
+              loginIdentifier,
+              _passwordController.text,
+            );
+          } else {
+            // Clear saved credentials if Remember Me is unchecked
+            await userProvider.clearCredentials();
+          }
+
           print("User type detected: $userType");
           
           // Add a small delay to ensure Google Maps services are ready
@@ -229,6 +240,30 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _emailOrPhoneController.addListener(_onEmailOrPhoneChanged);
+    _loadSavedCredentials();
+  }
+
+  // Load saved credentials if Remember Me was enabled
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final credentials = await userProvider.loadCredentials();
+      
+      if (credentials.isNotEmpty) {
+        setState(() {
+          _emailOrPhoneController.text = credentials['emailOrPhone'] ?? '';
+          _passwordController.text = credentials['password'] ?? '';
+          _rememberMe = credentials['rememberMe'] == 'true';
+        });
+        
+        // Trigger phone number detection if needed
+        _onEmailOrPhoneChanged();
+        
+        print('Saved credentials loaded successfully');
+      }
+    } catch (e) {
+      print('Error loading saved credentials: $e');
+    }
   }
 
   @override
@@ -238,7 +273,6 @@ class _LoginPageState extends State<LoginPage> {
         // Screen size breakpoints
         final isSmallScreen = constraints.maxWidth < 360;
         final isMediumScreen = constraints.maxWidth >= 360 && constraints.maxWidth < 600;
-        final isLargeScreen = constraints.maxWidth >= 600;
 
         // Responsive font sizes
         double getTitleFontSize() {
@@ -670,7 +704,7 @@ class _LoginPageState extends State<LoginPage> {
                                     if (credential != null && credential['identityToken'] != null) {
                                       // Send the idToken to your backend
                                       final backendResponse = await AppleAuthService.appleLogin(credential['identityToken']!);
-                                      if (backendResponse != null && backendResponse['status'] == 200) {
+                                      if (backendResponse['status'] == 200) {
                                         final data = backendResponse['data'];
                                         final userProvider = Provider.of<UserProvider>(context, listen: false);
                                         userProvider.setUser(data['user']);
@@ -686,10 +720,10 @@ class _LoginPageState extends State<LoginPage> {
                                       } else {
                                         setState(() {
                                           _hasLoginError = true;
-                                          if (backendResponse?['message']?.contains('Invalid or expired token') == true) {
+                                          if (backendResponse['message']?.contains('Invalid or expired token') == true) {
                                             _errorMessage = 'Unable to sign in with Apple';
                                           } else {
-                                            _errorMessage = backendResponse?['message'] ?? 'Apple login failed';
+                                            _errorMessage = backendResponse['message'] ?? 'Apple login failed';
                                           }
                                         });
                                       }

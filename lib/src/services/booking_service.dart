@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -235,6 +234,7 @@ class BookingService {
   Future<List<Booking>> getProviderBookings() async {
     try {
       final token = await tokenManager.getToken();
+      print('BookingService: Getting provider bookings with token: ${token.substring(0, 20)}...');
 
       final response = await _makeRequest(
         'GET',
@@ -245,19 +245,54 @@ class BookingService {
         },
       );
 
+      print('BookingService: Response status: ${response.statusCode}');
+      print('BookingService: Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
+        print('BookingService: Parsed response data: $data');
 
         if (data['status'] == 200 && data['data'] != null) {
-          final List<dynamic> bookingsJson = data['data'];
-          return bookingsJson.map((json) => Booking.fromJson(json)).toList();
+          final List<dynamic> enrichedBookingsJson = data['data'];
+          print('BookingService: Found ${enrichedBookingsJson.length} enriched bookings');
+          
+          final bookings = enrichedBookingsJson.map((enrichedBooking) {
+            print('BookingService: Processing enriched booking: $enrichedBooking');
+            
+            // Extract the booking data from the enriched structure
+            final bookingData = enrichedBooking['booking'];
+            final userData = enrichedBooking['user'];
+            
+            print('BookingService: Booking data: $bookingData');
+            print('BookingService: User data: $userData');
+            
+            // Merge user data into booking data for the Booking.fromJson method
+            final mergedData = Map<String, dynamic>.from(bookingData);
+            if (userData != null) {
+              mergedData['userFullName'] = userData['fullName'];
+              mergedData['userEmail'] = userData['email'];
+              mergedData['userPhone'] = userData['phone'];
+              mergedData['userProfilePic'] = userData['profilePic'];
+            }
+            
+            // Create booking from the merged data
+            final booking = Booking.fromJson(mergedData);
+            
+            return booking;
+          }).toList();
+          
+          print('BookingService: Successfully parsed ${bookings.length} bookings');
+          return bookings;
         } else {
+          print('BookingService: No bookings found or invalid response structure');
           return [];
         }
       } else {
+        print('BookingService: API error - Status: ${response.statusCode}, Body: ${response.body}');
         throw Exception('Failed to load bookings: ${response.statusCode}');
       }
     } catch (e) {
+      print('BookingService: Exception in getProviderBookings: $e');
       throw Exception('Failed to load bookings: $e');
     }
   }

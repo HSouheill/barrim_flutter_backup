@@ -16,6 +16,12 @@ class Booking {
   final List<String> thumbnailUrls; // Array of URLs to the thumbnails (for videos)
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  
+  // User information from enriched response
+  final String? userFullName;
+  final String? userEmail;
+  final String? userPhone;
+  final String? userProfilePic;
 
   Booking({
     this.id,
@@ -33,6 +39,10 @@ class Booking {
     this.thumbnailUrls = const [],
     this.createdAt,
     this.updatedAt,
+    this.userFullName,
+    this.userEmail,
+    this.userPhone,
+    this.userProfilePic,
   });
 
   // Factory method to create a Booking from API JSON response
@@ -90,13 +100,13 @@ class Booking {
     }
 
     return Booking(
-      id: json['id'],
-      userId: json['userId'],
-      serviceProviderId: json['serviceProviderId'],
-      bookingDate: DateTime.parse(json['bookingDate']),
-      timeSlot: json['timeSlot'],
-      phoneNumber: json['phoneNumber'],
-      details: json['details'],
+      id: json['id'] ?? json['_id']?.toString() ?? '', // Handle both 'id' and '_id' fields
+      userId: json['userId']?.toString() ?? json['_userId']?.toString() ?? '',
+      serviceProviderId: json['serviceProviderId']?.toString() ?? json['_serviceProviderId']?.toString() ?? '',
+      bookingDate: json['bookingDate'] != null ? DateTime.parse(json['bookingDate']) : DateTime.now(),
+      timeSlot: json['timeSlot'] ?? '',
+      phoneNumber: json['phoneNumber'] ?? '',
+      details: json['details'] ?? '',
       isEmergency: json['isEmergency'] ?? false,
       status: json['status'] ?? 'pending',
       providerResponse: json['providerResponse'],
@@ -105,6 +115,10 @@ class Booking {
       thumbnailUrls: thumbnailUrls,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+      userFullName: json['userFullName'],
+      userEmail: json['userEmail'],
+      userPhone: json['userPhone'],
+      userProfilePic: _getFullImageUrl(json['userProfilePic']),
     );
   }
 
@@ -125,5 +139,28 @@ class Booking {
       'mediaUrls': mediaUrls,
       'thumbnailUrls': thumbnailUrls,
     };
+  }
+
+  // Helper method to convert relative image URLs to full URLs
+  static String? _getFullImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) {
+      print('Booking: No image path provided');
+      return null;
+    }
+    
+    print('Booking: Original image path: $imagePath');
+    
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      print('Booking: Image path is already a full URL: $imagePath');
+      return imagePath;
+    }
+    
+    // Convert relative path to full URL
+    String cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+    String fullUrl = '${ApiService.baseUrl}/$cleanPath';
+    print('Booking: Constructed full image URL: $fullUrl');
+    
+    return fullUrl;
   }
 }

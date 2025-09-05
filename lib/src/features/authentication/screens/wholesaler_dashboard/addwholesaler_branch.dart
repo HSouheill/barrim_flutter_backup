@@ -60,14 +60,49 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
 
   void _loadMediaFromExistingBranch() {
     if (widget.isEditMode && widget.branchData != null) {
-      // Load existing image URLs
+      print('AddWholeSalerBranchPage: Loading media from branch data: ${widget.branchData}');
+      
+      // Load existing image URLs and convert to full URLs
       if (widget.branchData!['images'] != null && widget.branchData!['images'] is List) {
-        _existingImageUrls = List<String>.from(widget.branchData!['images']);
+        List<String> imageUrls = List<String>.from(widget.branchData!['images']);
+        print('AddWholeSalerBranchPage: Raw image URLs from branch data: $imageUrls');
+        
+        _existingImageUrls = imageUrls.map((url) {
+          // Convert relative paths to full URLs
+          if (url.startsWith('uploads/')) {
+            return '${ApiService.baseUrl}/$url';
+          } else if (url.startsWith('/')) {
+            return '${ApiService.baseUrl}$url';
+          } else if (!url.startsWith('http')) {
+            return '${ApiService.baseUrl}/$url';
+          }
+          return url;
+        }).toList();
+        
+        print('AddWholeSalerBranchPage: Loaded ${_existingImageUrls.length} existing images');
+        print('AddWholeSalerBranchPage: Existing image URLs: $_existingImageUrls');
+      } else {
+        print('AddWholeSalerBranchPage: No images found in branch data or images is not a List');
+        print('AddWholeSalerBranchPage: Branch data images field: ${widget.branchData!['images']}');
       }
 
-      // Load existing video URLs
+      // Load existing video URLs and convert to full URLs
       if (widget.branchData!['videos'] != null && widget.branchData!['videos'] is List) {
-        _existingVideoUrls = List<String>.from(widget.branchData!['videos']);
+        List<String> videoUrls = List<String>.from(widget.branchData!['videos']);
+        _existingVideoUrls = videoUrls.map((url) {
+          // Convert relative paths to full URLs
+          if (url.startsWith('uploads/')) {
+            return '${ApiService.baseUrl}/$url';
+          } else if (url.startsWith('/')) {
+            return '${ApiService.baseUrl}$url';
+          } else if (!url.startsWith('http')) {
+            return '${ApiService.baseUrl}/$url';
+          }
+          return url;
+        }).toList();
+        
+        print('AddWholeSalerBranchPage: Loaded ${_existingVideoUrls.length} existing videos');
+        print('AddWholeSalerBranchPage: Existing video URLs: $_existingVideoUrls');
       }
     }
   }
@@ -92,6 +127,7 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
     
     // Load existing data if in edit mode
     if (widget.isEditMode && widget.branchData != null) {
+      print('AddWholeSalerBranchPage: Edit mode detected, loading existing branch data');
       _loadBranchData();
       _loadMediaFromExistingBranch();
     }
@@ -113,35 +149,47 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
         _categoriesError = null;
       });
 
-      final categoriesData = await ApiService.getAllCategories();
+      print('AddWholeSalerBranchPage: Loading wholesaler categories from backend...');
+      final categoriesData = await ApiService.getAllWholesalerCategories();
+      print('AddWholeSalerBranchPage: Received wholesaler categories: $categoriesData');
       
       if (mounted) {
         setState(() {
-          categories = categoriesData.keys.toList();
+          // Ensure unique categories and remove any duplicates
+          categories = categoriesData.keys.toSet().toList();
           subCategories = categoriesData;
           _isLoadingCategories = false;
         });
+        
+        print('AddWholeSalerBranchPage: Categories loaded successfully. Count: ${categories.length}');
+        print('AddWholeSalerBranchPage: Categories: $categories');
+        print('AddWholeSalerBranchPage: Subcategories: $subCategories');
       }
     } catch (e) {
+      print('AddWholeSalerBranchPage: Error loading wholesaler categories: $e');
       if (mounted) {
         setState(() {
           _isLoadingCategories = false;
-          _categoriesError = 'Failed to load categories: $e';
-          // Fallback to default categories if backend fails
-          categories = ['Restaurant', 'Hotel', 'Shop', 'Office'];
+          _categoriesError = 'Failed to load wholesaler categories: $e';
+          // Fallback to default wholesaler categories if backend fails
+          categories = ['Electronics', 'Automotive', 'Fashion', 'Food & Beverage', 'Home & Garden', 'Health & Beauty'];
           subCategories = {
-            'Restaurant': ['Fast Food', 'Fine Dining', 'Cafe'],
-            'Hotel': ['Resort', 'Boutique', 'Business'],
-            'Shop': ['Clothing', 'Electronics', 'Grocery'],
-            'Office': ['Corporate', 'Co-working', 'Agency'],
+            'Electronics': ['Smartphones', 'Computers', 'Accessories', 'Gaming'],
+            'Automotive': ['Parts', 'Tools', 'Accessories', 'Services'],
+            'Fashion': ['Clothing', 'Shoes', 'Accessories', 'Jewelry'],
+            'Food & Beverage': ['Ingredients', 'Packaging', 'Equipment', 'Supplies'],
+            'Home & Garden': ['Furniture', 'Decor', 'Tools', 'Plants'],
+            'Health & Beauty': ['Cosmetics', 'Supplements', 'Equipment', 'Supplies'],
           };
         });
+        print('AddWholeSalerBranchPage: Using fallback wholesaler categories due to error');
       }
     }
   }
 
   void _loadBranchData() {
     final branchData = widget.branchData!;
+    print('AddWholeSalerBranchPage: Loading branch data: $branchData');
 
     // Populate text fields
     _nameController.text = branchData['name']?.toString() ?? '';
@@ -164,21 +212,40 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
 
     _descriptionController.text = branchData['description']?.toString() ?? '';
 
+    // Debug: Check images in branch data
+    print('AddWholeSalerBranchPage: Images in branch data: ${branchData['images']}');
+    print('AddWholeSalerBranchPage: Videos in branch data: ${branchData['videos']}');
+
     // Set location coordinates
     latitude = branchData['latitude'] is num ? branchData['latitude'] : null;
     longitude = branchData['longitude'] is num ? branchData['longitude'] : null;
 
     // Set category and subcategory
-    selectedCategory = branchData['category']?.toString();
+    String? categoryFromData = branchData['category']?.toString();
+    selectedCategory = categoryFromData;
     selectedSubCategory = branchData['subCategory']?.toString();
-
-    // Load images if available
-    // For edit mode, we would likely need to handle remote images differently
-    // This is a placeholder for that logic
-    if (branchData['images'] != null && branchData['images'] is List) {
-      // Here you would implement logic to handle existing images
-      // This might involve downloading them or displaying them from URLs
+    
+    // Validate that the selected category exists in the current categories list
+    if (selectedCategory != null && !categories.contains(selectedCategory)) {
+      // If the category from the branch data doesn't exist in current categories,
+      // add it to the list to prevent dropdown errors
+      categories.add(selectedCategory!);
+      if (!subCategories.containsKey(selectedCategory)) {
+        subCategories[selectedCategory!] = [];
+      }
     }
+    
+    // Validate that the selected subcategory exists in the current subcategories list
+    if (selectedCategory != null && selectedSubCategory != null && 
+        subCategories.containsKey(selectedCategory) && 
+        !subCategories[selectedCategory]!.contains(selectedSubCategory)) {
+      // If the subcategory from the branch data doesn't exist in current subcategories,
+      // add it to the list to prevent dropdown errors
+      subCategories[selectedCategory]!.add(selectedSubCategory!);
+    }
+
+    // Load media from branch data
+    _loadMediaFromExistingBranch();
   }
 
   Future<void> _pickImages() async {
@@ -855,7 +922,9 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                           children: [
                             _buildFieldLabel("Category"),
                             _buildDropdown(
-                              value: selectedCategory,
+                              value: selectedCategory != null && categories.contains(selectedCategory) 
+                                  ? selectedCategory 
+                                  : null,
                               items: categories.map((cat) => DropdownMenuItem(
                                 value: cat,
                                 child: Text(cat),
@@ -866,7 +935,7 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                                   selectedSubCategory = null;
                                 });
                               },
-                              hint: "Category",
+                              hint: "Wholesaler Category",
                             ),
                           ],
                         ),
@@ -876,9 +945,14 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildFieldLabel("Sub Category"),
+                            _buildFieldLabel("SubCategory"),
                             _buildDropdown(
-                              value: selectedSubCategory,
+                              value: selectedSubCategory != null && 
+                                  selectedCategory != null && 
+                                  subCategories.containsKey(selectedCategory) &&
+                                  subCategories[selectedCategory]!.contains(selectedSubCategory)
+                                  ? selectedSubCategory 
+                                  : null,
                               items: (selectedCategory != null && subCategories.containsKey(selectedCategory))
                                   ? subCategories[selectedCategory]!.map((subCat) => DropdownMenuItem(
                                 value: subCat,
@@ -890,7 +964,7 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                                   selectedSubCategory = value as String?;
                                 });
                               },
-                              hint: "Sub Category",
+                              hint: "Wholesaler Sub Category",
                               isEnabled: selectedCategory != null,
                             ),
                           ],
@@ -1025,6 +1099,9 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
   }
 
   Widget _buildExistingImagesList() {
+    print('AddWholeSalerBranchPage: Building existing images list. Count: ${_existingImageUrls.length}');
+    print('AddWholeSalerBranchPage: Existing image URLs: $_existingImageUrls');
+    
     return _existingImageUrls.isEmpty
         ? SizedBox()
         : Column(

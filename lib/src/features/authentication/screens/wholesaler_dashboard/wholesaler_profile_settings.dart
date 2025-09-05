@@ -52,8 +52,8 @@ class _WholesalerProfileSettingsState extends State<WholesalerProfileSettings> {
       final wholesaler = await _wholesalerService.getWholesalerData();
       if (wholesaler != null) {
         setState(() {
-          _nameController.text = wholesaler.name ?? '';
-          _emailController.text = wholesaler.email ?? '';
+          _nameController.text = wholesaler.businessName ?? '';
+          _emailController.text = wholesaler.additionalEmails.isNotEmpty ? wholesaler.additionalEmails.first : '';
 
           if (wholesaler.logoUrl != null && wholesaler.logoUrl!.isNotEmpty) {
             // If logo path is relative, prepend the base URL
@@ -403,7 +403,7 @@ class _WholesalerProfileSettingsState extends State<WholesalerProfileSettings> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Wholesaler Name',
+                          'Business Name',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -419,7 +419,7 @@ class _WholesalerProfileSettingsState extends State<WholesalerProfileSettings> {
                           child: TextField(
                             controller: _nameController,
                             decoration: const InputDecoration(
-                              hintText: 'Enter wholesaler name',
+                              hintText: 'Enter business name',
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -438,7 +438,7 @@ class _WholesalerProfileSettingsState extends State<WholesalerProfileSettings> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Wholesaler Email',
+                          'Primary Email',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -455,7 +455,7 @@ class _WholesalerProfileSettingsState extends State<WholesalerProfileSettings> {
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
                             decoration: const InputDecoration(
-                              hintText: 'Enter email address',
+                              hintText: 'Enter primary email address',
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(
                                 horizontal: 16,

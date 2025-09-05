@@ -48,6 +48,9 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
 
       final providerId = widget.userData['id'] ?? '';
       debugPrint('Loading provider with ID: $providerId');
+      debugPrint('User data: ${widget.userData}');
+      debugPrint('User data keys: ${widget.userData.keys.toList()}');
+      debugPrint('User data serviceProviderId: ${widget.userData['serviceProviderId']}');
 
       // First try getting service provider details for logged-in provider
       try {
@@ -763,14 +766,40 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
         child: InkWell(
           onTap: () {
             if (title == 'Review Checkup') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ServiceProviderReviews(
-                    providerId: serviceProvider?.id ?? '',
+              if (serviceProvider == null) {
+                print('ERROR: ServiceProvider is null!');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: ServiceProvider data not loaded')),
+                );
+                return;
+              }
+              final providerId = serviceProvider?.id ?? '';
+              if (providerId.isEmpty) {
+                print('ERROR: Provider ID is empty!');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: Provider ID is empty')),
+                );
+                return;
+              }
+              try {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ServiceProviderReviews(
+                      providerId: providerId,
+                    ),
                   ),
-                ),
-              );
+                ).then((_) {
+                  print('Returned from ServiceProviderReviews');
+                }).catchError((error) {
+                  print('Error navigating to ServiceProviderReviews: $error');
+                });
+              } catch (e) {
+                print('Exception navigating to ServiceProviderReviews: $e');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error navigating: $e')),
+                );
+              }
             } else if (title == 'My Bookings') {
               Navigator.push(
                 context,

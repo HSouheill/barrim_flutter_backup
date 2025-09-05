@@ -32,12 +32,17 @@ class _SPSettingsPageState extends State<SPSettingsPage> {
 
   Future<void> _loadServiceProviderData() async {
     try {
+      print('Loading service provider data for settings page...');
       final serviceProvider = await _serviceProviderService.getServiceProviderData();
+      print('Service provider data loaded: ${serviceProvider.fullName}');
+      print('Logo path: ${serviceProvider.logoPath}');
+      
       setState(() {
         _serviceProvider = serviceProvider;
         _isLoading = false;
       });
     } catch (e) {
+      print('Error loading service provider data: $e');
       setState(() {
         _isLoading = false;
       });
@@ -47,14 +52,24 @@ class _SPSettingsPageState extends State<SPSettingsPage> {
 
   String? _getLogoUrl() {
     if (_serviceProvider?.logoPath == null || _serviceProvider!.logoPath!.isEmpty) {
+      print('No logo path available');
       return null;
     }
     
+    String logoUrl;
     if (_serviceProvider!.logoPath!.startsWith('http')) {
-      return _serviceProvider!.logoPath;
+      logoUrl = _serviceProvider!.logoPath!;
+    } else {
+      // Remove leading slash if present to avoid double slashes
+      String logoPath = _serviceProvider!.logoPath!;
+      if (logoPath.startsWith('/')) {
+        logoPath = logoPath.substring(1);
+      }
+      logoUrl = "${_serviceProviderService.baseUrl}/$logoPath";
     }
     
-    return "${_serviceProviderService.baseUrl}/${_serviceProvider!.logoPath}";
+    print('Logo URL: $logoUrl');
+    return logoUrl;
   }
 
   void _showLogoutConfirmationDialog() {
@@ -182,7 +197,12 @@ class _SPSettingsPageState extends State<SPSettingsPage> {
                                             width: 52,
                                             height: 52,
                                             fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return const CircularProgressIndicator();
+                                            },
                                             errorBuilder: (context, error, stackTrace) {
+                                              print('Error loading logo: $error');
                                               return const Icon(
                                                 Icons.person,
                                                 color: Color(0xFF2079C2),
@@ -233,7 +253,12 @@ class _SPSettingsPageState extends State<SPSettingsPage> {
                                           width: 58,
                                           height: 58,
                                           fit: BoxFit.cover,
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return const CircularProgressIndicator();
+                                          },
                                           errorBuilder: (context, error, stackTrace) {
+                                            print('Error loading large logo: $error');
                                             return const Icon(
                                               Icons.person,
                                               color: Color(0xFF2079C2),

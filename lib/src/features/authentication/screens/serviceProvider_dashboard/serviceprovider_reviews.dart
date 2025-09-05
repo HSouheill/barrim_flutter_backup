@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../models/review.dart';
 import '../../../../services/api_service.dart';
@@ -211,13 +212,10 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
   }
 
   Widget _buildReviewItem(Review review) {
-    final isNetworkImage = review.userProfilePic.startsWith('http');
-    final imageProvider = isNetworkImage
-        ? null
-        : AssetImage(review.userProfilePic.isEmpty
-        ? ''
-        : review.userProfilePic);
-
+    // Check if userProfilePic is not empty and is a network URL
+    final hasValidProfilePic = review.userProfilePic.isNotEmpty;
+    final isNetworkImage = hasValidProfilePic && review.userProfilePic.startsWith('http');
+    
     return StatefulBuilder(
       builder: (context, setItemState) {
         final replyController = TextEditingController();
@@ -237,22 +235,19 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
                       // User avatar
                       CircleAvatar(
                         radius: 20,
-                        backgroundImage: isNetworkImage ? null : imageProvider,
-                        onBackgroundImageError: (_, __) {
-                          // Fallback if image fails to load
-                        },
-                        child: isNetworkImage
+                        backgroundColor: Colors.grey[300],
+                        child: hasValidProfilePic && isNetworkImage
                             ? ClipOval(
                                 child: SecureNetworkImage(
                                   imageUrl: review.userProfilePic,
                                   width: 40,
                                   height: 40,
                                   fit: BoxFit.cover,
-                                  placeholder: Icon(Icons.person, size: 20),
-                                  errorWidget: (context, url, error) => Icon(Icons.person, size: 20),
+                                  placeholder: Icon(Icons.person, size: 20, color: Colors.grey[600]),
+                                  errorWidget: (context, url, error) => Icon(Icons.person, size: 20, color: Colors.grey[600]),
                                 ),
                               )
-                            : null,
+                            : Icon(Icons.person, size: 20, color: Colors.grey[600]),
                       ),
                       const SizedBox(width: 12),
 
@@ -313,6 +308,13 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
                       ),
                     ),
                   ),
+
+                  // Media display (image or video)
+                  if (review.mediaUrl != null && review.mediaType != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 52.0, top: 8, bottom: 8),
+                      child: _buildMediaWidget(review),
+                    ),
 
                   // Show reply if exists
                   if (review.reply != null)
@@ -417,6 +419,8 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
                                     onPressed: () async {
                                       if (replyController.text.isNotEmpty) {
                                         try {
+                                          print('Posting reply for review ID: ${review.id}');
+                                          print('Reply text: ${replyController.text.trim()}');
                                           await _serviceProviderService.postReviewReply(
                                             reviewId: review.id,
                                             replyText: replyController.text.trim(),
@@ -429,9 +433,10 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
                                           // Refresh reviews to show the reply
                                           await _fetchReviews();
                                         } catch (e) {
-                                          // ScaffoldMessenger.of(context).showSnackBar(
-                                          //   SnackBar(content: Text('Failed to submit reply: \\${e.toString()}')),
-                                          // );
+                                          print('Error posting reply: $e');
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Failed to submit reply: ${e.toString()}')),
+                                          );
                                         }
                                       }
                                     },
@@ -449,6 +454,259 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildMediaWidget(Review review) {
+    if (review.mediaType == 'image') {
+      // Construct full URL if mediaUrl is relative
+      String fullImageUrl = review.mediaUrl!;
+      if (!fullImageUrl.startsWith('http')) {
+        // Remove leading slash if present to avoid double slashes
+        String cleanPath = fullImageUrl.startsWith('/') ? fullImageUrl.substring(1) : fullImageUrl;
+        fullImageUrl = '${ApiService.baseUrl}/$cleanPath';
+      }
+      
+      // Debug: Print the URL being used
+      print('Loading image from URL: $fullImageUrl');
+      
+      return GestureDetector(
+        onTap: () => _showImageDialog(context, fullImageUrl),
+        child: Container(
+          constraints: const BoxConstraints(
+            maxWidth: 200,
+            maxHeight: 200,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _buildAuthenticatedImage(fullImageUrl),
+          ),
+        ),
+      );
+    } else if (review.mediaType == 'video') {
+      // Construct full URL if mediaUrl is relative
+      String fullVideoUrl = review.mediaUrl!;
+      if (!fullVideoUrl.startsWith('http')) {
+        fullVideoUrl = 'https://barrim.online$fullVideoUrl';
+      }
+      
+      return Container(
+        constraints: const BoxConstraints(
+          maxWidth: 200,
+          maxHeight: 200,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 200,
+            height: 200,
+            color: Colors.black,
+            child: const Center(
+              child: Icon(
+                Icons.play_circle_filled,
+                color: Colors.white,
+                size: 50,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildAuthenticatedImage(String imageUrl) {
+    return FutureBuilder<Map<String, String>>(
+      future: _getAuthHeaders(),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return Image.network(
+            imageUrl,
+            width: 200,
+            height: 200,
+            fit: BoxFit.cover,
+            headers: snapshot.data,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Container(
+                width: 200,
+                height: 200,
+                color: Colors.grey[200],
+                child: Center(
+                  child: CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                        : null,
+                  ),
+                ),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              print('Image loading error for URL: $imageUrl');
+              print('Error details: $error');
+              print('Stack trace: $stackTrace');
+              return Container(
+                width: 200,
+                height: 200,
+                color: Colors.grey[200],
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.broken_image,
+                      color: Colors.grey,
+                      size: 40,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Failed to load',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        } else {
+          return Container(
+            width: 200,
+            height: 200,
+            color: Colors.grey[200],
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  Future<Map<String, String>> _getAuthHeaders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': token != null ? 'Bearer $token' : '',
+      };
+    } catch (e) {
+      print('Error getting auth headers: $e');
+      return {
+        'Content-Type': 'application/json',
+      };
+    }
+  }
+
+  void _showImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Stack(
+            children: [
+              // Full screen image
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: FutureBuilder<Map<String, String>>(
+                    future: _getAuthHeaders(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return Image.network(
+                          imageUrl,
+                          fit: BoxFit.contain,
+                          headers: snapshot.data,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              width: MediaQuery.of(context).size.width * 0.9,
+                              height: MediaQuery.of(context).size.height * 0.9,
+                              color: Colors.black54,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            print('Full screen image loading error for URL: $imageUrl');
+                            print('Error details: $error');
+                            return Container(
+                              width: MediaQuery.of(context).size.width * 0.9,
+                              height: MediaQuery.of(context).size.height * 0.9,
+                              color: Colors.black54,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image,
+                                  color: Colors.white,
+                                  size: 60,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      } else {
+                        return Container(
+                          width: MediaQuery.of(context).size.width * 0.9,
+                          height: MediaQuery.of(context).size.height * 0.9,
+                          color: Colors.black54,
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
+              // Close button
+              Positioned(
+                top: 40,
+                right: 20,
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

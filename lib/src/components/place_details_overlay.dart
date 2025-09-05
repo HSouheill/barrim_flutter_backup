@@ -43,6 +43,7 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
   Map<String, dynamic>? _branchDetails;
   Map<String, dynamic>? _companyData;
   Map<String, dynamic>? _wholesalerData;
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
@@ -236,11 +237,16 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
           processedImages = branchImages.map((img) {
             if (img is String) {
               // If it's already a full URL, use it as is
-              if (img.startsWith('http')) {
+              if (img.startsWith('https')) {
                 return img;
               }
-              // Otherwise, construct the full URL using the base URL
-              return '${ApiService.baseUrl}/$img';
+              // Otherwise, construct the full URL using the correct base URL
+              // Ensure proper URL construction for uploads
+              if (img.startsWith('uploads/')) {
+                return 'https://barrim.online/$img';
+              } else {
+                return 'https://barrim.online/uploads/$img';
+              }
             }
             return '';
           }).where((img) => img.isNotEmpty).toList();
@@ -356,6 +362,67 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
         print('Error fetching wholesaler data: $e');
       }
     }
+  }
+
+  double _getRating() {
+    // Try to get rating from current branch first
+    if (_branches.isNotEmpty) {
+      final currentBranch = _branches[_selectedBranchIndex];
+      final rating = currentBranch['rating'];
+      if (rating != null) {
+        return (rating is int) ? rating.toDouble() : (rating is double) ? rating : 0.0;
+      }
+    }
+    
+    // Fallback to place rating
+    final rating = widget.place['rating'];
+    if (rating != null) {
+      return (rating is int) ? rating.toDouble() : (rating is double) ? rating : 0.0;
+    }
+    
+    return 0.0;
+  }
+
+  String _getPrice() {
+    // Try to get price from current branch first
+    if (_branches.isNotEmpty) {
+      final currentBranch = _branches[_selectedBranchIndex];
+      final price = currentBranch['price'];
+      if (price != null) {
+        return price.toString();
+      }
+    }
+    
+    // Fallback to place price
+    final price = widget.place['price'];
+    if (price != null) {
+      return price.toString();
+    }
+    
+    return '0';
+  }
+
+  Widget _buildStarRating(double rating) {
+    final fullStars = rating.floor();
+    final hasHalfStar = (rating - fullStars) >= 0.5;
+    final emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Full stars
+        ...List.generate(fullStars, (index) => 
+          Icon(Icons.star, color: Colors.blue, size: 24)
+        ),
+        // Half star
+        if (hasHalfStar)
+          Icon(Icons.star_half, color: Colors.blue, size: 24),
+        // Empty stars
+        ...List.generate(emptyStars, (index) => 
+          Icon(Icons.star_border, color: Colors.blue, size: 24)
+        ),
+      ],
+    );
   }
 
   String _getCostPerCustomer() {
@@ -765,16 +832,26 @@ Check it out on our app!
         final firstImage = place['images'][0];
         if (firstImage is String) {
           // Add base URL if the path is relative
-          if (firstImage.startsWith('uploads/') || !firstImage.startsWith('http')) {
-            return '${ApiService.baseUrl}/${firstImage}';
+          if (firstImage.startsWith('uploads/') || !firstImage.startsWith('https')) {
+            // Ensure proper URL construction
+            if (firstImage.startsWith('uploads/')) {
+              return 'https://barrim.online/$firstImage';
+            } else {
+              return 'https://barrim.online/uploads/$firstImage';
+            }
           }
           return firstImage;
         }
       } else if (place['images'] is String) {
         final imagePath = place['images'];
         // Add base URL if the path is relative
-        if (imagePath.startsWith('uploads/') || !imagePath.startsWith('http')) {
-          return '${ApiService.baseUrl}/${imagePath}';
+        if (imagePath.startsWith('uploads/') || !imagePath.startsWith('https')) {
+          // Ensure proper URL construction
+          if (imagePath.startsWith('uploads/')) {
+            return 'https://barrim.online/$imagePath';
+          } else {
+            return 'https://barrim.online/uploads/$imagePath';
+          }
         }
         return imagePath;
       }
@@ -784,8 +861,13 @@ Check it out on our app!
     if (place['image'] != null && place['image'] is String) {
       final imagePath = place['image'];
       // Add base URL if the path is relative
-      if (imagePath.startsWith('uploads/') || !imagePath.startsWith('http')) {
-        return '${ApiService.baseUrl}/${imagePath}';
+      if (imagePath.startsWith('uploads/') || !imagePath.startsWith('https')) {
+        // Ensure proper URL construction
+        if (imagePath.startsWith('uploads/')) {
+          return 'https://barrim.online/$imagePath';
+        } else {
+          return 'https://barrim.online/uploads/$imagePath';
+        }
       }
       return imagePath;
     }
@@ -860,13 +942,26 @@ Check it out on our app!
             children: [
               Stack(
                 children: [
-                  Container(
+                  GestureDetector(
+                    onHorizontalDragEnd: (details) {
+                      if (details.primaryVelocity! > 0) {
+                        // Swipe right - go to previous image
+                        _previousImage();
+                      } else if (details.primaryVelocity! < 0) {
+                        // Swipe left - go to next image
+                        _nextImage();
+                      }
+                    },
+                    child: Container(
                     width: double.infinity,
                     height: 230,
-                    child: currentBranch != null && currentBranch['images'] != null && currentBranch['images'].isNotEmpty
-                        ? _buildBranchImage(currentBranch)
-                        :Image.network(
-                      _getFirstImageUrl(widget.place),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(40),
+                          topRight: Radius.circular(40),
+                        ),
+                        child: Image.network(
+                          _getCurrentImageUrl(),
                       width: double.infinity,
                       height: 230,
                       fit: BoxFit.cover,
@@ -885,6 +980,8 @@ Check it out on our app!
                           ),
                         );
                       },
+                        ),
+                      ),
                     ),
                   ),
                   Positioned(
@@ -925,6 +1022,10 @@ Check it out on our app!
                       ),
                     ),
                   ),
+                  // Image navigation buttons
+                  _buildImageNavigationButtons(),
+                  // Image indicator dots
+                  _buildImageIndicator(),
                   Positioned(
                     top: 10,
                     right: 10,
@@ -1009,11 +1110,8 @@ Check it out on our app!
                                 children: [
                                   Icon(Icons.restaurant, color: Colors.white, size: 16),
                                   SizedBox(width: 6),
-                                  Icon(Icons.star, color: Colors.blue, size: 24),
-                                  Icon(Icons.star, color: Colors.blue, size: 24),
-                                  Icon(Icons.star, color: Colors.blue, size: 24),
-                                  Icon(Icons.star, color: Colors.blue, size: 24),
-                                  Icon(Icons.star, color: Colors.blue, size: 24),
+                                  _buildStarRating(_getRating()),
+                                  
                                   SizedBox(width: 8),
                                   GestureDetector(
                                     onTap: _navigateToReviews,
@@ -1052,10 +1150,10 @@ Check it out on our app!
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.person, color: Colors.white, size: 20),
+                                  Icon(Icons.attach_money, color: Colors.white, size: 20),
                                   SizedBox(width: 4),
                                   Text(
-                                    '\$${_getCostPerCustomer()}',
+                                    '\$${_getPrice()}',
                                     style: TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
@@ -1098,6 +1196,7 @@ Check it out on our app!
                                     if (selected) {
                                       setState(() {
                                         _selectedBranchIndex = index;
+                                        _currentImageIndex = 0; // Reset image index when branch changes
                                       });
                                       if (widget.onBranchSelect != null) {
                                         final latitude = branch['latitude'] ?? widget.place['latitude'];
@@ -1285,24 +1384,279 @@ Check it out on our app!
   }
 
   Widget _buildCompanyLogo(Map<String, dynamic> place) {
+    if (!kReleaseMode) {
+      print('Building company logo with data: $place');
+      print('Company data keys: ${place.keys.toList()}');
+      if (place['companyInfo'] != null) {
+        print('CompanyInfo keys: ${place['companyInfo'].keys.toList()}');
+      }
+    }
+    
     String? logoUrl;
+    
+    // Check multiple possible locations for the logo
     if (place['companyInfo'] != null && place['companyInfo']['logo'] != null) {
       logoUrl = place['companyInfo']['logo'];
+      if (!kReleaseMode) {
+        print('Found logo in companyInfo: $logoUrl');
+      }
     } else if (place['logo'] != null) {
       logoUrl = place['logo'];
-    }
-    if (logoUrl != null && logoUrl.isNotEmpty) {
-      if (logoUrl.startsWith('uploads/') || !logoUrl.startsWith('http')) {
-        logoUrl = '${ApiService.baseUrl}/$logoUrl';
+      if (!kReleaseMode) {
+        print('Found logo in place: $logoUrl');
       }
+    } else if (place['company'] != null && place['company']['logo'] != null) {
+      logoUrl = place['company']['logo'];
+      if (!kReleaseMode) {
+        print('Found logo in company: $logoUrl');
+      }
+    }
+    
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      // Construct full URL if needed
+      if (logoUrl.startsWith('uploads/') || !logoUrl.startsWith('https')) {
+        // Ensure proper URL construction
+        if (logoUrl.startsWith('uploads/')) {
+          logoUrl = 'https://barrim.online/$logoUrl';
+        } else {
+          logoUrl = 'https://barrim.online/uploads/$logoUrl';
+        }
+      }
+      
+      if (!kReleaseMode) {
+        print('Loading company logo from: $logoUrl');
+      }
+      
       return Image.network(
         logoUrl,
         fit: BoxFit.cover,
+        width: 40,
+        height: 40,
         errorBuilder: (context, error, stackTrace) {
-          return Icon(Icons.business, size: 40, color: Colors.blue);
+          if (!kReleaseMode) {
+            print('Error loading company logo: $error');
+          }
+          return Icon(Icons.business, size: 24, color: Colors.blue);
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
         },
       );
     }
-    return Icon(Icons.business, size: 40, color: Colors.blue);
+    
+    if (!kReleaseMode) {
+      print('No logo found, using fallback business icon');
+    }
+    
+    // Fallback to business icon
+    return Icon(Icons.business, size: 24, color: Colors.blue);
+  }
+
+  List<String> _getCurrentImages() {
+    try {
+      final currentBranch = _branches.isNotEmpty ? _branches[_selectedBranchIndex] : null;
+      
+      if (currentBranch != null && currentBranch['images'] != null && currentBranch['images'] is List) {
+        final images = currentBranch['images'] as List;
+        return images.where((img) => img is String && img.isNotEmpty).map((img) {
+          if (img.startsWith('https')) {
+            return img;
+          }
+          // Construct full URL for uploads paths
+          if (img.startsWith('uploads/')) {
+            return 'https://barrim.online/$img';
+          } else {
+            return 'https://barrim.online/uploads/$img';
+          }
+        }).cast<String>().toList();
+      }
+      
+      // Fallback to place images
+      if (widget.place['images'] != null) {
+        if (widget.place['images'] is List && (widget.place['images'] as List).isNotEmpty) {
+          final images = widget.place['images'] as List;
+          return images.where((img) => img is String && img.isNotEmpty).map((img) {
+            if (img.startsWith('https')) {
+              return img;
+            }
+            // Construct full URL for uploads paths
+            if (img.startsWith('uploads/')) {
+              return 'https://barrim.online/$img';
+            } else {
+              return 'https://barrim.online/uploads/$img';
+            }
+          }).cast<String>().toList();
+        } else if (widget.place['images'] is String && widget.place['images'].isNotEmpty) {
+          final img = widget.place['images'];
+          if (img.startsWith('https')) {
+            return [img];
+          }
+          if (img.startsWith('uploads/')) {
+            return ['https://barrim.online/$img'];
+          } else {
+            return ['https://barrim.online/uploads/$img'];
+          }
+        }
+      }
+      
+      // Fallback to single image
+      final firstImageUrl = _getFirstImageUrl(widget.place);
+      if (firstImageUrl.isNotEmpty) {
+        return [firstImageUrl];
+      }
+      
+      return [];
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error getting current images: $e');
+      }
+      return [];
+    }
+  }
+
+  void _nextImage() {
+    try {
+      final images = _getCurrentImages();
+      if (images.length > 1) {
+        setState(() {
+          _currentImageIndex = (_currentImageIndex + 1) % images.length;
+        });
+      }
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error navigating to next image: $e');
+      }
+    }
+  }
+
+  void _previousImage() {
+    try {
+      final images = _getCurrentImages();
+      if (images.length > 1) {
+        setState(() {
+          _currentImageIndex = (_currentImageIndex - 1 + images.length) % images.length;
+        });
+      }
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error navigating to previous image: $e');
+      }
+    }
+  }
+
+  String _getCurrentImageUrl() {
+    try {
+      final images = _getCurrentImages();
+      if (images.isNotEmpty) {
+        // Ensure index is within bounds
+        if (_currentImageIndex >= images.length) {
+          _currentImageIndex = 0;
+        }
+        return images[_currentImageIndex];
+      }
+      return _getFirstImageUrl(widget.place);
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error getting current image URL: $e');
+      }
+      return _getFirstImageUrl(widget.place);
+    }
+  }
+
+  Widget _buildImageNavigationButtons() {
+    final images = _getCurrentImages();
+    if (images.length <= 1) {
+      return SizedBox.shrink();
+    }
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Left arrow
+          Padding(
+            padding: EdgeInsets.only(left: 16),
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.5),
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+                  onPressed: _previousImage,
+                  padding: EdgeInsets.all(8),
+                ),
+              ),
+            ),
+          ),
+          // Right arrow
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.5),
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
+                  onPressed: _nextImage,
+                  padding: EdgeInsets.all(8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageIndicator() {
+    final images = _getCurrentImages();
+    if (images.length <= 1) {
+      return SizedBox.shrink();
+    }
+
+    return Positioned(
+      bottom: 16,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(images.length, (index) {
+            return Container(
+              margin: EdgeInsets.symmetric(horizontal: 2),
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: index == _currentImageIndex 
+                    ? Colors.white 
+                    : Colors.white.withOpacity(0.5),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
   }
 }

@@ -186,6 +186,14 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
       // Convert Branch objects to Map for UI rendering
       final branchesData = branchList.map((branch) => branch.toJson()).toList();
 
+      print('WholesalerDashboard: Loaded ${branchesData.length} branches');
+      for (int i = 0; i < branchesData.length; i++) {
+        final branch = branchesData[i];
+        print('WholesalerDashboard: Branch $i: ${branch['name']}');
+        print('WholesalerDashboard: Branch $i images: ${branch['images']}');
+        print('WholesalerDashboard: Branch $i images count: ${(branch['images'] as List?)?.length ?? 0}');
+      }
+
       setState(() {
         branches = branchesData;
       });
@@ -486,41 +494,139 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
   }
 
   Future<void> _navigateToEditBranch(Map<String, dynamic> branch) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddWholeSalerBranchPage(
-          token: widget.userData['token'],
-          isEditMode: true,
-          branchData: branch,
-        ),
-      ),
-    );
+    // Get the branch ID
+    var branchId = branch['_id'];
+    if (branchId is Map && branchId.containsKey("\$oid")) {
+      branchId = branchId["\$oid"];
+    } else if (branchId == null) {
+      branchId = branch['id'];
+    }
+    
+    print('WholesalerDashboard: Navigating to edit branch with ID: $branchId');
+    print('WholesalerDashboard: Current branch data: $branch');
+    
+    // Fetch fresh branch data from API to ensure we have complete data including images
+    try {
+      final freshBranch = await _wholesalerService.getBranch(branchId.toString());
+      if (freshBranch != null) {
+        final freshBranchData = freshBranch.toJson();
+        print('WholesalerDashboard: Fresh branch data from API: $freshBranchData');
+        
+                final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddWholeSalerBranchPage(
+              token: widget.userData['token'],
+              isEditMode: true,
+              branchData: freshBranchData,
+            ),
+          ),
+        );
 
-    if (result != null && result is Map<String, dynamic>) {
-      setState(() {
-        // Find and update the branch in the list
-        for (int i = 0; i < branches.length; i++) {
-          // Get branch ID - Use _id as that's what's in your branch objects
-          var branchId = branches[i]['_id'];
-          if (branchId is Map && branchId.containsKey("\$oid")) {
-            branchId = branchId["\$oid"];
-          } else if (branchId == null) {
-            branchId = branches[i]['id'];
-          }
+        if (result != null && result is Map<String, dynamic>) {
+          setState(() {
+            // Find and update the branch in the list
+            for (int i = 0; i < branches.length; i++) {
+              // Get branch ID - Use _id as that's what's in your branch objects
+              var branchId = branches[i]['_id'];
+              if (branchId is Map && branchId.containsKey("\$oid")) {
+                branchId = branchId["\$oid"];
+              } else if (branchId == null) {
+                branchId = branches[i]['id'];
+              }
 
-          var resultId = result['_id'];
-          if (resultId is Map && resultId.containsKey("\$oid")) {
-            resultId = resultId["\$oid"];
-          }
+              var resultId = result['_id'];
+              if (resultId is Map && resultId.containsKey("\$oid")) {
+                resultId = resultId["\$oid"];
+              }
 
-          if (branchId == resultId) {
-            branches[i] = result;
-            break;
-          }
+              if (branchId == resultId) {
+                branches[i] = result;
+                break;
+              }
+            }
+            print("Updated branch with data: $result");
+          });
         }
-        print("Updated branch with data: $result");
-      });
+      } else {
+        print('WholesalerDashboard: Failed to fetch fresh branch data, using original data');
+        // Fallback to using the original branch data
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddWholeSalerBranchPage(
+              token: widget.userData['token'],
+              isEditMode: true,
+              branchData: branch,
+            ),
+          ),
+        );
+
+        if (result != null && result is Map<String, dynamic>) {
+          setState(() {
+            // Find and update the branch in the list
+            for (int i = 0; i < branches.length; i++) {
+              // Get branch ID - Use _id as that's what's in your branch objects
+              var branchId = branches[i]['_id'];
+              if (branchId is Map && branchId.containsKey("\$oid")) {
+                branchId = branchId["\$oid"];
+              } else if (branchId == null) {
+                branchId = branches[i]['id'];
+              }
+
+              var resultId = result['_id'];
+              if (resultId is Map && resultId.containsKey("\$oid")) {
+                resultId = resultId["\$oid"];
+              }
+
+              if (branchId == resultId) {
+                branches[i] = result;
+                break;
+              }
+            }
+            print("Updated branch with data: $result");
+          });
+        }
+      }
+    } catch (e) {
+      print('WholesalerDashboard: Error fetching fresh branch data: $e');
+      // Fallback to using the original branch data
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddWholeSalerBranchPage(
+            token: widget.userData['token'],
+            isEditMode: true,
+            branchData: branch,
+          ),
+        ),
+      );
+
+      if (result != null && result is Map<String, dynamic>) {
+        setState(() {
+          // Find and update the branch in the list
+          for (int i = 0; i < branches.length; i++) {
+            // Get branch ID - Use _id as that's what's in your branch objects
+            var branchId = branches[i]['_id'];
+            if (branchId is Map && branchId.containsKey("\$oid")) {
+              branchId = branchId["\$oid"];
+            } else if (branchId == null) {
+              branchId = branches[i]['id'];
+            }
+
+            var resultId = result['_id'];
+            if (resultId is Map && resultId.containsKey("\$oid")) {
+              resultId = resultId["\$oid"];
+            }
+
+            if (branchId == resultId) {
+              branches[i] = result;
+              break;
+            }
+          }
+          print("Updated branch with data: $result");
+        });
+      }
     }
   }
 
@@ -528,9 +634,14 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
     try {
       // Check if branch has images
       final images = branch['images'];
+      print('WholesalerDashboard: Building image for branch: ${branch['name']}');
+      print('WholesalerDashboard: Branch images: $images');
+      print('WholesalerDashboard: Images type: ${images.runtimeType}');
+      
       if (images == null ||
           (images is List && images.isEmpty) ||
           (images is bool)) {
+        print('WholesalerDashboard: No images found, showing placeholder');
         return Center(
           child: Icon(
             Icons.store,
@@ -561,7 +672,11 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
       // Handle both URL and file path cases
       if (images is List && images.isNotEmpty) {
         final imagePath = images[0];
+        print('WholesalerDashboard: First image path: $imagePath');
+        print('WholesalerDashboard: Image path type: ${imagePath.runtimeType}');
+        
         if (imagePath == null || imagePath is! String || imagePath.isEmpty) {
+          print('WholesalerDashboard: Invalid image path, showing placeholder');
           return Center(
             child: Icon(
               Icons.store,
@@ -572,28 +687,29 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
         }
 
         // Print for debugging
-        print("Loading image from path: $imagePath");
+        print("WholesalerDashboard: Loading image from path: $imagePath");
 
         if (imagePath.startsWith('http')) {
           // It's already a full URL
+          print("WholesalerDashboard: Using full URL: $imagePath");
           return Image.network(
             imagePath,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
-              print("Error loading network image: $error");
+              print("WholesalerDashboard: Error loading network image: $error");
               return Icon(Icons.image_not_supported, size: 40, color: Colors.grey[400]);
             },
           );
         } else {
           // It's a server-side path, convert it to a full URL
           final fullImageUrl = '${ApiService.baseUrl}/$imagePath';
-          print("Converted to full URL: $fullImageUrl");
+          print("WholesalerDashboard: Converted to full URL: $fullImageUrl");
 
           return Image.network(
             fullImageUrl,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
-              print("Error loading network image: $error");
+              print("WholesalerDashboard: Error loading network image: $error");
               return Icon(Icons.image_not_supported, size: 40, color: Colors.grey[400]);
             },
           );

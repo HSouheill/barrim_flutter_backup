@@ -360,10 +360,7 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
               // Navigate back to the previous screen
               Navigator.of(context).pop();
             },
-            onRefresh: () {
-              // Refresh the service provider data
-              _loadServiceProviderData();
-            },
+
           ),
           Expanded(
             child: SingleChildScrollView(
