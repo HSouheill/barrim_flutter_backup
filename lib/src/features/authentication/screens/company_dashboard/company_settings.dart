@@ -39,8 +39,8 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
   Future<void> _loadCompanyData() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token.isNotEmpty) {
-        var data = await ApiService.getCompanyData(token);
+      if (token?.isNotEmpty == true) {
+        var data = await ApiService.getCompanyData(token!);
         String? email;
         if (data['companyInfo'] != null) {
           // Fetch email using ApiService.getUserProfile

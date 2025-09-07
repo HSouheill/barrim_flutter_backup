@@ -52,12 +52,15 @@ class WholesalerService {
     return await _tokenStorage.getToken();
   }
 
-  // Headers with authentication token
+  // Headers with authentication token and security headers
   Future<Map<String, String>> _getHeaders() async {
     final token = await _getToken();
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
+      'User-Agent': 'Barrim-Mobile-App/1.0',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
     };
   }
 
@@ -70,8 +73,6 @@ class WholesalerService {
         Uri.parse('$baseUrl/api/wholesaler/data'),
         headers: headers,
       );
-      print('Request URL: ${Uri.parse('$baseUrl/api/wholesaler/data')}');
-
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         final apiResponse = ApiResponse.fromJson(responseData);
@@ -79,16 +80,17 @@ class WholesalerService {
         if (apiResponse.status == 200 && apiResponse.data != null) {
           // Changed from 'wholesalerInfo' to 'wholesaler' to match backend
           final wholesaler = apiResponse.data['wholesaler'];
-          print('Wholesaler Data: $wholesaler');
           return Wholesaler.fromJson(wholesaler);  // Assuming your fromJson method is correctly implemented
         } else {
           throw Exception(apiResponse.message);
         }
       } else {
-        throw Exception('Failed to load wholesaler data: ${response.statusCode}');
+        throw Exception('Failed to load wholesaler data');
       }
     } catch (e) {
-      print('Error in getWholesalerData: $e');
+      if (!kReleaseMode) {
+        print('Error in getWholesalerData: $e');
+      }
       return null;
     }
   }
@@ -154,12 +156,7 @@ class WholesalerService {
 
       final url = Uri.parse('$baseUrl/api/wholesaler/branches');
       
-      if (!kReleaseMode) {
-        print('Creating branch with URL: $url');
-        print('Branch data: name=$name, phone=$phone, category=$category, subCategory=$subCategory');
-        print('Location: ${location.toJson()}');
-        print('Images count: ${images.length}, Videos count: ${videos.length}');
-      }
+      // Branch creation in progress
 
       // Validate and compress files before upload
       List<File> processedImages = [];
@@ -171,37 +168,32 @@ class WholesalerService {
           final fileSize = await image.length();
           final maxImageSize = 5 * 1024 * 1024; // 5MB limit
           
-          print('Processing image: ${image.path} - Size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
-          
           if (fileSize > maxImageSize) {
-            print('Image ${image.path} is too large (${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB), compressing...');
             final compressedImage = await _compressImage(image);
             if (compressedImage != null) {
               final compressedSize = await compressedImage.length();
-              print('Image compressed from ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB to ${(compressedSize / 1024 / 1024).toStringAsFixed(2)}MB');
               
               // Double-check that compressed image is still under limit
               if (compressedSize <= maxImageSize) {
                 processedImages.add(compressedImage);
-                print('Compressed image added to upload list');
               } else {
-                print('Compressed image still too large, skipping...');
                 // Clean up the temporary compressed file
                 try {
                   await compressedImage.delete();
                 } catch (e) {
-                  print('Error deleting temporary compressed file: $e');
+                  if (!kReleaseMode) {
+                    print('Error deleting temporary compressed file: $e');
+                  }
                 }
               }
-            } else {
-              print('Failed to compress image, skipping...');
             }
           } else {
             processedImages.add(image);
-            print('Image within size limit, added to upload list');
           }
         } catch (e) {
-          print('Error processing image ${image.path}: $e');
+          if (!kReleaseMode) {
+            print('Error processing image: $e');
+          }
           // Continue with other images
         }
       }
@@ -212,27 +204,25 @@ class WholesalerService {
           final fileSize = await video.length();
           final maxVideoSize = 25 * 1024 * 1024; // Reduced to 25MB limit for better compatibility
           
-          print('Processing video: ${video.path} - Size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB');
-          
           if (fileSize > maxVideoSize) {
-            print('Video ${video.path} is too large (${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB), skipping...');
             // Show user feedback about skipped video
             // Note: We can't show ScaffoldMessenger here as this is not in a UI context
           } else {
             processedVideos.add(video);
-            print('Video within size limit, added to upload list');
           }
         } catch (e) {
-          print('Error processing video ${video.path}: $e');
+          if (!kReleaseMode) {
+            print('Error processing video: $e');
+          }
           // Continue with other videos
         }
       }
       
-      print('Final processed files - Images: ${processedImages.length}, Videos: ${processedVideos.length}');
-      
       // Check if we have any files to upload
       if (processedImages.isEmpty && processedVideos.isEmpty) {
-        print('Warning: No valid files to upload after processing');
+        if (!kReleaseMode) {
+          print('Warning: No valid files to upload after processing');
+        }
       }
       
       // Calculate total request size to prevent 413 errors
@@ -241,26 +231,27 @@ class WholesalerService {
         try {
           totalRequestSize += await image.length();
         } catch (e) {
-          print('Error calculating image size: $e');
+          if (!kReleaseMode) {
+            print('Error calculating image size: $e');
+          }
         }
       }
       for (var video in processedVideos) {
         try {
           totalRequestSize += await video.length();
         } catch (e) {
-          print('Error calculating video size: $e');
+          if (!kReleaseMode) {
+            print('Error calculating video size: $e');
+          }
         }
       }
       
       // Add estimated overhead for multipart data (headers, form fields, etc.)
       totalRequestSize += 1024 * 1024; // Add 1MB overhead
       
-      print('Total estimated request size: ${(totalRequestSize / 1024 / 1024).toStringAsFixed(2)}MB');
-      
       // If total size is still too large, remove largest files
       final maxTotalSize = 20 * 1024 * 1024; // 20MB total limit
       if (totalRequestSize > maxTotalSize) {
-        print('Total request size too large, removing largest files...');
         
         // Sort images by size and keep only the smallest ones
         List<MapEntry<File, int>> imageSizes = [];
@@ -269,7 +260,9 @@ class WholesalerService {
             final size = await image.length();
             imageSizes.add(MapEntry(image, size));
           } catch (e) {
-            print('Error getting image size: $e');
+            if (!kReleaseMode) {
+              print('Error getting image size: $e');
+            }
           }
         }
         
@@ -283,13 +276,14 @@ class WholesalerService {
             processedImages.add(entry.key);
             currentSize += entry.value;
           } else {
-            print('Skipping large image: ${entry.key.path} (${(entry.value / 1024 / 1024).toStringAsFixed(2)}MB)');
             // Clean up temporary compressed files
             if (entry.key.path.contains('compressed_')) {
               try {
                 await entry.key.delete();
               } catch (e) {
-                print('Error deleting temporary file: $e');
+                if (!kReleaseMode) {
+                  print('Error deleting temporary file: $e');
+                }
               }
             }
           }
@@ -302,7 +296,9 @@ class WholesalerService {
             final size = await video.length();
             videoSizes.add(MapEntry(video, size));
           } catch (e) {
-            print('Error getting video size: $e');
+            if (!kReleaseMode) {
+              print('Error getting video size: $e');
+            }
           }
         }
         
@@ -314,11 +310,13 @@ class WholesalerService {
             processedVideos.add(entry.key);
             currentSize += entry.value;
           } else {
-            print('Skipping large video: ${entry.key.path} (${(entry.value / 1024 / 1024).toStringAsFixed(2)}MB)');
+            // Skipping large video file
           }
         }
         
-        print('After size optimization - Images: ${processedImages.length}, Videos: ${processedVideos.length}');
+        if (!kReleaseMode) {
+          print('After size optimization - Images: ${processedImages.length}, Videos: ${processedVideos.length}');
+        }
       }
 
       // Create multipart request
@@ -346,9 +344,7 @@ class WholesalerService {
       // Add branch data as a field - this matches the Go backend expectation
       request.fields['data'] = json.encode(branchData);
 
-      if (!kReleaseMode) {
-        print('Sending branch data: ${json.encode(branchData)}');
-      }
+      // Sending branch data
 
       // Add processed image files
       for (var image in processedImages) {
@@ -357,7 +353,9 @@ class WholesalerService {
 
         // Validate file exists and is readable
         if (!await image.exists()) {
-          print('Warning: Image file does not exist: ${image.path}');
+          if (!kReleaseMode) {
+            print('Warning: Image file does not exist');
+          }
           continue;
         }
 
@@ -370,11 +368,11 @@ class WholesalerService {
               extension == 'jpg' ? 'jpeg' : extension,
             ),
           ));
-          if (!kReleaseMode) {
-            print('Added processed image file: ${image.path}');
-          }
+          // Image file added successfully
         } catch (e) {
-          print('Error adding processed image file ${image.path}: $e');
+          if (!kReleaseMode) {
+            print('Error adding processed image file: $e');
+          }
         }
       }
 
@@ -385,7 +383,9 @@ class WholesalerService {
 
         // Validate file exists and is readable
         if (!await video.exists()) {
-          print('Warning: Video file does not exist: ${video.path}');
+          if (!kReleaseMode) {
+            print('Warning: Video file does not exist');
+          }
           continue;
         }
 
@@ -395,11 +395,11 @@ class WholesalerService {
             video.path,
             contentType: MediaType('video', extension),
           ));
-          if (!kReleaseMode) {
-            print('Added processed video file: ${video.path}');
-          }
+          // Video file added successfully
         } catch (e) {
-          print('Error adding processed video file ${video.path}: $e');
+          if (!kReleaseMode) {
+            print('Error adding processed video file: $e');
+          }
         }
       }
 
@@ -408,10 +408,7 @@ class WholesalerService {
       final streamedResponse = await client.send(request);
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (!kReleaseMode) {
-        print('Response status: ${response.statusCode}');
-        print('Response body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -448,7 +445,7 @@ class WholesalerService {
       }
     } catch (e) {
       if (!kReleaseMode) {
-        print('Error in createBranch: $e');
+        print('Error in createBranch');
       }
       rethrow; // Re-throw to let the UI handle the error
     }
@@ -473,7 +470,9 @@ class WholesalerService {
         throw Exception('Failed to update wholesaler data: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in updateWholesalerData: $e');
+      if (!kReleaseMode) {
+        print('Error in updateWholesalerData: $e');
+      }
       return false;
     }
   }
@@ -520,7 +519,9 @@ class WholesalerService {
         throw Exception('Failed to upload logo: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in uploadLogo: $e');
+      if (!kReleaseMode) {
+        print('Error in uploadLogo: $e');
+      }
       return null;
     }
   }
@@ -545,13 +546,7 @@ class WholesalerService {
 
       final url = Uri.parse('$baseUrl/api/wholesaler/branches/$branchId');
       
-      if (!kReleaseMode) {
-        print('Editing branch with URL: $url');
-        print('Branch ID: $branchId');
-        print('Branch data: name=$name, phone=$phone, category=$category, subCategory=$subCategory');
-        print('Location: ${location.toJson()}');
-        print('New images count: ${newImages.length}, New videos count: ${newVideos.length}');
-      }
+      // Editing branch
 
       // Validate and compress files before upload
       List<File> processedImages = [];
@@ -564,20 +559,17 @@ class WholesalerService {
           final maxImageSize = 5 * 1024 * 1024; // 5MB limit
           
           if (fileSize > maxImageSize) {
-            print('Image ${image.path} is too large (${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB), compressing...');
             final compressedImage = await _compressImage(image);
             if (compressedImage != null) {
-              final compressedSize = await compressedImage.length();
-              print('Image compressed from ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB to ${(compressedSize / 1024 / 1024).toStringAsFixed(2)}MB');
               processedImages.add(compressedImage);
-            } else {
-              print('Failed to compress image, skipping...');
             }
           } else {
             processedImages.add(image);
           }
         } catch (e) {
-          print('Error processing image ${image.path}: $e');
+          if (!kReleaseMode) {
+            print('Error processing image: $e');
+          }
           // Continue with other images
         }
       }
@@ -589,12 +581,14 @@ class WholesalerService {
           final maxVideoSize = 50 * 1024 * 1024; // 50MB limit
           
           if (fileSize > maxVideoSize) {
-            print('Video ${video.path} is too large (${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB), skipping...');
+            // Skipping large video file
           } else {
             processedVideos.add(video);
           }
         } catch (e) {
-          print('Error processing video ${video.path}: $e');
+          if (!kReleaseMode) {
+            print('Error processing video: $e');
+          }
           // Continue with other videos
         }
       }
@@ -624,9 +618,7 @@ class WholesalerService {
       // Add branch data as a field - this matches the Go backend expectation
       request.fields['data'] = json.encode(branchData);
 
-      if (!kReleaseMode) {
-        print('Sending branch update data: ${json.encode(branchData)}');
-      }
+      // Sending branch update data
 
       // Add processed new image files if provided
       for (var image in processedImages) {
@@ -635,7 +627,9 @@ class WholesalerService {
 
         // Validate file exists and is readable
         if (!await image.exists()) {
-          print('Warning: Image file does not exist: ${image.path}');
+          if (!kReleaseMode) {
+            print('Warning: Image file does not exist');
+          }
           continue;
         }
 
@@ -648,11 +642,11 @@ class WholesalerService {
               extension == 'jpg' ? 'jpeg' : extension,
             ),
           ));
-          if (!kReleaseMode) {
-            print('Added processed new image file: ${image.path}');
-          }
+          // New image file added successfully
         } catch (e) {
-          print('Error adding processed new image file ${image.path}: $e');
+          if (!kReleaseMode) {
+            print('Error adding processed new image file: $e');
+          }
         }
       }
 
@@ -663,7 +657,9 @@ class WholesalerService {
 
         // Validate file exists and is readable
         if (!await video.exists()) {
-          print('Warning: Video file does not exist: ${video.path}');
+          if (!kReleaseMode) {
+            print('Warning: Video file does not exist');
+          }
           continue;
         }
 
@@ -673,11 +669,11 @@ class WholesalerService {
             video.path,
             contentType: MediaType('video', extension),
           ));
-          if (!kReleaseMode) {
-            print('Added processed new video file: ${video.path}');
-          }
+          // New video file added successfully
         } catch (e) {
-          print('Error adding processed new video file ${video.path}: $e');
+          if (!kReleaseMode) {
+            print('Error adding processed new video file: $e');
+          }
         }
       }
 
@@ -686,10 +682,7 @@ class WholesalerService {
       final streamedResponse = await client.send(request);
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (!kReleaseMode) {
-        print('Response status: ${response.statusCode}');
-        print('Response body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -725,7 +718,7 @@ class WholesalerService {
       }
     } catch (e) {
       if (!kReleaseMode) {
-        print('Error in editBranch: $e');
+        print('Error in editBranch');
       }
       rethrow; // Re-throw to let the UI handle the error
     }
@@ -780,7 +773,9 @@ class WholesalerService {
         throw Exception('Failed to delete branch: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in deleteBranch: $e');
+      if (!kReleaseMode) {
+        print('Error in deleteBranch: $e');
+      }
       return false;
     }
   }
@@ -790,8 +785,6 @@ class WholesalerService {
   Future<WholesalerReferralData?> getWholesalerReferralData() async {
     try {
       final headers = await _getHeaders();
-      print('Making request to $baseUrl/api/wholesaler/referral');
-      print('Headers: $headers');
 
       final response = await _makeRequest(
         'GET',
@@ -799,8 +792,7 @@ class WholesalerService {
         headers: headers,
       );
 
-      print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body.substring(0, 200)}...'); // Log first 200 chars to avoid overwhelming logs
+      // Response logged without sensitive data
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         final apiResponse = ApiResponse.fromJson(responseData);
@@ -821,7 +813,6 @@ class WholesalerService {
             );
           } else {
             // Fallback if referralData is missing but there's still some data
-            print('Warning: referralData object is missing in the response');
             return WholesalerReferralData(
               referralCode: apiResponse.data['referralCode'] ?? '',
               referralCount: apiResponse.data['referralCount'] ?? 0,
@@ -837,7 +828,9 @@ class WholesalerService {
         throw Exception('Failed to load referral data: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in getWholesalerReferralData: $e');
+      if (!kReleaseMode) {
+        print('Error in getWholesalerReferralData: $e');
+      }
       return null;
     }
   }
@@ -869,7 +862,9 @@ class WholesalerService {
         throw Exception('Failed to load QR code: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in getWholesalerReferralQRCode: $e');
+      if (!kReleaseMode) {
+        print('Error in getWholesalerReferralQRCode: $e');
+      }
       return null;
     }
   }
@@ -877,20 +872,13 @@ class WholesalerService {
   // Helper method to compress image
   Future<File?> _compressImage(File imageFile, {int maxWidth = 800, int maxHeight = 800, int quality = 85}) async {
     try {
-      print('Starting image compression for: ${imageFile.path}');
-      
       // Read the image file
       final bytes = await imageFile.readAsBytes();
-      final originalSize = bytes.length;
-      print('Original image size: ${(originalSize / 1024 / 1024).toStringAsFixed(2)}MB');
-      
       final image = img.decodeImage(bytes);
       
       if (image == null) {
         throw Exception('Failed to decode image');
       }
-
-      print('Image dimensions: ${image.width}x${image.height}');
 
       // Resize image if it's too large - be more aggressive with resizing
       img.Image resizedImage = image;
@@ -907,7 +895,6 @@ class WholesalerService {
           newWidth = (maxHeight * aspectRatio).round();
         }
         
-        print('Resizing image to: ${newWidth}x${newHeight}');
         resizedImage = img.copyResize(
           image,
           width: newWidth,
@@ -921,13 +908,9 @@ class WholesalerService {
       File? compressedFile;
       
       for (int qualityLevel in qualityLevels) {
-        print('Trying compression with quality: $qualityLevel%');
-        
         // Encode as JPEG with quality setting
         final compressedBytes = img.encodeJpg(resizedImage, quality: qualityLevel);
         final compressedSize = compressedBytes.length;
-        
-        print('Compressed size with $qualityLevel% quality: ${(compressedSize / 1024 / 1024).toStringAsFixed(2)}MB');
         
         // If we're under 5MB, we're good
         if (compressedSize <= 5 * 1024 * 1024) {
@@ -937,19 +920,19 @@ class WholesalerService {
           await tempFile.writeAsBytes(compressedBytes);
           
           compressedFile = tempFile;
-          print('Successfully compressed image to ${(compressedSize / 1024 / 1024).toStringAsFixed(2)}MB');
           break;
         }
       }
       
       if (compressedFile == null) {
-        print('Failed to compress image to acceptable size');
         return null;
       }
       
       return compressedFile;
     } catch (e) {
-      print('Error compressing image: $e');
+      if (!kReleaseMode) {
+        print('Error compressing image: $e');
+      }
       return null;
     }
   }
@@ -1004,7 +987,6 @@ class WholesalerService {
             final compressedSize = await compressedFile.length();
             if (compressedSize <= maxSize) {
               logoFile = compressedFile; // Use compressed file
-              print('Image compressed successfully. Original size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)}MB, Compressed size: ${(compressedSize / 1024 / 1024).toStringAsFixed(2)}MB');
             } else {
               throw Exception('Image is too large even after compression. Please use a smaller image.');
             }
@@ -1048,11 +1030,12 @@ class WholesalerService {
       } else if (response.statusCode == 413) {
         throw Exception('File size too large. Please use an image smaller than 5MB.');
       } else {
-        print('Failed to update wholesaler details. Status: ${response.statusCode}, Body: ${response.body}');
-        throw Exception('Failed to update wholesaler details: ${response.statusCode}, ${response.body}');
+        throw Exception('Failed to update wholesaler details');
       }
     } catch (e) {
-      print('Error in changeWholesalerDetails: $e');
+      if (!kReleaseMode) {
+        print('Error in changeWholesalerDetails: $e');
+      }
       return null;
     }
   }
@@ -1065,33 +1048,16 @@ class WholesalerService {
         headers: headers,
       );
 
-      print('\n=== WHOLESALER API RESPONSE DEBUG ===');
-      print('Status Code: ${response.statusCode}');
-      print('Raw Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         final apiResponse = ApiResponse.fromJson(responseData);
 
-        print('\nParsed API Response:');
-        print('Status: ${apiResponse.status}');
-        print('Message: ${apiResponse.message}');
-        print('Data Type: ${apiResponse.data.runtimeType}');
-
         if (apiResponse.status == 200 && apiResponse.data != null) {
           if (apiResponse.data is List) {
-            print('\nProcessing wholesalers list...');
             return List<Wholesaler>.from(
                 apiResponse.data.map((wholesalerJson) {
-                  print('\nProcessing wholesaler JSON:');
-                  print('Raw wholesaler data: $wholesalerJson');
-                  
-                  // Check address field specifically
-                  print('Address field in JSON: ${wholesalerJson['address']}');
-                  
                   // Handle address field correctly
                   if (wholesalerJson['address'] == null) {
-                    print('Warning: Address is null in the response');
                     // If address is missing, create a default one to avoid null issues
                     wholesalerJson['address'] = {
                       'country': '',
@@ -1105,26 +1071,22 @@ class WholesalerService {
                   }
 
                   final wholesaler = Wholesaler.fromJson(wholesalerJson);
-                  print('Created wholesaler object:');
-                  print('Business Name: ${wholesaler.businessName}');
-                  print('Address: ${wholesaler.address?.toJson()}');
                   return wholesaler;
                 })
             );
           } else {
-            print('Error: API response data is not a list');
             return [];
           }
         } else {
-          print('Error: API response status is not 200 or data is null');
           throw Exception(apiResponse.message);
         }
       } else {
-        print('Error: HTTP status code is not 200');
-        throw Exception('Failed to load wholesalers: ${response.statusCode}');
+        throw Exception('Failed to load wholesalers');
       }
     } catch (e) {
-      print('Error in getAllWholesalers: $e');
+      if (!kReleaseMode) {
+        print('Error in getAllWholesalers: $e');
+      }
       return [];
     }
   }

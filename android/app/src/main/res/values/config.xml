@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Google Maps API Key - Replace with your actual key -->
-    <string name="google_maps_api_key">AIzaSyD8LfG_dswX7RwHlfSCf-Qc0qFpEVm-XrM</string>
+    <!-- Google Maps API Key - Use environment variable or build config -->
+    <string name="google_maps_api_key">${GOOGLE_MAPS_API_KEY}</string>
     
     <!-- Firebase Project ID -->
     <string name="firebase_project_id">barrim-3b45a</string>

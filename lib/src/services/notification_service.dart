@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
@@ -25,7 +26,9 @@ class NotificationService {
       initializationSettings,
       onDidReceiveNotificationResponse: (details) {
         // Handle notification tap
-        print('Notification tapped: ${details.payload}');
+        if (!kReleaseMode) {
+          print('Notification tapped: ${details.payload}');
+        }
       },
     );
 
@@ -49,6 +52,18 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    // Input validation
+    if (title.trim().isEmpty) {
+      throw Exception('Notification title is required');
+    }
+    if (body.trim().isEmpty) {
+      throw Exception('Notification body is required');
+    }
+    
+    // Sanitize inputs
+    final sanitizedTitle = title.trim();
+    final sanitizedBody = body.trim();
+    final sanitizedPayload = payload?.trim();
     const AndroidNotificationDetails androidNotificationDetails =
         AndroidNotificationDetails(
       'barrim_channel',
@@ -73,10 +88,10 @@ class NotificationService {
 
     await notificationsPlugin.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      title,
-      body,
+      sanitizedTitle,
+      sanitizedBody,
       notificationDetails,
-      payload: payload,
+      payload: sanitizedPayload,
     );
   }
 }

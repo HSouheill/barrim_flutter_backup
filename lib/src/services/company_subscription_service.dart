@@ -86,32 +86,35 @@ class CompanySubscriptionService {
     return await client.send(request);
   }
 
-  // Get authentication headers
+  // Get authentication headers with security headers
   static Future<Map<String, String>> _getHeaders() async {
     final token = await _tokenStorage.getToken();
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
+      'User-Agent': 'Barrim-Mobile-App/1.0',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
     };
   }
 
-  // Get multipart headers for file uploads
+  // Get multipart headers for file uploads with security headers
   static Future<Map<String, String>> _getMultipartHeaders() async {
     final token = await _tokenStorage.getToken();
     return {
       'Authorization': 'Bearer $token',
+      'User-Agent': 'Barrim-Mobile-App/1.0',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
     };
   }
 
   /// Get all available subscription plans for companies
   static Future<ApiResponse<List<SubscriptionPlan>>> getSubscriptionPlans() async {
     try {
-      print('Starting getSubscriptionPlans request...');
       final headers = await _getHeaders();
-      print('Headers: $headers');
       
       final url = '$_baseUrl$_subscriptionEndpoint/subscription-plans';
-      print('Requesting URL: $url');
       
       // Ensure HTTPS is being used
       if (!_validateHttpsUrl(url)) {
@@ -123,25 +126,18 @@ class CompanySubscriptionService {
         Uri.parse(url),
         headers: headers,
       );
-      print('Response status code: ${response.statusCode}');
-      print('Raw subscription plans response: ${response.body}');
+      
+      // Response logged without sensitive data
 
       try {
         final responseData = json.decode(response.body);
-        print('Decoded subscription plans response: $responseData');
 
         if (response.statusCode == 200) {
-          print('Subscription plans data type: ${responseData['data']?.runtimeType}');
-          print('Subscription plans data: ${responseData['data']}');
-          
           final List<dynamic> plansJson = responseData['data'] ?? [];
-          print('Plans JSON before mapping: $plansJson');
           
           final plans = plansJson.map((json) {
-            print('Processing plan JSON: $json');
             return SubscriptionPlan.fromJson(json);
           }).toList();
-          print('Processed plans: ${plans.map((p) => p.toJson()).toList()}');
 
           return ApiResponse<List<SubscriptionPlan>>(
             success: true,
@@ -156,17 +152,12 @@ class CompanySubscriptionService {
           );
         }
       } catch (parseError) {
-        print('Error parsing response: $parseError');
-        print('Response that failed to parse: ${response.body}');
-        rethrow;
+        throw Exception('Failed to parse subscription plans response');
       }
-    } catch (e, stackTrace) {
-      print('Error in getSubscriptionPlans: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       return ApiResponse<List<SubscriptionPlan>>(
         success: false,
-        message: 'Network error: ${e.toString()}',
-        error: e.toString(),
+        message: 'Failed to retrieve subscription plans',
       );
     }
   }
@@ -178,6 +169,39 @@ class CompanySubscriptionService {
     File? paymentProofImage,
   }) async {
     try {
+      // Input validation
+      if (planId.trim().isEmpty) {
+        throw Exception('Plan ID is required');
+      }
+      if (branchId.trim().isEmpty) {
+        throw Exception('Branch ID is required');
+      }
+      
+      // Basic ID format validation (assuming MongoDB ObjectId format)
+      if (!RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(planId.trim())) {
+        throw Exception('Invalid plan ID format');
+      }
+      if (!RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(branchId.trim())) {
+        throw Exception('Invalid branch ID format');
+      }
+      
+      // Validate payment proof image if provided
+      if (paymentProofImage != null) {
+        if (!await paymentProofImage.exists()) {
+          throw Exception('Payment proof image file does not exist');
+        }
+        
+        final fileSize = await paymentProofImage.length();
+        if (fileSize > 5 * 1024 * 1024) { // 5MB limit
+          throw Exception('Payment proof image is too large. Maximum size is 5MB');
+        }
+        
+        final fileExtension = paymentProofImage.path.split('.').last.toLowerCase();
+        if (!['jpg', 'jpeg', 'png', 'gif'].contains(fileExtension)) {
+          throw Exception('Invalid file format. Only JPG, PNG, and GIF are allowed');
+        }
+      }
+      
       final headers = await _getMultipartHeaders();
       final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/request';
       
@@ -188,10 +212,10 @@ class CompanySubscriptionService {
       
       final uri = Uri.parse(url);
 
-      // Prepare fields
+      // Prepare fields with sanitized inputs
       Map<String, String> fields = {
-        'planId': planId,
-        'branchId': branchId,
+        'planId': planId.trim(),
+        'branchId': branchId.trim(),
       };
 
       // Prepare files
@@ -239,8 +263,7 @@ class CompanySubscriptionService {
     } catch (e) {
       return ApiResponse<SubscriptionRequest>(
         success: false,
-        message: 'Network error: ${e.toString()}',
-        error: e.toString(),
+        message: 'Failed to create subscription request',
       );
     }
   }
@@ -248,6 +271,16 @@ class CompanySubscriptionService {
   /// Get current active subscription
   static Future<ApiResponse<CurrentSubscriptionData?>> getCurrentSubscription({required String branchId}) async {
     try {
+      // Input validation
+      if (branchId.trim().isEmpty) {
+        throw Exception('Branch ID is required');
+      }
+      
+      // Basic ID format validation (assuming MongoDB ObjectId format)
+      if (!RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(branchId.trim())) {
+        throw Exception('Invalid branch ID format');
+      }
+      
       final headers = await _getHeaders();
       final url = '$_baseUrl$_subscriptionEndpoint/subscription/request/$branchId/status';
       
@@ -285,8 +318,7 @@ class CompanySubscriptionService {
     } catch (e) {
       return ApiResponse<CurrentSubscriptionData?>(
         success: false,
-        message: 'Network error: ${e.toString()}',
-        error: e.toString(),
+        message: 'Failed to retrieve current subscription',
       );
     }
   }
@@ -294,6 +326,16 @@ class CompanySubscriptionService {
   /// Get subscription remaining time
   static Future<ApiResponse<SubscriptionRemainingTimeData>> getSubscriptionRemainingTime({required String branchId}) async {
     try {
+      // Input validation
+      if (branchId.trim().isEmpty) {
+        throw Exception('Branch ID is required');
+      }
+      
+      // Basic ID format validation (assuming MongoDB ObjectId format)
+      if (!RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(branchId.trim())) {
+        throw Exception('Invalid branch ID format');
+      }
+      
       final headers = await _getHeaders();
       final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/remaining-time';
       
@@ -328,8 +370,7 @@ class CompanySubscriptionService {
     } catch (e) {
       return ApiResponse<SubscriptionRemainingTimeData>(
         success: false,
-        message: 'Network error: ${e.toString()}',
-        error: e.toString(),
+        message: 'Failed to retrieve subscription remaining time',
       );
     }
   }
@@ -337,6 +378,16 @@ class CompanySubscriptionService {
   /// Cancel active subscription
   static Future<ApiResponse<void>> cancelSubscription({required String branchId}) async {
     try {
+      // Input validation
+      if (branchId.trim().isEmpty) {
+        throw Exception('Branch ID is required');
+      }
+      
+      // Basic ID format validation (assuming MongoDB ObjectId format)
+      if (!RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(branchId.trim())) {
+        throw Exception('Invalid branch ID format');
+      }
+      
       final headers = await _getHeaders();
       final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/cancel';
       
@@ -368,8 +419,7 @@ class CompanySubscriptionService {
     } catch (e) {
       return ApiResponse<void>(
         success: false,
-        message: 'Network error: ${e.toString()}',
-        error: e.toString(),
+        message: 'Failed to cancel subscription',
       );
     }
   }
@@ -422,8 +472,7 @@ class CompanySubscriptionService {
     } catch (e) {
       return ApiResponse<SubscriptionStatus>(
         success: false,
-        message: 'Network error: ${e.toString()}',
-        error: e.toString(),
+        message: 'Failed to retrieve subscription status',
       );
     }
   }

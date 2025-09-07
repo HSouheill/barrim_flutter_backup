@@ -76,20 +76,26 @@ class ServiceProviderSubscriptionService {
     return await client.send(request);
   }
 
-  // Get authorization header with JWT token
+  // Get authorization header with JWT token and security headers
   static Future<Map<String, String>> _getHeaders() async {
     final token = await _tokenStorage.getToken();
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
+      'User-Agent': 'Barrim-Mobile-App/1.0',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
     };
   }
 
-  // Get multipart headers with JWT token
+  // Get multipart headers with JWT token and security headers
   static Future<Map<String, String>> _getMultipartHeaders() async {
     final token = await _tokenStorage.getToken();
     return {
       'Authorization': 'Bearer $token',
+      'User-Agent': 'Barrim-Mobile-App/1.0',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
     };
   }
 
@@ -103,10 +109,7 @@ class ServiceProviderSubscriptionService {
         headers: headers,
       );
 
-      if (kDebugMode) {
-        print('Get Subscription Plans Response: ${response.statusCode}');
-        print('Response Body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       final Map<String, dynamic> responseData = json.decode(response.body);
 
@@ -129,12 +132,9 @@ class ServiceProviderSubscriptionService {
         );
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Error getting subscription plans: $e');
-      }
       return ApiResponse<List<SubscriptionPlan>>(
         success: false,
-        message: 'Network error: ${e.toString()}',
+        message: 'Failed to retrieve subscription plans',
       );
     }
   }
@@ -145,12 +145,39 @@ class ServiceProviderSubscriptionService {
     File? paymentProofImage,
   }) async {
     try {
+      // Input validation
+      if (planId.trim().isEmpty) {
+        throw Exception('Plan ID is required');
+      }
+      
+      // Basic ID format validation (assuming MongoDB ObjectId format)
+      if (!RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(planId.trim())) {
+        throw Exception('Invalid plan ID format');
+      }
+      
+      // Validate payment proof image if provided
+      if (paymentProofImage != null) {
+        if (!await paymentProofImage.exists()) {
+          throw Exception('Payment proof image file does not exist');
+        }
+        
+        final fileSize = await paymentProofImage.length();
+        if (fileSize > 5 * 1024 * 1024) { // 5MB limit
+          throw Exception('Payment proof image is too large. Maximum size is 5MB');
+        }
+        
+        final fileExtension = paymentProofImage.path.split('.').last.toLowerCase();
+        if (!['jpg', 'jpeg', 'png', 'gif'].contains(fileExtension)) {
+          throw Exception('Invalid file format. Only JPG, PNG, and GIF are allowed');
+        }
+      }
+      
       final headers = await _getMultipartHeaders();
       final uri = Uri.parse('$_baseUrl$_apiPrefix/subscription-requests');
 
-      // Prepare fields
+      // Prepare fields with sanitized inputs
       Map<String, String> fields = {
-        'planId': planId,
+        'planId': planId.trim(),
       };
 
       // Prepare files
@@ -169,9 +196,7 @@ class ServiceProviderSubscriptionService {
         files.add(multipartFile);
       }
 
-      if (kDebugMode) {
-        print('Creating subscription request for plan: $planId');
-      }
+      // Creating subscription request
 
       // Send the request using custom client
       final streamedResponse = await _makeMultipartRequest(
@@ -184,10 +209,7 @@ class ServiceProviderSubscriptionService {
       
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (kDebugMode) {
-        print('Create Subscription Request Response: ${response.statusCode}');
-        print('Response Body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       final Map<String, dynamic> responseData = json.decode(response.body);
 
@@ -208,12 +230,9 @@ class ServiceProviderSubscriptionService {
         );
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Error creating subscription request: $e');
-      }
       return ApiResponse<SubscriptionRequest>(
         success: false,
-        message: 'Network error: ${e.toString()}',
+        message: 'Failed to create subscription request',
       );
     }
   }
@@ -228,10 +247,7 @@ class ServiceProviderSubscriptionService {
         headers: headers,
       );
 
-      if (kDebugMode) {
-        print('Get Subscription Time Remaining Response: ${response.statusCode}');
-        print('Response Body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       final Map<String, dynamic> responseData = json.decode(response.body);
 
@@ -265,12 +281,9 @@ class ServiceProviderSubscriptionService {
         );
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Error getting subscription time remaining: $e');
-      }
       return ApiResponse<Map<String, dynamic>>(
         success: false,
-        message: 'Network error: ${e.toString()}',
+        message: 'Failed to retrieve subscription time remaining',
       );
     }
   }
@@ -285,10 +298,7 @@ class ServiceProviderSubscriptionService {
         headers: headers,
       );
 
-      if (kDebugMode) {
-        print('Get Current Subscription Response: ${response.statusCode}');
-        print('Response Body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       final Map<String, dynamic> responseData = json.decode(response.body);
 
@@ -306,12 +316,9 @@ class ServiceProviderSubscriptionService {
         );
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Error getting current subscription: $e');
-      }
       return ApiResponse<Map<String, dynamic>>(
         success: false,
-        message: 'Network error: ${e.toString()}',
+        message: 'Failed to retrieve current subscription',
       );
     }
   }
@@ -326,10 +333,7 @@ class ServiceProviderSubscriptionService {
         headers: headers,
       );
 
-      if (kDebugMode) {
-        print('Cancel Subscription Response: ${response.statusCode}');
-        print('Response Body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       final Map<String, dynamic> responseData = json.decode(response.body);
 
@@ -347,12 +351,9 @@ class ServiceProviderSubscriptionService {
         );
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Error cancelling subscription: $e');
-      }
       return ApiResponse<String>(
         success: false,
-        message: 'Network error: ${e.toString()}',
+        message: 'Failed to cancel subscription',
       );
     }
   }
@@ -394,12 +395,9 @@ class ServiceProviderSubscriptionService {
         );
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Error getting subscription status: $e');
-      }
       return ApiResponse<SubscriptionStatus>(
         success: false,
-        message: 'Network error: ${e.toString()}',
+        message: 'Failed to retrieve subscription status',
       );
     }
   }

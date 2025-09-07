@@ -53,7 +53,7 @@ class CompanyAppHeader extends StatelessWidget {
                 try {
                   final tokenManager = TokenManager();
                   final token = await tokenManager.getToken();
-                  if (token.isNotEmpty) {
+                  if (token?.isNotEmpty == true) {
                     updatedUserData['token'] = token;
                   }
                 } catch (e) {
@@ -80,7 +80,7 @@ class CompanyAppHeader extends StatelessWidget {
                 try {
                   final tokenManager = TokenManager();
                   final token = await tokenManager.getToken();
-                  if (token.isNotEmpty) {
+                  if (token?.isNotEmpty == true) {
                     updatedUserData['token'] = token;
                   }
                 } catch (e) {

@@ -39,7 +39,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
   Future<void> _loadReferralData() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token.isEmpty) {
+      if (token?.isNotEmpty == true) {
         setState(() {
           _isLoading = false;
           _errorMessage = 'Authentication required';
@@ -52,7 +52,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
         await _loadUserProfile();
       }
 
-      final referralService = CompanyReferralService(token: token);
+      final referralService = CompanyReferralService(token: token ?? '');
       final result = await referralService.getCompanyReferralData();
 
       if (result['success']) {
@@ -131,7 +131,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
   Future<void> _shareReferral({required String code, required String link}) async {
     try {
       final token = await _tokenManager.getToken();
-      final referralService = CompanyReferralService(token: token);
+      final referralService = CompanyReferralService(token: token ?? '');
       await referralService.shareReferral(code: code, link: link);
       // ScaffoldMessenger.of(context).showSnackBar(
       //   const SnackBar(content: Text('Referral information copied to clipboard')),
@@ -146,8 +146,8 @@ class _ReferralsPageState extends State<ReferralsPage> {
   Future<void> _loadCompanyData() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token.isNotEmpty) {
-        var data = await ApiService.getCompanyData(token);
+      if (token?.isNotEmpty == true) {
+        var data = await ApiService.getCompanyData(token!);
         if (data['companyInfo'] != null) {
           setState(() {
             logoUrl = data['companyInfo']['logo'];
@@ -162,8 +162,8 @@ class _ReferralsPageState extends State<ReferralsPage> {
   Future<void> _loadUserProfile() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token.isNotEmpty) {
-        var data = await ApiService.getUserProfile(token);
+      if (token?.isNotEmpty == true) {
+        var data = await ApiService.getUserProfile(token!);
         if (data != null && data['referralCode'] != null) {
           setState(() {
             _userReferralCode = data['referralCode'];

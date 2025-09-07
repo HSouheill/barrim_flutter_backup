@@ -1,5 +1,6 @@
 // models/service_provider.dart
 import 'package:flutter/material.dart';
+import 'dart:convert';
 
 class ServiceProvider {
   final String id;
@@ -106,6 +107,7 @@ class ServiceProviderInfo {
   final String? profilePhoto;
   final String? description;
   final String? certificateImage;
+  final List<String>? certificateImages;
   final String? status;
   final Map<String, String>? socialLinks;
 
@@ -119,6 +121,7 @@ class ServiceProviderInfo {
     this.profilePhoto,
     this.description,
     this.certificateImage,
+    this.certificateImages,
     this.status,
     this.socialLinks,
   });
@@ -138,18 +141,77 @@ class ServiceProviderInfo {
       // Handle availableHours and availableDays which could be lists of strings
       List<String> hours = [];
       if (json['availableHours'] != null) {
-        hours = List<String>.from(json['availableHours']);
+        // Handle nested array structure from API
+        if (json['availableHours'] is List && json['availableHours'].isNotEmpty) {
+          final firstElement = json['availableHours'][0];
+          if (firstElement is List) {
+            // It's a nested array, extract the inner array
+            hours = List<String>.from(firstElement);
+          } else if (firstElement is String) {
+            // It's a JSON string, parse it as JSON
+            try {
+              final parsedJson = jsonDecode(firstElement);
+              if (parsedJson is List) {
+                hours = List<String>.from(parsedJson);
+              } else {
+                // Fallback to comma splitting
+                hours = firstElement.split(',');
+              }
+            } catch (e) {
+              // If JSON parsing fails, try comma splitting
+              hours = firstElement.split(',');
+            }
+          } else {
+            // It's a regular array
+            hours = List<String>.from(json['availableHours']);
+          }
+        }
       }
 
       List<String> days = [];
       if (json['availableDays'] != null) {
-        days = List<String>.from(json['availableDays']);
+        // Handle nested array structure from API
+        if (json['availableDays'] is List && json['availableDays'].isNotEmpty) {
+          final firstElement = json['availableDays'][0];
+          if (firstElement is List) {
+            // It's a nested array, extract the inner array
+            days = List<String>.from(firstElement);
+            print('Parsed availableDays from nested array: $days');
+          } else if (firstElement is String) {
+            // It's a JSON string, parse it as JSON
+            try {
+              final parsedJson = jsonDecode(firstElement);
+              if (parsedJson is List) {
+                days = List<String>.from(parsedJson);
+                print('Parsed availableDays from JSON string: $days');
+              } else {
+                // Fallback to comma splitting
+                days = firstElement.split(',');
+                print('Parsed availableDays from comma-separated string: $days');
+              }
+            } catch (e) {
+              // If JSON parsing fails, try comma splitting
+              days = firstElement.split(',');
+              print('Failed to parse JSON, using comma splitting: $days');
+            }
+          } else {
+            // It's a regular array
+            days = List<String>.from(json['availableDays']);
+            print('Parsed availableDays from regular array: $days');
+          }
+        }
       }
 
       // Parse socialLinks if present
       Map<String, String>? socialLinks;
       if (json['socialLinks'] != null && json['socialLinks'] is Map) {
         socialLinks = Map<String, String>.from(json['socialLinks']);
+      }
+
+      // Parse certificateImages array
+      List<String>? certificateImages;
+      if (json['certificateImages'] != null && json['certificateImages'] is List) {
+        certificateImages = List<String>.from(json['certificateImages']);
       }
 
       return ServiceProviderInfo(
@@ -161,6 +223,7 @@ class ServiceProviderInfo {
         profilePhoto: json['profilePhoto']?.toString(),
         description: description,
         certificateImage: json['certificateImage']?.toString(),
+        certificateImages: certificateImages,
         status: json['status']?.toString(),
         socialLinks: socialLinks,
       );
@@ -180,6 +243,7 @@ class ServiceProviderInfo {
       'profilePhoto': profilePhoto,
       'description': description,
       'certificateImage': certificateImage,
+      'certificateImages': certificateImages,
       'status': status,
       if (socialLinks != null) 'socialLinks': socialLinks,
     };

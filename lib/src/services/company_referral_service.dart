@@ -59,8 +59,7 @@ class CompanyReferralService {
         headers: _headers,
       );
 
-      print('API Response Status: ${response.statusCode}');
-      print('API Response Body: ${response.body}');
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final responseBody = response.body;
@@ -128,12 +127,28 @@ class CompanyReferralService {
 
   // Handle company referral during signup
   Future<Map<String, dynamic>> handleCompanyReferral(String referralCode) async {
+    // Input validation
+    if (referralCode.trim().isEmpty) {
+      return {
+        'success': false,
+        'error': 'Referral code is required',
+      };
+    }
+    
+    // Basic referral code format validation
+    if (referralCode.trim().length < 3 || referralCode.trim().length > 20) {
+      return {
+        'success': false,
+        'error': 'Invalid referral code format',
+      };
+    }
+    
     try {
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/company/handle-referral'),
         headers: _headers,
-        body: json.encode({'referralCode': referralCode}),
+        body: json.encode({'referralCode': referralCode.trim()}),
       );
 
       if (response.statusCode == 200) {
@@ -158,14 +173,28 @@ class CompanyReferralService {
 
   // Share referral code or link
   Future<void> shareReferral({required String code, required String link}) async {
+    // Input validation
+    if (code.trim().isEmpty) {
+      throw Exception('Referral code is required');
+    }
+    
+    if (link.trim().isEmpty) {
+      throw Exception('Referral link is required');
+    }
+    
+    // URL validation
+    if (!RegExp(r'^https?:\/\/').hasMatch(link.trim())) {
+      throw Exception('Invalid referral link format');
+    }
+    
     // This would integrate with the device's sharing capabilities
     // Implementation depends on the sharing package you use (like share_plus)
     // Placeholder implementation
     try {
-      await Clipboard.setData(ClipboardData(text: code));
+      await Clipboard.setData(ClipboardData(text: code.trim()));
       // In a real app, you would trigger the share dialog here
     } catch (e) {
-      throw Exception('Error sharing referral: $e');
+      throw Exception('Error sharing referral');
     }
   }
 

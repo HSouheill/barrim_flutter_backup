@@ -64,7 +64,7 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
   Future<void> _initializeBookingService() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token.isEmpty) {
+      if (token?.isNotEmpty == true) {
         setState(() {
           _error = "Authentication token not found. Please login again.";
           _isLoading = false;
@@ -72,7 +72,7 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
         return;
       }
 
-      _bookingService = BookingService(token: token);
+      _bookingService = BookingService(token: token ?? '');
       _loadBookings();
     } catch (e) {
       setState(() {

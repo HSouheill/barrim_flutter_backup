@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:flutter/foundation.dart';
 
 import 'package:http_parser/http_parser.dart';
 import '../models/service_provider.dart';
@@ -61,12 +62,16 @@ class ServiceProviderService {
       final File compressedFile = File('${tempDir.path}/compressed_logo_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await compressedFile.writeAsBytes(compressedBytes);
       
-      print('Image compressed: ${originalFile.lengthSync()} bytes -> ${compressedFile.lengthSync()} bytes');
-      print('Image resized: ${originalImage.width}x${originalImage.height} -> ${newWidth}x${newHeight}');
+      if (!kReleaseMode) {
+        print('Image compressed: ${originalFile.lengthSync()} bytes -> ${compressedFile.lengthSync()} bytes');
+        print('Image resized: ${originalImage.width}x${originalImage.height} -> ${newWidth}x${newHeight}');
+      }
       
       return compressedFile;
     } catch (e) {
-      print('Failed to compress image: $e');
+      if (!kReleaseMode) {
+        print('Failed to compress image: $e');
+      }
       // Return original file if compression fails
       return originalFile;
     }
@@ -97,7 +102,7 @@ class ServiceProviderService {
     try {
       final token = await _tokenStorage.getToken();
       if (token == null) {
-        throw Exception('No token found');
+        throw Exception('Authentication token not found');
       }
       final response = await _makeRequest(
         'GET',
@@ -128,13 +133,13 @@ class ServiceProviderService {
           
           return ServiceProvider.fromJson(serviceProviderData);
         } else {
-          throw Exception(responseData['message'] ?? 'Failed to get service provider data');
+          throw Exception('Failed to get service provider data');
         }
       } else {
-        throw Exception('Failed to get service provider data: ${response.statusCode}');
+        throw Exception('Failed to get service provider data');
       }
     } catch (e) {
-      throw Exception('Error getting service provider data: $e');
+      throw Exception('Error getting service provider data');
     }
   }
 
@@ -145,23 +150,41 @@ class ServiceProviderService {
     String? newPassword,
   }) async {
     try {
+      // Input validation
+      if (businessName.trim().isEmpty) {
+        throw Exception('Business name is required');
+      }
+      
+      if (email != null && email.trim().isNotEmpty) {
+        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim())) {
+          throw Exception('Invalid email format');
+        }
+      }
+      
+      if (newPassword != null && newPassword.trim().isNotEmpty) {
+        if (newPassword.length < 6) {
+          throw Exception('New password must be at least 6 characters long');
+        }
+      }
+      
       final token = await _tokenStorage.getToken();
-      if (token == null) throw Exception('No token found');
+      if (token == null) throw Exception('Authentication token not found');
       var request = http.MultipartRequest(
         'PUT',
         Uri.parse('$baseUrl/api/service-provider/update'),
       );
       request.headers['Authorization'] = 'Bearer $token';
-      request.fields['fullName'] = businessName;
-      if (email != null && email.isNotEmpty) request.fields['email'] = email;
-      if (newPassword != null && newPassword.isNotEmpty) {
-        request.fields['password'] = newPassword;
+      request.fields['fullName'] = businessName.trim();
+      if (email != null && email.trim().isNotEmpty) request.fields['email'] = email.trim();
+      if (newPassword != null && newPassword.trim().isNotEmpty) {
+        request.fields['password'] = newPassword.trim();
       }
       final client = await _getCustomClient();
       var response = await http.Response.fromStream(await client.send(request));
       
-      print('Profile update response status: ${response.statusCode}');
-      print('Profile update response body: ${response.body}');
+      if (!kReleaseMode) {
+        print('Profile update response status: ${response.statusCode}');
+      }
       
       if (response.statusCode != 200) {
         // Check for specific error status codes
@@ -218,12 +241,12 @@ class ServiceProviderService {
       request.headers['Authorization'] = 'Bearer $token';
       
       // Add basic fields
-      request.fields['fullName'] = businessName;
+      request.fields['fullName'] = businessName.trim();
       if (email != null && email.isNotEmpty) {
         request.fields['email'] = email;
       }
-      if (newPassword != null && newPassword.isNotEmpty) {
-        request.fields['password'] = newPassword;
+      if (newPassword != null && newPassword.trim().isNotEmpty) {
+        request.fields['password'] = newPassword.trim();
       }
       
       // Add additional data fields
@@ -266,6 +289,15 @@ class ServiceProviderService {
           List<String> availableHours = List<String>.from(additionalData['availableHours']);
           request.fields['availableHours'] = availableHours.join(',');
           print('Sending availableHours: $availableHours');
+        }
+        if (additionalData['availableWeekdays'] != null) {
+          List<String> availableWeekdays = List<String>.from(additionalData['availableWeekdays']);
+          request.fields['availableWeekdays'] = availableWeekdays.join(',');
+          print('Sending availableWeekdays: $availableWeekdays');
+        }
+        if (additionalData['applyToAllMonths'] != null) {
+          request.fields['applyToAllMonths'] = additionalData['applyToAllMonths'].toString();
+          print('Sending applyToAllMonths: ${additionalData['applyToAllMonths']}');
         }
       }
       
@@ -360,10 +392,10 @@ class ServiceProviderService {
         Uri.parse('$baseUrl/api/service-provider/update'),
       );
       request.headers['Authorization'] = 'Bearer $token';
-      request.fields['fullName'] = businessName;
-      if (email != null && email.isNotEmpty) request.fields['email'] = email;
-      if (newPassword != null && newPassword.isNotEmpty) {
-        request.fields['password'] = newPassword;
+      request.fields['fullName'] = businessName.trim();
+      if (email != null && email.trim().isNotEmpty) request.fields['email'] = email.trim();
+      if (newPassword != null && newPassword.trim().isNotEmpty) {
+        request.fields['password'] = newPassword.trim();
       }
       
       // Add the logo file
@@ -387,8 +419,9 @@ class ServiceProviderService {
       var response = await http.Response.fromStream(await client.send(request));
       print('Response received');
       
-      print('Profile update response status: ${response.statusCode}');
-      print('Profile update response body: ${response.body}');
+      if (!kReleaseMode) {
+        print('Profile update response status: ${response.statusCode}');
+      }
       
       if (response.statusCode != 200) {
         // Check for specific error status codes

@@ -4,15 +4,20 @@ import 'package:barrim/src/services/notification_provider.dart';
 import 'package:barrim/src/services/user_provider.dart';
 import 'package:barrim/src/services/google_maps_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
 
   // Firebase initialization removed to avoid Apple sign-in conflicts
   print("Firebase Core not initialized - using native Apple sign-in");
@@ -108,13 +113,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   // Handle app resume with session validation
   Future<void> _handleAppResume(UserProvider userProvider, NotificationProvider notificationProvider) async {
-    print('App resumed - checking session status');
-    print('UserProvider.isLoggedIn: ${userProvider.isLoggedIn}');
-    print('UserProvider.token: ${userProvider.token != null ? 'Token exists' : 'No token'}');
-    print('UserProvider.user: ${userProvider.user != null ? 'User exists' : 'No user'}');
+    if (kDebugMode) {
+      print('App resumed - checking session status');
+      print('UserProvider.isLoggedIn: ${userProvider.isLoggedIn}');
+      print('UserProvider.token: ${userProvider.token != null ? 'Token exists' : 'No token'}');
+      print('UserProvider.user: ${userProvider.user != null ? 'User exists' : 'No user'}');
+    }
     
     if (userProvider.isLoggedIn && userProvider.token != null && userProvider.user != null) {
-      print('App resumed - validating session and reconnecting WebSocket');
+      if (kDebugMode) {
+        print('App resumed - validating session and reconnecting WebSocket');
+      }
       
       // Use the new comprehensive session check
       final sessionValid = await userProvider.checkAndHandleSession();
@@ -124,13 +133,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           userProvider.token!,
           userProvider.user!.id,
         );
-        print('Session validated and WebSocket reconnected');
+        if (kDebugMode) {
+          print('Session validated and WebSocket reconnected');
+        }
       } else {
-        print('Session expired or refresh failed, user will need to login again');
+        if (kDebugMode) {
+          print('Session expired or refresh failed, user will need to login again');
+        }
         // Optionally show a message to the user about session expiration
       }
     } else {
-      print('No valid session found on app resume');
+      if (kDebugMode) {
+        print('No valid session found on app resume');
+      }
     }
   }
 
@@ -183,23 +198,29 @@ class _MyHomePageState extends State<MyHomePage> {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
 
-    print('Initializing session...');
-    print('UserProvider.isInitialized: ${userProvider.isInitialized}');
+    if (kDebugMode) {
+      print('Initializing session...');
+      print('UserProvider.isInitialized: ${userProvider.isInitialized}');
+    }
 
     // Wait for UserProvider to initialize
     while (!userProvider.isInitialized) {
       await Future.delayed(const Duration(milliseconds: 100));
     }
 
-    print('UserProvider initialized');
-    print('UserProvider.isLoggedIn: ${userProvider.isLoggedIn}');
-    print('UserProvider.token: ${userProvider.token != null ? 'Token exists' : 'No token'}');
-    print('UserProvider.user: ${userProvider.user != null ? 'User exists (${userProvider.user!.id})' : 'No user'}');
+    if (kDebugMode) {
+      print('UserProvider initialized');
+      print('UserProvider.isLoggedIn: ${userProvider.isLoggedIn}');
+      print('UserProvider.token: ${userProvider.token != null ? 'Token exists' : 'No token'}');
+      print('UserProvider.user: ${userProvider.user != null ? 'User exists' : 'No user'}');
+    }
 
     if (userProvider.isLoggedIn &&
         userProvider.token != null &&
         userProvider.user != null) {
-      print('Session found - initializing WebSocket for user: ${userProvider.user!.id}');
+      if (kDebugMode) {
+        print('Session found - initializing WebSocket');
+      }
       
       // Use the new comprehensive session check
       final sessionValid = await userProvider.checkAndHandleSession();
@@ -210,12 +231,18 @@ class _MyHomePageState extends State<MyHomePage> {
           userProvider.user!.id,
         );
         _websocketInitialized = true;
-        print('WebSocket initialized successfully');
+        if (kDebugMode) {
+          print('WebSocket initialized successfully');
+        }
       } else if (!sessionValid) {
-        print('Session expired or refresh failed during initialization');
+        if (kDebugMode) {
+          print('Session expired or refresh failed during initialization');
+        }
       }
     } else {
-      print('No valid session found - user needs to login');
+      if (kDebugMode) {
+        print('No valid session found - user needs to login');
+      }
     }
   }
 

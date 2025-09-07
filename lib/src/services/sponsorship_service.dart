@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/sponsorship.dart';
@@ -45,12 +46,15 @@ class SponsorshipService {
     }
   }
 
-  // Get authentication headers
+  // Get authentication headers with security headers
   static Future<Map<String, String>> _getHeaders() async {
     final token = await _tokenStorage.getToken();
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
+      'User-Agent': 'Barrim-Mobile-App/1.0',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
     };
   }
 
@@ -60,11 +64,22 @@ class SponsorshipService {
     int limit = 10,
   }) async {
     try {
+      // Input validation
+      if (page < 1) {
+        throw Exception('Page number must be greater than 0');
+      }
+      if (limit < 1 || limit > 100) {
+        throw Exception('Limit must be between 1 and 100');
+      }
+      
       final response = await _makeRequest(
         'GET',
         Uri.parse('$baseUrl/api/sponsorships/service-provider?page=$page&limit=$limit'),
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'Barrim-Mobile-App/1.0',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
         },
       );
 
@@ -75,14 +90,12 @@ class SponsorshipService {
         return {
           'success': false,
           'message': 'Failed to fetch service provider sponsorships',
-          'error': 'HTTP ${response.statusCode}',
         };
       }
     } catch (e) {
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
-        'error': e.toString(),
+        'message': 'Failed to process request',
       };
     }
   }
@@ -104,8 +117,7 @@ class SponsorshipService {
         headers: headers,
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -123,8 +135,7 @@ class SponsorshipService {
       print('Error in getCompanyWholesalerSponsorships: $e');
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
-        'error': e.toString(),
+        'message': 'Failed to process request',
       };
     }
   }
@@ -151,8 +162,7 @@ class SponsorshipService {
         body: jsonEncode(requestBody),
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      // Response logged without sensitive data
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -169,8 +179,7 @@ class SponsorshipService {
       print('Error creating service provider sponsorship request: $e');
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
-        'error': e.toString(),
+        'message': 'Failed to process request',
       };
     }
   }
@@ -209,8 +218,7 @@ class SponsorshipService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
-        'error': e.toString(),
+        'message': 'Failed to process request',
       };
     }
   }
@@ -251,8 +259,7 @@ class SponsorshipService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
-        'error': e.toString(),
+        'message': 'Failed to process request',
       };
     }
   }
@@ -280,8 +287,7 @@ class SponsorshipService {
         body: jsonEncode(requestBody),
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      // Response logged without sensitive data
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -298,8 +304,7 @@ class SponsorshipService {
       print('Error creating company branch sponsorship request: $e');
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
-        'error': e.toString(),
+        'message': 'Failed to process request',
       };
     }
   }
@@ -320,8 +325,7 @@ class SponsorshipService {
         headers: headers,
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -350,8 +354,7 @@ class SponsorshipService {
       print('Error getting company branch sponsorship time remaining: $e');
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
-        'error': e.toString(),
+        'message': 'Failed to process request',
       };
     }
   }
@@ -370,8 +373,7 @@ class SponsorshipService {
         headers: headers,
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -400,8 +402,7 @@ class SponsorshipService {
       print('Error getting service provider sponsorship time remaining: $e');
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}',
-        'error': e.toString(),
+        'message': 'Failed to process request',
       };
     }
   }

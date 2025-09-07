@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,7 +84,7 @@ class ReferralService {
   final String baseUrl = ApiService.baseUrl;
 
   // Debug mode flag
-  final bool _debugMode = true;
+  final bool _debugMode = kDebugMode;
 
   // --- Custom HTTP client with proper SSL handling ---
   static http.Client? _customClient;
@@ -137,7 +138,7 @@ class ReferralService {
 
   // Log debug messages
   void _logDebug(String message) {
-    if (_debugMode) {
+    if (_debugMode && !kReleaseMode) {
       debugPrint('🔍 ReferralService: $message');
     }
   }
@@ -170,7 +171,7 @@ class ReferralService {
       );
 
       _logDebug('Response status code: ${response.statusCode}');
-      _logDebug('Response body: ${response.body}');
+      // Response body logged without sensitive data
 
       if (response.statusCode == 200) {
         try {
@@ -211,7 +212,17 @@ class ReferralService {
   // Get QR code as image
   Future<Image?> getQRCodeImage(String referralCode) async {
     try {
-      _logDebug('Fetching QR code image for code: $referralCode');
+      // Input validation
+      if (referralCode.trim().isEmpty) {
+        return null;
+      }
+      
+      // Basic format validation (alphanumeric with length check)
+      if (!RegExp(r'^[a-zA-Z0-9]{6,20}$').hasMatch(referralCode.trim())) {
+        return null;
+      }
+      
+      _logDebug('Fetching QR code image');
       final token = await _getAuthToken();
       if (token == null) {
         _logDebug('Auth token not found for QR code request');
@@ -219,7 +230,7 @@ class ReferralService {
       }
 
       // We'll use the direct URL to the QR code image
-      final qrCodeUrl = '$baseUrl/api/qrcode/referral/$referralCode';
+      final qrCodeUrl = '$baseUrl/api/qrcode/referral/${referralCode.trim()}';
       _logDebug('QR code URL: $qrCodeUrl');
 
       return Image.network(
@@ -264,7 +275,17 @@ class ReferralService {
   // Get QR code as base64 data
   Future<ReferralResult<String>> getQRCodeBase64(String referralCode) async {
     try {
-      _logDebug('Fetching QR code base64 for code: $referralCode');
+      // Input validation
+      if (referralCode.trim().isEmpty) {
+        return ReferralResult.error('Referral code is required');
+      }
+      
+      // Basic format validation (alphanumeric with length check)
+      if (!RegExp(r'^[a-zA-Z0-9]{6,20}$').hasMatch(referralCode.trim())) {
+        return ReferralResult.error('Invalid referral code format');
+      }
+      
+      _logDebug('Fetching QR code base64');
       final token = await _getAuthToken();
       if (token == null) {
         return ReferralResult.error('Authentication token not found. Please log in again.');
@@ -272,7 +293,7 @@ class ReferralService {
 
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$baseUrl/api/qrcode/referral/$referralCode/base64'),
+        Uri.parse('$baseUrl/api/qrcode/referral/${referralCode.trim()}/base64'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -309,7 +330,17 @@ class ReferralService {
   // Handle referral code submission
   Future<ReferralResult<bool>> submitReferralCode(String referralCode) async {
     try {
-      _logDebug('Submitting referral code: $referralCode');
+      // Input validation
+      if (referralCode.trim().isEmpty) {
+        return ReferralResult.error('Referral code is required');
+      }
+      
+      // Basic format validation (alphanumeric with length check)
+      if (!RegExp(r'^[a-zA-Z0-9]{6,20}$').hasMatch(referralCode.trim())) {
+        return ReferralResult.error('Invalid referral code format');
+      }
+      
+      _logDebug('Submitting referral code');
       final token = await _getAuthToken();
       if (token == null) {
         return ReferralResult.error('Authentication token not found. Please log in again.');
@@ -323,7 +354,7 @@ class ReferralService {
           'Content-Type': 'application/json',
         },
         body: json.encode({
-          'referralCode': referralCode
+          'referralCode': referralCode.trim()
         }),
       );
 
@@ -360,6 +391,16 @@ class ReferralService {
 
   // Get full referral link
   String getReferralLink(String referralCode) {
-    return 'https://barrim.com/code?v=$referralCode';
+    // Input validation
+    if (referralCode.trim().isEmpty) {
+      return '';
+    }
+    
+    // Basic format validation (alphanumeric with length check)
+    if (!RegExp(r'^[a-zA-Z0-9]{6,20}$').hasMatch(referralCode.trim())) {
+      return '';
+    }
+    
+    return 'https://barrim.com/code?v=${referralCode.trim()}';
   }
 }

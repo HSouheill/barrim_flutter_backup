@@ -64,29 +64,38 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
 
   // Format profile photo URL with improved debugging
   String _formatProfilePhotoUrl(dynamic provider) {
-    String? photoPath;
+    String providerId = provider['_id'] ?? provider['id'] ?? '';
+    String providerName = provider['fullName'] ?? provider['businessName'] ?? 'Unknown';
+    
+    // First check if we have a cached logo URL
+    if (providerId.isNotEmpty && _providerLogos.containsKey(providerId)) {
+      String logoUrl = _providerLogos[providerId]!;
+      print('Using cached logo for $providerName: $logoUrl');
+      return logoUrl;
+    }
 
-    // Check for logo field first (this is the actual field name in the API response)
+    // Check for logo field in provider data
+    String? photoPath;
     if (provider['logo'] != null && provider['logo'].toString().isNotEmpty) {
       photoPath = provider['logo'].toString();
-      print('Found logo: $photoPath');
+      print('Found logo field for $providerName: $photoPath');
     }
     // Check for logoPath as fallback
     else if (provider['logoPath'] != null && provider['logoPath'].toString().isNotEmpty) {
       photoPath = provider['logoPath'].toString();
-      print('Found logoPath: $photoPath');
+      print('Found logoPath field for $providerName: $photoPath');
     }
 
     // If still nothing, use default image
     if (photoPath == null || photoPath.isEmpty) {
-      print('No profile photo found for provider: ${provider['fullName'] ?? "Unknown"}');
+      print('No profile photo found for provider: $providerName');
       return 'assets/logo/barrim_logo1.png'; // Return default image path instead of empty string
     }
 
-    // If it's already a full URL, fix the duplicate uploads issue
+    // If it's already a full URL, return as is
     if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
-      // Fix the duplicate uploads/ issue
-      return photoPath.replaceAll('/uploads/', '/uploads/');
+      print('Using full URL for $providerName: $photoPath');
+      return photoPath;
     }
 
     // If it's a local asset
@@ -94,18 +103,18 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
       return photoPath;
     }
 
-    // Construct the correct URL - remove any duplicate 'uploads/' prefix
+    // Construct the correct URL
     final baseUrl = ApiService.baseUrl;
-
-    // Clean up the path - remove leading slashes and duplicate uploads
-    String cleanPath = photoPath.replaceAll(RegExp(r'^/+'), '')
-        .replaceAll('uploads/', '');
-
-    // For service provider images, they're in the serviceprovider subdirectory
-    if (!cleanPath.startsWith('serviceprovider/')) {
-      cleanPath = 'serviceprovider/$cleanPath';
+    
+    // Clean up the path - remove leading slashes
+    String cleanPath = photoPath.replaceAll(RegExp(r'^/+'), '');
+    
+    // If the path already starts with uploads/, use it as is
+    if (cleanPath.startsWith('uploads/')) {
+      return '$baseUrl/$cleanPath';
     }
-
+    
+    // Otherwise, add uploads/ prefix
     return '$baseUrl/uploads/$cleanPath';
   }
 
@@ -179,20 +188,34 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     Map<String, String> providerLogos = {};
 
     for (var provider in providers) {
+      // Use userId instead of provider id for logo fetching
+      String userId = provider['userId'] ?? '';
       String providerId = provider['_id'] ?? provider['id'] ?? '';
-      if (providerId.isNotEmpty) {
+      String providerName = provider['fullName'] ?? provider['businessName'] ?? 'Unknown';
+      
+      print('Processing provider: $providerName (Provider ID: $providerId, User ID: $userId)');
+      print('Provider logo field: ${provider['logo']}');
+      print('Provider logoPath field: ${provider['logoPath']}');
+      
+      if (userId.isNotEmpty) {
         try {
-          String? logoUrl = await ApiService.getServiceProviderLogo(providerId);
+          String? logoUrl = await ApiService.getServiceProviderLogo(userId);
           if (logoUrl != null && logoUrl.isNotEmpty) {
+            // Use providerId as the key for the cache
             providerLogos[providerId] = logoUrl;
-            print('Fetched logo for provider $providerId: $logoUrl');
+            print('Fetched logo for provider $providerName (User ID: $userId): $logoUrl');
+          } else {
+            print('No logo URL returned for provider $providerName (User ID: $userId)');
           }
         } catch (e) {
-          print('Error fetching logo for provider $providerId: $e');
+          print('Error fetching logo for provider $providerName (User ID: $userId): $e');
         }
+      } else {
+        print('No user ID found for provider: $providerName');
       }
     }
 
+    print('Total logos fetched: ${providerLogos.length}');
     setState(() {
       _providerLogos = providerLogos;
     });
@@ -211,12 +234,32 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
     // Check for logo field first (this is the actual field name in the API response)
     if (provider['logo'] != null && provider['logo'].toString().isNotEmpty) {
       String logoPath = provider['logo'].toString();
-      return logoPath.startsWith('http') ? logoPath : 'https://barrim.online/$logoPath';
+      if (logoPath.startsWith('http')) {
+        return logoPath;
+      } else {
+        // Clean up the path and construct URL properly
+        String cleanPath = logoPath.replaceAll(RegExp(r'^/+'), '');
+        if (cleanPath.startsWith('uploads/')) {
+          return '${ApiService.baseUrl}/$cleanPath';
+        } else {
+          return '${ApiService.baseUrl}/uploads/$cleanPath';
+        }
+      }
     }
     // Check for logoPath as fallback
     else if (provider['logoPath'] != null && provider['logoPath'].toString().isNotEmpty) {
       String logoPath = provider['logoPath'].toString();
-      return logoPath.startsWith('http') ? logoPath : 'https://barrim.online/$logoPath';
+      if (logoPath.startsWith('http')) {
+        return logoPath;
+      } else {
+        // Clean up the path and construct URL properly
+        String cleanPath = logoPath.replaceAll(RegExp(r'^/+'), '');
+        if (cleanPath.startsWith('uploads/')) {
+          return '${ApiService.baseUrl}/$cleanPath';
+        } else {
+          return '${ApiService.baseUrl}/uploads/$cleanPath';
+        }
+      }
     }
 
     // If still no logo, return default

@@ -54,6 +54,7 @@ dependencies:
   rename: ^3.1.0
   sign_in_with_apple: ^7.0.1
   image: ^4.1.3
+  flutter_dotenv: ^5.1.0
 
 
 flutter_launcher_icons:
@@ -88,5 +89,6 @@ flutter:
     - assets/icons/
     - assets/logo/
     - assets/countries_districts_cities.json
+    - .env
 
   uses-material-design: true

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 import 'api_service.dart';
 
@@ -42,11 +43,24 @@ class ValidationService {
   /// Check if email exists across all user types
   static Future<Map<String, dynamic>> checkEmailExists(String email) async {
     try {
+      // Input validation
+      if (email.trim().isEmpty) {
+        throw Exception('Email is required');
+      }
+      
+      // Email format validation
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim())) {
+        throw Exception('Invalid email format');
+      }
+      
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/auth/check-email'),
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'Barrim-Mobile-App/1.0',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
         },
         body: jsonEncode({
           'email': email.trim().toLowerCase(),
@@ -65,13 +79,18 @@ class ValidationService {
         throw Exception(responseData['message'] ?? 'Failed to check email');
       }
     } catch (e) {
-      throw Exception('Error checking email: $e');
+      throw Exception('Failed to check email availability');
     }
   }
 
   /// Check if phone number exists across all user types
   static Future<Map<String, dynamic>> checkPhoneExists(String phone) async {
     try {
+      // Input validation
+      if (phone.trim().isEmpty) {
+        throw Exception('Phone number is required');
+      }
+      
       // Format phone number
       String formattedPhone = phone.trim();
       if (formattedPhone.startsWith('0')) {
@@ -79,12 +98,20 @@ class ValidationService {
       } else if (!formattedPhone.startsWith('+')) {
         formattedPhone = '+961$formattedPhone';
       }
+      
+      // Phone format validation
+      if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(formattedPhone.replaceAll(RegExp(r'[\s-]'), ''))) {
+        throw Exception('Invalid phone number format');
+      }
 
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/auth/check-phone'),
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'Barrim-Mobile-App/1.0',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
         },
         body: jsonEncode({
           'phone': formattedPhone,
@@ -103,17 +130,19 @@ class ValidationService {
         throw Exception(responseData['message'] ?? 'Failed to check phone');
       }
     } catch (e) {
-      throw Exception('Error checking phone: $e');
+      throw Exception('Failed to check phone availability');
     }
   }
 
   /// Validate email format
   static bool isValidEmail(String email) {
+    if (email.trim().isEmpty) return false;
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim());
   }
 
   /// Validate phone format
   static bool isValidPhone(String phone) {
+    if (phone.trim().isEmpty) return false;
     // Remove spaces and special characters
     String cleanPhone = phone.replaceAll(RegExp(r'[\s-]'), '');
     return RegExp(r'^(\+?[0-9]{8,15}|[0-9]{8,15})$').hasMatch(cleanPhone);
@@ -124,7 +153,10 @@ class ValidationService {
     List<String> errors = [];
     bool isValid = true;
 
-    if (password.length < 8) {
+    if (password.trim().isEmpty) {
+      errors.add('Password is required');
+      isValid = false;
+    } else if (password.length < 8) {
       errors.add('Password must be at least 8 characters long');
       isValid = false;
     }
@@ -169,7 +201,10 @@ class ValidationService {
     };
 
     // Validate email format
-    if (!isValidEmail(email)) {
+    if (email.trim().isEmpty) {
+      result['isValid'] = false;
+      result['errors'].add('Email is required');
+    } else if (!isValidEmail(email)) {
       result['isValid'] = false;
       result['errors'].add('Please enter a valid email address');
     }
@@ -206,10 +241,15 @@ class ValidationService {
     }
 
     // Validate password strength
-    final passwordValidation = validatePassword(password);
-    if (!passwordValidation['isValid']) {
+    if (password.trim().isEmpty) {
       result['isValid'] = false;
-      result['errors'].addAll(passwordValidation['errors']);
+      result['errors'].add('Password is required');
+    } else {
+      final passwordValidation = validatePassword(password);
+      if (!passwordValidation['isValid']) {
+        result['isValid'] = false;
+        result['errors'].addAll(passwordValidation['errors']);
+      }
     }
 
     return result;

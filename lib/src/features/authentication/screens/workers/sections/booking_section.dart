@@ -212,6 +212,28 @@ class _BookingSectionState extends State<BookingSection> {
 
   // Generate time slots locally based on provider's available hours
   List<String> _generateLocalTimeSlots() {
+    // First check if the selected date is actually available
+    final availableDays = widget.serviceProvider.serviceProviderInfo?.availableDays ?? [];
+    final selectedDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    final selectedWeekday = DateFormat('EEEE').format(_selectedDate);
+    
+    print("Checking availability for date: $selectedDateStr ($selectedWeekday)");
+    print("Available days: $availableDays");
+    
+    // Check if the selected date is available (either as specific date or weekday)
+    final isDateAvailable = availableDays.contains(selectedDateStr) || 
+                           availableDays.contains(selectedWeekday);
+    
+    if (!isDateAvailable && availableDays.isNotEmpty) {
+      print("Selected date $selectedDateStr is not available - no time slots generated");
+      return []; // Return empty list if date is not available
+    }
+    
+    // If no available days are set, assume all days are available (legacy behavior)
+    if (availableDays.isEmpty) {
+      print("No available days set - assuming all days are available");
+    }
+    
     final availableHours = widget.serviceProvider.serviceProviderInfo?.availableHours;
     if (availableHours == null || availableHours.isEmpty) {
       print("No available hours found, using default 9 AM to 5 PM");

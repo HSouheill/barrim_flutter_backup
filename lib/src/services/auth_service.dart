@@ -183,6 +183,40 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Input validation
+      if (email.trim().isEmpty) {
+        _error = 'Email is required';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      if (password.trim().isEmpty) {
+        _error = 'Password is required';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      if (password.length < 6) {
+        _error = 'Password must be at least 6 characters long';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      // Email format validation
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim())) {
+        _error = 'Invalid email format';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      // Sanitize inputs
+      final sanitizedEmail = email.trim();
+      final sanitizedPassword = password.trim();
+      
       final url = '$baseUrl/api/auth/login';
       
       // Ensure HTTPS is being used
@@ -195,8 +229,8 @@ class AuthService extends ChangeNotifier {
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'email': email,
-          'password': password,
+          'email': sanitizedEmail,
+          'password': sanitizedPassword,
         }),
       );
 
@@ -242,11 +276,59 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Input validation
+      if (name.trim().isEmpty) {
+        _error = 'Name is required';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      if (email.trim().isEmpty) {
+        _error = 'Email is required';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      if (password.trim().isEmpty) {
+        _error = 'Password is required';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      if (password.length < 6) {
+        _error = 'Password must be at least 6 characters long';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim())) {
+        _error = 'Invalid email format';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      if (!['user', 'company', 'serviceProvider', 'wholesaler'].contains(userType)) {
+        _error = 'Invalid user type';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+      
+      // Sanitize inputs
+      final sanitizedName = name.trim();
+      final sanitizedEmail = email.trim();
+      final sanitizedPassword = password.trim();
+      
       // Create request body based on user type
       final Map<String, dynamic> requestBody = {
-        'name': name,
-        'email': email,
-        'password': password,
+        'name': sanitizedName,
+        'email': sanitizedEmail,
+        'password': sanitizedPassword,
         'userType': userType,
       };
 
@@ -277,7 +359,7 @@ class AuthService extends ChangeNotifier {
 
       if (response.statusCode == 201) {
         // Registration successful, proceed with login
-        return await login(email, password);
+        return await login(sanitizedEmail, sanitizedPassword);
       } else {
         _error = responseData['message'] ?? 'Registration failed';
         _isLoading = false;
@@ -340,8 +422,7 @@ class AuthService extends ChangeNotifier {
       if (token != null) {
         // Call the logout endpoint to blacklist the token
         try {
-          print('AuthService: Attempting to logout with token: ${token.substring(0, 10)}...');
-          print('AuthService: Logout URL: $baseUrl/api/auth/logout');
+          // Token logging removed for security
           
           // Use secure _makeRequest method for HTTPS compliance
           final logoutUrl = '$baseUrl/api/auth/logout';
@@ -361,9 +442,7 @@ class AuthService extends ChangeNotifier {
             },
           );
           
-          // Log the response for debugging
-          print('AuthService: Logout endpoint response: ${response.statusCode}');
-          print('AuthService: Logout response body: ${response.body}');
+          // Logout response logged without sensitive data
         } catch (e) {
           // Don't fail logout if server call fails, just log it
           print('AuthService: Error calling logout endpoint: $e');
@@ -395,19 +474,11 @@ class AuthService extends ChangeNotifier {
   // Get the current token
   Future<String?> getToken() async {
     if (_token != null) {
-      print('AuthService: Token found in memory: ${_token!.substring(0, 10)}...');
       return _token;
     }
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
-    
-    if (token != null) {
-      print('AuthService: Token found in preferences: ${token.substring(0, 10)}...');
-      print('AuthService: Token length: ${token.length}');
-    } else {
-      print('AuthService: No token found in preferences');
-    }
     
     return token;
   }
@@ -633,11 +704,9 @@ class AuthService extends ChangeNotifier {
     print('AuthService: getUserData called');
     try {
       final token = await _tokenManager.getToken();
-      print('AuthService: Token retrieved: ${token.isNotEmpty ? 'Token exists' : 'No token'}');
+      print('AuthService: Token retrieved: ${token?.isNotEmpty == true ? 'Token exists' : 'No token'}');
 
       final url = '$baseUrl/api/companies/data';
-      print('AuthService: Making request to: $url');
-      
       // Ensure HTTPS is being used
       if (!_validateHttpsUrl(url)) {
         throw Exception('Cannot get user data with non-HTTPS URL');
@@ -652,16 +721,15 @@ class AuthService extends ChangeNotifier {
         },
       );
 
-      print('AuthService: Response status code: ${response.statusCode}');
-      print('AuthService: Response body: ${response.body}');
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         print('AuthService: Successfully decoded user data');
         return data['data'];
       } else {
-        print('AuthService: Failed with status code: ${response.statusCode}');
-        throw Exception('Failed to get user data: ${response.body}');
+        // Failed to get user data
+        throw Exception('Failed to get user data');
       }
     } catch (e) {
       print('AuthService: Exception caught in getUserData: $e');

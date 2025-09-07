@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:io' show HttpException;
+import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../models/service_provider.dart';
 import '../../../../services/api_service.dart';
@@ -225,13 +226,55 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
       },
       'serviceType': spInfo['serviceType'],
       'customServiceType': spInfo['customServiceType'],
-      'availableDays': spInfo['availableDays']?.cast<String>() ?? [],
+      'availableDays': _parseAvailableDays(apiData),
       // 'emergencyStatus': spInfo['status']?.toString() ?? 'Not Available',
       'yearsExperience': apiData['yearsExperience'],
     };
     
     print('ServiceProviderProfile: Final mapped data: $finalData');
     return finalData;
+  }
+
+  // Parse available days from both serviceProviderInfo and root level
+  List<String> _parseAvailableDays(Map<String, dynamic> apiData) {
+    List<String> availableDays = [];
+    
+    // First try root level availableDays (from serviceProviders collection)
+    if (apiData['availableDays'] != null) {
+      final rootAvailableDays = apiData['availableDays'];
+      print('ServiceProviderProfile: Root availableDays: $rootAvailableDays');
+      
+      if (rootAvailableDays is List && rootAvailableDays.isNotEmpty) {
+        final firstElement = rootAvailableDays[0];
+        if (firstElement is String && firstElement.isNotEmpty) {
+          try {
+            // Parse JSON string
+            final parsedJson = jsonDecode(firstElement);
+            if (parsedJson is List) {
+              availableDays = List<String>.from(parsedJson);
+              print('ServiceProviderProfile: Parsed root availableDays: $availableDays');
+            }
+          } catch (e) {
+            print('ServiceProviderProfile: Failed to parse root availableDays JSON: $e');
+          }
+        }
+      }
+    }
+    
+    // If root level is empty, try serviceProviderInfo
+    if (availableDays.isEmpty) {
+      final spInfo = apiData['serviceProviderInfo'] ?? {};
+      final spAvailableDays = spInfo['availableDays'];
+      print('ServiceProviderProfile: ServiceProviderInfo availableDays: $spAvailableDays');
+      
+      if (spAvailableDays is List) {
+        availableDays = spAvailableDays.cast<String>().where((day) => day.isNotEmpty).toList();
+        print('ServiceProviderProfile: Using serviceProviderInfo availableDays: $availableDays');
+      }
+    }
+    
+    print('ServiceProviderProfile: Final availableDays: $availableDays');
+    return availableDays;
   }
 
   String _getLocationString(Map location) {

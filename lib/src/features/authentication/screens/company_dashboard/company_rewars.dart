@@ -30,8 +30,8 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
   Future<void> _loadCompanyData() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token.isNotEmpty) {
-        var data = await ApiService.getCompanyData(token);
+      if (token?.isNotEmpty == true) {
+        var data = await ApiService.getCompanyData(token!);
         if (data['companyInfo'] != null) {
           setState(() {
             logoUrl = data['companyInfo']['logo'];
@@ -46,7 +46,7 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
   Future<void> _fetchCompanyPoints() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token.isEmpty) {
+      if (token?.isNotEmpty == true) {
         setState(() {
           isLoading = false;
           errorMessage = 'Authentication required';
@@ -54,7 +54,7 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
         return;
       }
 
-      final referralService = CompanyReferralService(token: token);
+      final referralService = CompanyReferralService(token: token ?? '');
       final result = await referralService.getCompanyReferralData();
 
       if (result['success']) {

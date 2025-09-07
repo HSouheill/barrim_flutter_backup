@@ -1,29 +1,32 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as path;
-import 'package:http_parser/http_parser.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
-import '../models/branch_review.dart';
 import '../models/notification_model.dart';
 import '../models/review.dart';
 import '../utils/api_constants.dart';
 import '../utils/auth_manager.dart';
-import '../utils/token_manager.dart';
-import 'auth_service.dart';
 
 class ApiService {
   static const String baseUrl = 'https://barrim.online';
+  
+  // Secure storage for tokens
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
   
   // Method to get the appropriate base URL
   static String getBaseUrl() {
@@ -33,22 +36,26 @@ class ApiService {
 
   // Headers for API requests
   static Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await _secureStorage.read(key: 'auth_token');
 
     return {
       'Content-Type': 'application/json',
       'Authorization': token != null ? 'Bearer $token' : '',
+      'User-Agent': 'BarrimApp/1.0.12',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
     };
   }
 
   // Headers for multipart requests (file uploads)
   static Future<Map<String, String>> _getMultipartHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await _secureStorage.read(key: 'auth_token');
 
     return {
       'Authorization': token != null ? 'Bearer $token' : '',
+      'User-Agent': 'BarrimApp/1.0.12',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
       // Note: Don't set Content-Type for multipart requests
       // The multipart request will set its own content type with boundary
     };
@@ -56,20 +63,17 @@ class ApiService {
 
   // Get stored token
   static Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token');
+    return await _secureStorage.read(key: 'auth_token');
   }
 
   // Store token
   static Future<void> saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', token);
+    await _secureStorage.write(key: 'auth_token', value: token);
   }
 
   // Clear token (for logout)
   static Future<void> clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
+    await _secureStorage.delete(key: 'auth_token');
   }
 
   // Helper method to make HTTP requests with standard client
@@ -167,20 +171,35 @@ class ApiService {
   static Future<Map<String, dynamic>> login(String emailOrPhone,
       String password, {bool rememberMe = false}) async {
     try {
+      // Input validation
+      if (emailOrPhone.trim().isEmpty) {
+        throw Exception('Email or phone number is required');
+      }
+      if (password.trim().isEmpty) {
+        throw Exception('Password is required');
+      }
+      if (password.length < 6) {
+        throw Exception('Password must be at least 6 characters long');
+      }
+      
+      // Sanitize inputs
+      final sanitizedEmailOrPhone = emailOrPhone.trim();
+      final sanitizedPassword = password.trim();
+      
       // Determine if the input is an email or phone number
-      final isEmail = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(emailOrPhone);
+      final isEmail = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(sanitizedEmailOrPhone);
       // Updated phone regex to match login page
-      final isPhone = RegExp(r'^(\+?[0-9]{8,15}|[0-9]{8,15})$').hasMatch(emailOrPhone.replaceAll(RegExp(r'[\s-]'), ''));
+      final isPhone = RegExp(r'^(\+?[0-9]{8,15}|[0-9]{8,15})$').hasMatch(sanitizedEmailOrPhone.replaceAll(RegExp(r'[\s-]'), ''));
 
       if (!isEmail && !isPhone) {
         throw Exception('Invalid email or phone number format. For phone numbers, use format: +96170123456 or 70123456');
       }
 
       // Format phone number if it's a phone login
-      String formattedInput = emailOrPhone;
+      String formattedInput = sanitizedEmailOrPhone;
       if (isPhone) {
         // Remove any spaces or special characters
-        formattedInput = emailOrPhone.replaceAll(RegExp(r'[\s-]'), '');
+        formattedInput = sanitizedEmailOrPhone.replaceAll(RegExp(r'[\s-]'), '');
         // Add country code if not present and number starts with 0
         if (formattedInput.startsWith('0')) {
           formattedInput = '+961${formattedInput.substring(1)}';
@@ -191,11 +210,9 @@ class ApiService {
         }
       }
 
-      print('Formatted login input: $formattedInput'); // Debug print
-
       // Prepare request body based on input type
       Map<String, dynamic> requestBody = {
-        'password': password,
+        'password': sanitizedPassword,
         'rememberMe': rememberMe, // Add remember me field
       };
 
@@ -206,8 +223,6 @@ class ApiService {
         requestBody['phone'] = formattedInput;
       }
 
-      print('Request body: [REDACTED]'); // Request body logged for security
-
       // Use custom client for handling self-signed certificates
       final response = await _makeRequest(
         'POST',
@@ -216,9 +231,6 @@ class ApiService {
         body: jsonEncode(requestBody),
       );
 
-      // Print response for debugging
-      print('Login response status: ${response.statusCode}');
-      print('Login response body: [REDACTED]'); // Response body logged for security
 
       final responseData = jsonDecode(response.body);
 
@@ -232,40 +244,36 @@ class ApiService {
 
           // Verify token was saved
           final savedToken = await AuthManager.getToken();
-          print("Saved token verification: ${savedToken != null
-              ? 'Token saved'
-              : 'Token not saved'}");
 
           // Store user type for future reference
-          final prefs = await SharedPreferences.getInstance();
           String userType = responseData['data']['user']['userType'] ?? 'user';
-          await prefs.setString('user_type', userType);
+          await _secureStorage.write(key: 'user_type', value: userType);
 
           // Based on user type, fetch and store appropriate data
           try {
             switch (userType) {
               case 'company':
                 final companyData = await getCompanyData(token);
-                await prefs.setString('company_data', jsonEncode(companyData));
+                await _secureStorage.write(key: 'company_data', value: jsonEncode(companyData));
                 break;
               case 'wholesaler':
                 final userData = await getUserProfile(token);
-                await prefs.setString('wholesaler_info',
-                    jsonEncode(userData['wholesalerInfo'] ?? {}));
+                await _secureStorage.write(key: 'wholesaler_info',
+                    value: jsonEncode(userData['wholesalerInfo'] ?? {}));
                 break;
               case 'serviceProvider':
                 final userData = await getUserProfile(token);
-                await prefs.setString('service_provider_info',
-                    jsonEncode(userData['serviceProviderInfo'] ?? {}));
+                await _secureStorage.write(key: 'service_provider_info',
+                    value: jsonEncode(userData['serviceProviderInfo'] ?? {}));
                 break;
               case 'user':
               // Store basic user profile
                 final userData = await getUserProfile(token);
-                await prefs.setString('user_data', jsonEncode(userData));
+                await _secureStorage.write(key: 'user_data', value: jsonEncode(userData));
                 break;
             }
           } catch (e) {
-            print('Error fetching specific user data on login: $e');
+            // Error fetching specific user data on login
           }
         }
         return responseData;
@@ -274,7 +282,6 @@ class ApiService {
         throw Exception(errorMsg);
       }
     } catch (e) {
-      print('Login error: $e');
       throw Exception(e.toString().contains('Exception:')
           ? e.toString().split('Exception: ')[1]
           : 'Connection error. Please check your network.');
@@ -320,12 +327,6 @@ class ApiService {
         'location': locationData,
       };
       
-      // Print the data being posted to backend
-      print('=== USER SIGNUP DATA POSTED TO BACKEND ===');
-      print('Endpoint: $baseUrl/api/auth/signup');
-      print('Request Data:');
-      print(jsonEncode(requestData));
-      print('==========================================');
       
       // await ApiService.signupBusiness(requestData);
 
@@ -350,7 +351,11 @@ class ApiService {
         throw Exception(responseData['message'] ?? 'Signup failed');
       }
     } catch (e) {
-      throw Exception('Connection error: $e');
+      if (kDebugMode) {
+        throw Exception('Connection error: $e');
+      } else {
+        throw Exception('Connection error. Please try again.');
+      }
     }
   }
 
@@ -369,12 +374,15 @@ class ApiService {
       );
 
       final responseData = jsonDecode(response.body);
-      print(responseData);
       if (response.statusCode != 200) {
         throw Exception(responseData['message'] ?? 'Failed to save location');
       }
     } catch (e) {
-      throw Exception('Connection error: $e');
+      if (kDebugMode) {
+        throw Exception('Connection error: $e');
+      } else {
+        throw Exception('Connection error. Please try again.');
+      }
     }
   }
 
@@ -397,7 +405,6 @@ class ApiService {
         final cleanPhone = userData['phone'].toString().trim();
         final countryCode = userData['countryCode'].toString().trim();
         phoneWithCode = countryCode + cleanPhone;
-        print("Formatted phone with code: $phoneWithCode");
       }
       fields['phone'] = phoneWithCode;
 
@@ -451,22 +458,6 @@ class ApiService {
         files.add(multipartFile);
       }
 
-      // Print all request fields for debugging
-      print("Request fields:");
-      fields.forEach((key, value) {
-        print("$key: $value");
-      });
-
-      // Print the complete data being posted to backend
-      print('=== BUSINESS SIGNUP DATA POSTED TO BACKEND ===');
-      print('Endpoint: $baseUrl/api/auth/signup-with-logo');
-      print('Request Fields:');
-      print(jsonEncode(fields));
-      print('Files: ${files.length} file(s)');
-      if (files.isNotEmpty) {
-        print('File names: ${files.map((f) => f.filename).join(', ')}');
-      }
-      print('==============================================');
 
       // Send the request using custom client
       final streamedResponse = await _makeMultipartRequest(
@@ -477,17 +468,14 @@ class ApiService {
       );
       
       var response = await http.Response.fromStream(streamedResponse);
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       // Parse response
       Map<String, dynamic> parsedResponse;
       try {
         parsedResponse = json.decode(response.body);
       } catch (e) {
-        print('Failed to parse response: $e');
         parsedResponse = {
-          'message': 'Invalid server response: $response.body'
+          'message': 'Invalid server response'
         };
       }
 
@@ -497,10 +485,9 @@ class ApiService {
         'data': parsedResponse['data'],
       };
     } catch (e) {
-      print('Exception during business signup: $e');
       return {
         'status': 500,
-        'message': 'Failed to sign up: $e',
+        'message': 'Failed to sign up',
         'data': null,
       };
     }
@@ -539,16 +526,6 @@ class ApiService {
         files.add(multipartFile);
       }
 
-      // Print the data being posted to backend
-      print('=== SERVICE PROVIDER SIGNUP WITH LOGO DATA POSTED TO BACKEND ===');
-      print('Endpoint: $baseUrl/api/auth/signup-service-provider-with-logo');
-      print('Request Fields:');
-      print(jsonEncode(fields));
-      print('Files: ${files.length} file(s)');
-      if (files.isNotEmpty) {
-        print('File names: ${files.map((f) => f.filename).join(', ')}');
-      }
-      print('================================================================');
 
       // Send the request using custom client
       final streamedResponse = await _makeMultipartRequest(
@@ -579,7 +556,11 @@ class ApiService {
         throw Exception(decodedResponse['message'] ?? 'Signup failed');
       }
     } catch (e) {
-      throw Exception('Connection error: $e');
+      if (kDebugMode) {
+        throw Exception('Connection error: $e');
+      } else {
+        throw Exception('Connection error. Please try again.');
+      }
     }
   }
 
@@ -607,12 +588,6 @@ class ApiService {
   static Future<Map<String, dynamic>> signupServiceProvider(
       Map<String, dynamic> userData) async {
     try {
-      // Print the data being posted to backend
-      print('=== SERVICE PROVIDER SIGNUP DATA POSTED TO BACKEND ===');
-      print('Endpoint: $baseUrl/auth/signup');
-      print('Request Data:');
-      print(jsonEncode(userData));
-      print('=====================================================');
 
       final response = await _makeRequest(
         'POST',
@@ -633,14 +608,17 @@ class ApiService {
         throw Exception(responseData['message'] ?? 'Signup failed');
       }
     } catch (e) {
-      throw Exception('Connection error: $e');
+      if (kDebugMode) {
+        throw Exception('Connection error: $e');
+      } else {
+        throw Exception('Connection error. Please try again.');
+      }
     }
   }
 
   // Store token
   static Future<void> storeToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', token);
+    await _secureStorage.write(key: 'auth_token', value: token);
   }
 
   // Get current user profile
@@ -661,7 +639,11 @@ class ApiService {
             responseData['message'] ?? 'Failed to get user profile');
       }
     } catch (e) {
-      throw Exception('Connection error: $e');
+      if (kDebugMode) {
+        throw Exception('Connection error: $e');
+      } else {
+        throw Exception('Connection error. Please try again.');
+      }
     }
   }
 
@@ -718,8 +700,6 @@ class ApiService {
         Uri.parse('$baseUrl/api/user/companies'),
         headers: await _getHeaders(),
       );
-      print('getCompaniesWithLocations status: ${response.statusCode}');
-      print('getCompaniesWithLocations body: [REDACTED]'); // Response body logged for security
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return responseData['data'] ?? []; // Ensure we always return a list
@@ -727,7 +707,6 @@ class ApiService {
         throw Exception('Failed to load companies: \\${response.statusCode}');
       }
     } catch (e) {
-      print('Error in getCompaniesWithLocations: \\${e}');
       return []; // Return empty list on error
     }
   }
@@ -735,6 +714,16 @@ class ApiService {
   // Validate token with server
   static Future<Map<String, dynamic>> validateToken(String token) async {
     try {
+      // Basic token validation
+      if (token.trim().isEmpty) {
+        return {'valid': false, 'message': 'Token is empty'};
+      }
+      
+      // Check token format (basic JWT structure)
+      if (!token.contains('.')) {
+        return {'valid': false, 'message': 'Invalid token format'};
+      }
+      
       final response = await _makeRequest(
         'GET',
         Uri.parse('$baseUrl/api/auth/validate'),
@@ -752,7 +741,7 @@ class ApiService {
         return {'valid': false, 'message': responseData['message'] ?? 'Token validation failed'};
       }
     } catch (e) {
-      return {'valid': false, 'message': 'Connection error: $e'};
+      return {'valid': false, 'message': 'Connection error'};
     }
   }
 
@@ -761,13 +750,24 @@ class ApiService {
     required String otp,
   }) async {
     try {
+      // Input validation
+      if (userId.trim().isEmpty) {
+        throw Exception('User ID is required');
+      }
+      if (otp.trim().isEmpty) {
+        throw Exception('OTP is required');
+      }
+      if (!RegExp(r'^[0-9]{4,8}$').hasMatch(otp.trim())) {
+        throw Exception('OTP must be 4-8 digits');
+      }
+      
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/auth/verify-otp'),
         headers: await _getHeaders(),
         body: jsonEncode({
-          'userId': userId,
-          'otp': otp,
+          'userId': userId.trim(),
+          'otp': otp.trim(),
         }),
       );
 
@@ -795,14 +795,11 @@ class ApiService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final userData = responseData['data'];
-
-        print('User profile data received: $userData'); // Debug log
         return userData;
       } else {
         throw Exception('Failed to load profile');
       }
     } catch (e) {
-      print('Error loading profile: $e'); // Debug log
       throw Exception('Failed to load profile: ${e.toString()}');
     }
   }
@@ -810,11 +807,6 @@ class ApiService {
   static Future<Map<String, dynamic>> getCompanyData(String token) async {
     try {
       final url = '${baseUrl}/api/companies/data';
-      print('📡 [GET] Fetching company data from: $url');
-      print('🔑 Using token: [REDACTED]'); // Token logged for security
-
-      final stopwatch = Stopwatch()
-        ..start();
       final response = await _makeRequest(
         'GET',
         Uri.parse(url),
@@ -824,22 +816,8 @@ class ApiService {
         },
       );
 
-      stopwatch.stop();
-      print('⏱️  Request completed in ${stopwatch.elapsedMilliseconds}ms');
-      print('🔄 Response status: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        print('✅ Successfully fetched company data');
-        print('📊 Data structure:');
-        print('  - Company Info: ${responseData['data']['companyInfo'] != null
-            ? 'exists'
-            : 'null'}');
-        print('  - Location: ${responseData['data']['location'] != null
-            ? 'exists'
-            : 'null'}');
-        print('  - Branches: ${responseData['data']['companyInfo']?['branches']
-            ?.length ?? 0} branches found');
 
         return {
           'companyInfo': responseData['data']['companyInfo'] ?? {},
@@ -847,18 +825,9 @@ class ApiService {
         };
       } else {
         final errorResponse = json.decode(response.body);
-        print('❌ Failed to load company data: ${response.statusCode}');
-        print('🔧 Error details: ${errorResponse['message'] ??
-            'No error message'}');
-        print('📄 Full response: [REDACTED]'); // Response body logged for security
         throw Exception('Failed to load company data: ${response.statusCode}');
       }
     } catch (e) {
-      print('‼️ Exception in getCompanyData: $e');
-      print('🔄 Attempting to parse error...');
-      if (e is http.ClientException) {
-        print('🌐 Network error: ${e.message}');
-      }
       rethrow;
     }
   }
@@ -922,8 +891,6 @@ class ApiService {
       Map<String, String> fields = {};
       fields['data'] = jsonEncode(dataCopy);
 
-      print('Sending branch data: ${jsonEncode(dataCopy)}');
-
       // Prepare files
       List<http.MultipartFile> files = [];
 
@@ -980,16 +947,8 @@ class ApiService {
       
       var response = await http.Response.fromStream(streamedResponse);
 
-      if (!kReleaseMode) {
-        print('Branch upload response status: \\${response.statusCode}');
-        print('Branch upload response body: \\${response.body}');
-      }
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        if (!kReleaseMode) {
-          print('Branch data uploaded successfully');
-        }
         return responseData['data']; // Return the created branch data
       } else {
         final responseData = jsonDecode(response.body);
@@ -997,11 +956,11 @@ class ApiService {
             responseData['message'] ?? 'Failed to upload branch data');
       }
     } catch (e) {
-      print('Error uploading branch data: $e');
-      if (!kReleaseMode) {
-        print('Error uploading branch data: \\${e}');
+      if (kDebugMode) {
+        throw Exception('Failed to upload branch data: $e');
+      } else {
+        throw Exception('Failed to upload data. Please try again.');
       }
-      throw Exception('Failed to upload branch data: $e');
     }
   }
 
@@ -1019,47 +978,23 @@ class ApiService {
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         final branches = responseData['data'] ?? [];
-        if (!kReleaseMode) {
-          print('ApiService: Retrieved ${branches.length} branches');
-          print('ApiService: Full response: $responseData');
-        }
-
-        // Debug print to check branch data structure
-        for (var branch in branches) {
-          if (!kReleaseMode) {
-            print('ApiService: Branch ${branch['name']} - Full data: $branch');
-            print('ApiService: Branch ${branch['name']} - images: ${branch['images']}');
-            print('ApiService: Branch ${branch['name']} - videos: ${branch['videos']}');
-            print('ApiService: Branch ${branch['name']} - images type: ${branch['images'].runtimeType}');
-            if (branch['images'] is List) {
-              print('ApiService: Branch ${branch['name']} - images length: ${(branch['images'] as List).length}');
-              for (int i = 0; i < (branch['images'] as List).length; i++) {
-                print('ApiService: Branch ${branch['name']} - image $i: ${(branch['images'] as List)[i]}');
-              }
-            }
-          }
-        }
 
         return branches;
       } else {
-        if (!kReleaseMode) {
-          print('Error response: ${response.body}');
-        }
         throw Exception('Failed to load branches: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error getting branches: $e');
-      if (!kReleaseMode) {
-        print('Error getting branches: $e');
+      if (kDebugMode) {
+        throw Exception('Network error: $e');
+      } else {
+        throw Exception('Network error. Please try again.');
       }
-      throw Exception('Network error: $e');
     }
   }
 
   // Delete a branch
   static Future<bool> deleteBranch(String token, String branchId) async {
     try {
-      print('Deleting branch with ID: $branchId');
 
       final response = await _makeRequest(
         'DELETE',
@@ -1070,8 +1005,6 @@ class ApiService {
         },
       );
 
-      print('Delete branch response: ${response.statusCode}, ${response.body}');
-
       if (response.statusCode == 200) {
         return true;
       } else {
@@ -1079,8 +1012,11 @@ class ApiService {
         throw Exception(responseData['message'] ?? 'Failed to delete branch');
       }
     } catch (e) {
-      print('Error deleting branch: $e');
-      throw Exception('Network error: $e');
+      if (kDebugMode) {
+        throw Exception('Network error: $e');
+      } else {
+        throw Exception('Network error. Please try again.');
+      }
     }
   }
 
@@ -1186,14 +1122,11 @@ class ApiService {
       var response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
-        print('Branch updated successfully');
         return;
       } else {
-        print('Failed to update branch. Status: ${response.statusCode}, Body: ${response.body}');
-        throw Exception('Failed to update branch: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to update branch: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error updating branch: $e');
       throw Exception('Failed to update branch: $e');
     }
   }
@@ -1212,15 +1145,12 @@ class ApiService {
         },
         body: jsonEncode(data),
       );
-      print('Response status: ${response.statusCode}');
-      print('Response body: [REDACTED]'); // Response body logged for security
       if (response.statusCode == 200) {
         return true;
       } else {
-        throw Exception('Failed to update: [REDACTED]'); // Error message logged for security
+        throw Exception('Failed to update');
       }
     } catch (e) {
-      print('Error updating company data: $e');
       rethrow;
     }
   }
@@ -1228,8 +1158,7 @@ class ApiService {
   //api_Service.dart
   static Future<List<Map<String, dynamic>>> getAllBranches() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      final token = await _secureStorage.read(key: 'auth_token');
 
       if (token == null) {
         throw Exception('Authentication token not found');
@@ -1245,12 +1174,10 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        print('Response body: [REDACTED]'); // Response body logged for security
         final responseData = json.decode(response.body);
         if (responseData['status'] == 200) {
           // Return empty list if data is null, otherwise return the data
           if (responseData['data'] == null) {
-            print('No branches found - returning empty list');
             return [];
           }
           return List<Map<String, dynamic>>.from(responseData['data']);
@@ -1261,7 +1188,6 @@ class ApiService {
         throw Exception('Failed to fetch branches: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error getting all branches: $e');
       throw Exception('Failed to get branches: $e');
     }
   }
@@ -1316,7 +1242,7 @@ class ApiService {
             await precacheImage(imageProvider, context);
           }
         } catch (e) {
-          print('Failed to precache image: $imageUrl - $e');
+          // Failed to precache image
         }
       }
     }
@@ -1335,17 +1261,12 @@ class ApiService {
         'currentPassword': currentPassword,
       };
 
-      print('Sending profile update payload: [REDACTED]'); // Payload logged for security
-
       final response = await _makeRequest(
         'PUT',
         Uri.parse('$baseUrl/api/users/profile'),
         headers: await _getHeaders(),
         body: jsonEncode(payload),
       );
-
-      print('Response status: ${response.statusCode}'); // Debug log
-      print('Response body: [REDACTED]'); // Response body logged for security
 
       final responseData = jsonDecode(response.body);
 
@@ -1355,19 +1276,14 @@ class ApiService {
         throw Exception(responseData['message'] ?? 'Failed to update profile');
       }
     } catch (e) {
-      print('Error updating profile: $e'); // Debug log
       throw Exception('Failed to update profile: ${e.toString()}');
     }
   }
 
   static Future<Map<String, dynamic>> uploadProfilePhoto(File imageFile) async {
     try {
-      print('Sending profile picture: $imageFile'); // Debug log
-      
       // Compress the image before upload to avoid "413 Request Entity Too Large" error
       File compressedImage = await _compressImage(imageFile);
-      print('Original image size: ${await imageFile.length()} bytes');
-      print('Compressed image size: ${await compressedImage.length()} bytes');
       
       // Check if the compressed image is still too large
       final compressedSize = await compressedImage.length();
@@ -1406,10 +1322,6 @@ class ApiService {
       
       var response = await http.Response.fromStream(streamedResponse);
       
-      // Add debug logging to see the actual response
-      print('Profile photo upload response status: ${response.statusCode}');
-      print('Profile photo upload response body: ${response.body}');
-      
       // Check for specific error codes and provide helpful messages
       if (response.statusCode == 413) {
         throw Exception('Profile photo is too large. Please try a smaller image or contact support if the issue persists.');
@@ -1440,22 +1352,16 @@ class ApiService {
       final bytes = await imageFile.readAsBytes();
       final originalSize = bytes.length;
       
-      print('Original image size: $originalSize bytes');
-      
       // If image is already small enough (under 500KB), return as is
       if (originalSize < 500 * 1024) {
-        print('Image is already small enough, no compression needed');
         return imageFile;
       }
       
       // Decode the image
       final image = img.decodeImage(bytes);
       if (image == null) {
-        print('Could not decode image, returning original');
         return imageFile;
       }
-      
-      print('Original image dimensions: ${image.width}x${image.height}');
       
       // Calculate new dimensions - target max 800x800 pixels
       int newWidth = image.width;
@@ -1479,14 +1385,8 @@ class ApiService {
         interpolation: img.Interpolation.linear,
       );
       
-      print('Resized image dimensions: ${resizedImage.width}x${resizedImage.height}');
-      
       // Encode as JPEG with quality 85 (good balance between size and quality)
       final compressedBytes = img.encodeJpg(resizedImage, quality: 85);
-      final compressedSize = compressedBytes.length;
-      
-      print('Compressed image size: $compressedSize bytes');
-      print('Size reduction: ${((originalSize - compressedSize) / originalSize * 100).toStringAsFixed(1)}%');
       
       // Create a temporary file for the compressed image
       final tempDir = Directory.systemTemp;
@@ -1494,11 +1394,9 @@ class ApiService {
       
       await tempFile.writeAsBytes(compressedBytes);
       
-      print('Compressed image saved to: ${tempFile.path}');
       return tempFile;
       
     } catch (e) {
-      print('Error compressing image: $e');
       // If compression fails, return the original image
       return imageFile;
     }
@@ -1532,21 +1430,15 @@ class ApiService {
   // Get user data specifically for regular users (userType = "user")
   static Future<Map<String, dynamic>> getUserData() async {
     try {
-      print('ApiService: Fetching regular user data - started');
-
       // Get the auth token
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      print('ApiService: Token status: ${token != null ? "exists" : "null"}');
+      final token = await _secureStorage.read(key: 'auth_token');
 
       if (token == null) {
-        print('ApiService: Not authenticated - throwing error');
         throw Exception('Not authenticated');
       }
 
       // Make API request to the user data endpoint
       final url = '${baseUrl}/api/users/get-user-data';
-      print('ApiService: Making request to: $url');
 
       final response = await _makeRequest(
         'GET',
@@ -1557,31 +1449,25 @@ class ApiService {
         },
       );
 
-      print('ApiService: Response status: ${response.statusCode}');
-
       // Check response status
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        print('ApiService: User data retrieved successfully');
 
         if (responseData['status'] == 200) {
           // Store the data locally for offline access
           final userData = responseData['data'] as Map<String, dynamic>;
-          prefs.setString('user_data', jsonEncode(userData));
+          await _secureStorage.write(key: 'user_data', value: jsonEncode(userData));
 
           return userData;
         } else {
-          print('ApiService: Error in response: ${responseData['message']}');
           throw Exception(responseData['message'] ?? 'Failed to get user data');
         }
       } else if (response.statusCode == 404) {
         throw Exception('User not found or not a regular user');
       } else {
-        print('ApiService: Non-200 status code received');
         throw Exception('Failed to get user data: ${response.statusCode}');
       }
     } catch (e) {
-      print('ApiService: Error in getUserData: $e');
       throw Exception('Error getting user data: $e');
     }
   }
@@ -1600,8 +1486,6 @@ class ApiService {
         if (location != null) 'location': location,
       };
 
-      print('Sending personal info update: [REDACTED]'); // Personal info logged for security
-
       final response = await _makeRequest(
         'PUT',
         Uri.parse('$baseUrl/api/users/personal-info'),
@@ -1609,14 +1493,10 @@ class ApiService {
         body: jsonEncode(payload),
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: [REDACTED]'); // Response body logged for security
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         // Update local storage with new data
-        final prefs = await SharedPreferences.getInstance();
         final currentUserData = await getUserData();
 
         // Merge updated fields
@@ -1628,7 +1508,7 @@ class ApiService {
           if (location != null) 'location': location,
         };
 
-        await prefs.setString('user_data', jsonEncode(updatedData));
+        await _secureStorage.write(key: 'user_data', value: jsonEncode(updatedData));
 
         return responseData;
       } else {
@@ -1636,7 +1516,6 @@ class ApiService {
             responseData['message'] ?? 'Failed to update personal information');
       }
     } catch (e) {
-      print('Error updating personal information: $e');
       throw Exception('Failed to update personal information: ${e.toString()}');
     }
   }
@@ -1761,21 +1640,15 @@ class ApiService {
   //api_service.dart
   static Future<Map<String, dynamic>> getServiceProviderDetails() async {
     try {
-      print('ApiService: Fetching service provider details - started');
-
       // Get the auth token
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      print('ApiService: Token status: ${token != null ? "exists" : "null"}');
+      final token = await _secureStorage.read(key: 'auth_token');
 
       if (token == null) {
-        print('ApiService: Not authenticated - throwing error');
         throw Exception('Not authenticated');
       }
 
       // Make API request to the service provider details endpoint
       final url = '${baseUrl}/api/service-provider/details'; // Updated to include /api/
-      print('ApiService: Making request to: $url');
 
       final response = await _makeRequest(
         'GET',
@@ -1785,8 +1658,6 @@ class ApiService {
           'Authorization': 'Bearer $token',
         },
       );
-
-      print('ApiService: Response status: ${response.statusCode}');
 
       // Check response status
       if (response.statusCode == 200) {
@@ -1810,11 +1681,10 @@ class ApiService {
             serviceProviderData = providerData;
           }
           
-          prefs.setString('service_provider_data', jsonEncode(serviceProviderData));
+          await _secureStorage.write(key: 'service_provider_data', value: jsonEncode(serviceProviderData));
 
           return serviceProviderData;
         } else {
-          print('ApiService: Error in response: ${responseData['message']}');
           throw Exception(
               responseData['message'] ?? 'Failed to get service provider data');
         }
@@ -1824,19 +1694,14 @@ class ApiService {
         throw Exception(
             'Access denied. Only service providers can access this data');
       } else {
-        print('ApiService: Non-200 status code received');
         throw Exception(
             'Failed to get service provider data: ${response.statusCode}');
       }
     } catch (e) {
-      print('ApiService: Error in getServiceProviderDetails: $e');
-
       // Try to return cached data if available
       try {
-        final prefs = await SharedPreferences.getInstance();
-        final cachedData = prefs.getString('service_provider_data');
+        final cachedData = await _secureStorage.read(key: 'service_provider_data');
         if (cachedData != null) {
-          print('ApiService: Returning cached service provider data');
           return jsonDecode(cachedData);
         }
       } catch (_) {
@@ -1851,21 +1716,19 @@ class ApiService {
 
   static Future<void> clearServiceProviderCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('service_provider_data');
-      print('ApiService: Cleared service provider cache');
+      await _secureStorage.delete(key: 'service_provider_data');
     } catch (e) {
-      print('ApiService: Error clearing cache: $e');
+      // Error clearing cache
     }
   }
 
 
-  // Fetch service provider logo
-  static Future<String?> getServiceProviderLogo(String providerId) async {
+  // Fetch service provider logo using user ID
+  static Future<String?> getServiceProviderLogo(String userId) async {
     try {
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$baseUrl/api/service-providers/$providerId/logo'),
+        Uri.parse('$baseUrl/api/service-providers/$userId/logo'),
       );
 
       if (response.statusCode == 200) {
@@ -1876,7 +1739,6 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      print('Error fetching logo for provider $providerId: $e');
       return null;
     }
   }
@@ -1884,22 +1746,15 @@ class ApiService {
   //api_service.dart
   static Future<List<dynamic>> getAllServiceProviders() async {
     try {
-      print('ApiService: Fetching all service providers - started');
       final url = '${baseUrl}/api/service-providers/all';
-      print('ApiService: Making request to: $url');
       final response = await _makeRequest(
         'GET',
         Uri.parse(url),
       );
-      print('ApiService: Response status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        print('ApiService: Service providers data retrieved successfully');
-        print('ApiService: Response data structure: $responseData');
         if (responseData['status'] == 200 && responseData['data'] != null) {
           var data = responseData['data'];
-          print('ApiService: Data type: ${data.runtimeType}');
-          print('ApiService: Data content: $data');
           if (data is Map<String, dynamic> &&
               data.containsKey('serviceProviders')) {
             return data['serviceProviders'] as List<dynamic>;
@@ -1909,18 +1764,14 @@ class ApiService {
             return [data];
           }
         } else {
-          print('ApiService: Error in response: ${responseData['message']}');
           throw Exception(responseData['message'] ??
               'Failed to get service providers data');
         }
       } else {
-        print(
-            'ApiService: Non-200 status code received: ${response.statusCode}');
         throw Exception(
             'Failed to get service providers: ${response.statusCode}');
       }
     } catch (e) {
-      print('ApiService: Error in getAllServiceProviders: $e');
       throw Exception('Error getting service providers: $e');
     }
   }
@@ -1928,8 +1779,6 @@ class ApiService {
   // Test connection method
   static Future<bool> testConnection() async {
     try {
-      print('Testing connection to: $baseUrl');
-      
       // Try to connect to the base URL
       final response = await _makeRequest(
         'GET',
@@ -1937,74 +1786,12 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       );
       
-      print('Connection test successful: ${response.statusCode}');
       return response.statusCode == 200 || response.statusCode == 404; // 404 is OK for base URL
     } catch (e) {
-      print('Connection test failed: $e');
       return false;
     }
   }
 
-  // Add this method to your ApiService class to test the connection
-  static Future<void> debugApiConnection() async {
-    try {
-      // First, try a basic GET to the base URL to check if server is reachable
-      final baseResponse = await _makeRequest(
-        'GET',
-        Uri.parse(baseUrl),
-      );
-      print('Base URL response: ${baseResponse.statusCode}');
-
-      // Now let's try each service provider endpoint to see which one works
-
-      // 1. Try the exact route in the error - without trailing slash
-      final url1 = '${baseUrl}/api/service-providers';
-      final response1 = await _makeRequest(
-        'GET',
-        Uri.parse(url1),
-      );
-      print('URL 1 (${url1}) status: ${response1.statusCode}');
-
-      // 2. Try with trailing slash
-      final url2 = '${baseUrl}/api/service-providers/';
-      final response2 = await _makeRequest(
-        'GET',
-        Uri.parse(url2),
-      );
-      print('URL 2 (${url2}) status: ${response2.statusCode}');
-
-      // 3. Try all providers route
-      final url3 = '${baseUrl}/api/service-providers/all';
-      final response3 = await _makeRequest(
-        'GET',
-        Uri.parse(url3),
-      );
-      print('URL 3 (${url3}) status: ${response3.statusCode}');
-
-      // 4. Check the specific route
-      final sampleProviderId = "sample_id"; // Replace with a valid ID if you have one
-      final url4 = '${baseUrl}/api/service-providers/${sampleProviderId}';
-      final response4 = await _makeRequest(
-        'GET',
-        Uri.parse(url4),
-      );
-      print('URL 4 (${url4}) status: ${response4.statusCode}');
-
-      // Print the actual route list from your server
-      final routesUrl = '${baseUrl}/api/routes'; // You might need to add this debug endpoint to your backend
-      try {
-        final routesResponse = await _makeRequest(
-          'GET',
-          Uri.parse(routesUrl),
-        );
-        print('Routes response: ${routesResponse.statusCode} - ${routesResponse.body}');
-      } catch (e) {
-        print('Routes endpoint not available: $e');
-      }
-    } catch (e) {
-      print('Debug connection error: $e');
-    }
-  }
 
 
   // Updated method to get reviews for a service provider
@@ -2019,34 +1806,24 @@ class ApiService {
         },
       );
 
-      print('Reviews API Response Status: ${response.statusCode}');
-      print('Reviews API Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
 
         if (responseData['status'] == 200 && responseData['data'] != null) {
           final List<dynamic> reviewsJson = responseData['data'];
-          print('Found ${reviewsJson.length} reviews in response');
           
           final reviews = reviewsJson.map((json) {
-            print('Processing review JSON: $json');
             try {
               return Review.fromJson(json);
             } catch (e) {
-              print('Error parsing review JSON: $e');
               return null;
             }
           }).where((review) => review != null).cast<Review>().toList();
           
-          print('Successfully parsed ${reviews.length} reviews');
           return reviews;
-        } else {
-          print('Response status not 200 or data is null: ${responseData['status']}');
         }
       } else if (response.statusCode == 401) {
         // If unauthorized, try with authentication
-        print('Unauthorized, trying with authentication...');
         final authResponse = await _makeRequest(
           'GET',
           Uri.parse('$baseUrl/api/service-providers/$providerId/reviews'),
@@ -2062,10 +1839,8 @@ class ApiService {
         }
       }
 
-      print('Error fetching reviews: ${response.statusCode}, ${response.body}');
       return [];
     } catch (e) {
-      print('Exception when fetching reviews: $e');
       return [];
     }
   }
@@ -2117,11 +1892,8 @@ class ApiService {
       
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('Create review response: ${response.statusCode}, ${response.body}');
-
       return response.statusCode == 201;
     } catch (e) {
-      print('Error creating review: $e');
       return false;
     }
   }
@@ -2129,9 +1901,8 @@ class ApiService {
   // Helper method to get auth token
   static Future<String> getAuthToken() async {
     // Implement based on your auth storage mechanism
-    // Example using shared preferences:
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token') ?? '';
+    // Example using secure storage:
+    return await _secureStorage.read(key: 'token') ?? '';
   }
 
   //api_service.dart
@@ -2163,7 +1934,6 @@ class ApiService {
         };
       }
     } catch (e) {
-      print('Error adding to favorites: $e');
       return {
         'success': false,
         'message': 'An error occurred. Please try again later.',
@@ -2201,7 +1971,6 @@ class ApiService {
         };
       }
     } catch (e) {
-      print('Error removing from favorites: $e');
       return {
         'success': false,
         'message': 'An error occurred. Please try again later.',
@@ -2221,20 +1990,15 @@ class ApiService {
         },
       );
 
-      print('API Status Code: ${response.statusCode}');
-      print('API Response Body: ${response.body}');
-
       final responseData = json.decode(response.body);
 
       // Check if request was successful
       if (response.statusCode == 200) {
         return responseData['data'] ?? [];
       } else {
-        print('API Error: ${responseData['message']}');
         return [];
       }
     } catch (e) {
-      print('Exception in getFavoriteBranches: $e');
       return [];
     }
   }
@@ -2248,7 +2012,6 @@ class ApiService {
           branch['branch']['_id'] == branchId
       );
     } catch (e) {
-      print('Error checking favorite status: $e');
       return false;
     }
   }
@@ -2283,7 +2046,6 @@ class ApiService {
         throw Exception('Failed to add to favorites: ${response.body}');
       }
     } catch (e) {
-      print('Error adding to favorites: $e');
       return false;
     }
   }
@@ -2293,16 +2055,10 @@ class ApiService {
     try {
       final headers = await _getAuthToken();
 
-      // Print the service provider ID being sent
-      print('Removing service provider ID: $serviceProviderId');
-
       // Create the request body
       final body = jsonEncode({
         'serviceProviderId': serviceProviderId,
       });
-
-      // Print the request body for debugging
-      print('Request body: $body');
 
               // Use standard client for DELETE request with body
         final client = http.Client();
@@ -2319,15 +2075,12 @@ class ApiService {
       final streamedResponse = await client.send(request);
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('Remove response: ${response.statusCode}, ${response.body}');
-
       if (response.statusCode == 200) {
         return true;
       } else {
         throw Exception('Failed to remove from favorites: ${response.body}');
       }
     } catch (e) {
-      print('Error removing from favorites: $e');
       return false;
     }
   }
@@ -2355,7 +2108,6 @@ class ApiService {
         throw Exception('Failed to check favorites: ${response.body}');
       }
     } catch (e) {
-      print('Error checking favorites: $e');
       return false;
     }
   }
@@ -2364,7 +2116,6 @@ class ApiService {
   Future<bool> toggleFavoriteStatus(String? serviceProviderId,
       bool currentlyFavorited) async {
     if (serviceProviderId == null || serviceProviderId.isEmpty) {
-      print('Error: serviceProviderId is null or empty');
       return false;
     }
 
@@ -2383,7 +2134,6 @@ class ApiService {
 
       // Check if headers contains Authorization
       if (headers['Authorization'] == null) {
-        print('Error: No Authorization header available');
         return [];
       }
 
@@ -2393,19 +2143,14 @@ class ApiService {
         headers: headers,
       );
 
-      print('Service Providers Response Raw: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('Service Providers Decoded Data: $data');
         // Return the full response - let the calling function handle the structure
         return data;
       } else {
-        print('Failed to fetch favorite providers: ${response.statusCode}, ${response.body}');
         return [];
       }
     } catch (e) {
-      print('Error fetching favorite providers: $e');
       return [];
     }
   }
@@ -2420,8 +2165,6 @@ class ApiService {
 
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
-    } else {
-      print('Warning: No token available for API request');
     }
 
     return headers;
@@ -2435,7 +2178,6 @@ class ApiService {
       final Uri uri = Uri.parse(
           '$baseUrl/api/branches/$branchId/comments?page=$page&limit=$limit');
 
-      print('Fetching comments from: $uri');
 
       final response = await _makeRequest(
         'GET',
@@ -2445,8 +2187,6 @@ class ApiService {
         },
       );
 
-      print('Response status code: ${response.statusCode}');
-      print('Response body: [REDACTED]'); // Response body logged for security
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
@@ -2468,9 +2208,6 @@ class ApiService {
 
         return responseData;
       } else {
-        print('Failed to load comments: ${response.statusCode}');
-        print('Response body: [REDACTED]'); // Response body logged for security
-
         // Return a formatted error response
         return {
           'status': 'error',
@@ -2484,8 +2221,6 @@ class ApiService {
         };
       }
     } catch (e) {
-      print('Error loading comments: $e');
-
       // Return a formatted error response for exceptions
       return {
         'status': 'error',
@@ -2512,8 +2247,6 @@ class ApiService {
       final Uri uri = Uri.parse(
           '$baseUrl/api/companies/branches/$branchId/comments');
 
-      print('Posting comment to: $uri');
-      print('Comment: $comment, Rating: $rating');
 
       final response = await _makeRequest(
         'POST',
@@ -2528,20 +2261,15 @@ class ApiService {
         }),
       );
 
-      print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 201) {
         final responseData = json.decode(response.body);
         return responseData;
       } else {
-        print('Failed to post comment: ${response.statusCode}');
-        print('Response body: [REDACTED]'); // Response body logged for security
         throw Exception(
             'Failed to post comment (Status: ${response.statusCode})');
       }
     } catch (e) {
-      print('Error posting comment: $e');
       throw Exception('Error posting comment: $e');
     }
   }
@@ -2557,8 +2285,6 @@ class ApiService {
       final Uri uri = Uri.parse(
           '$baseUrl/api/companies/comments/$commentId/reply');
 
-      print('Posting reply to comment: $uri');
-      print('Reply: $reply');
 
       final response = await _makeRequest(
         'POST',
@@ -2572,20 +2298,14 @@ class ApiService {
         }),
       );
 
-      print('Response status code: ${response.statusCode}');
-      print('Response body: [REDACTED]'); // Response body logged for security
-
       if (response.statusCode == 201) {
         final responseData = json.decode(response.body);
         return responseData;
       } else {
-        print('Failed to post reply: ${response.statusCode}');
-        print('Response body: [REDACTED]'); // Response body logged for security
         throw Exception(
             'Failed to post reply (Status: ${response.statusCode})');
       }
     } catch (e) {
-      print('Error posting reply: $e');
       throw Exception('Error posting reply: $e');
     }
   }
@@ -2619,8 +2339,6 @@ class ApiService {
         }),
       );
 
-      debugPrint('Social links update response: ${response.statusCode}');
-      debugPrint('Response body: [REDACTED]'); // Response body logged for security
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -2628,7 +2346,6 @@ class ApiService {
       }
       return false;
     } catch (e) {
-      debugPrint('Error updating social links: $e');
       return false;
     }
   }
@@ -2680,9 +2397,6 @@ static Future<Map<String, dynamic>> signupWholesaler(
       }
     };
 
-    // Log the final request data
-    print("Final request data for wholesaler signup:");
-    print(jsonEncode(requestData));
 
     // Make the API request
     final response = await _makeRequest(
@@ -2705,7 +2419,6 @@ static Future<Map<String, dynamic>> signupWholesaler(
       throw Exception(responseData['message'] ?? 'Wholesaler signup failed');
     }
   } catch (e) {
-    print('Exception during wholesaler signup: $e');
     throw Exception('Failed to sign up wholesaler: ${e.toString()}');
   }
 }
@@ -2736,7 +2449,6 @@ static Future<Map<String, dynamic>> signupWholesaler(
         throw Exception(responseData['message'] ?? 'Failed to delete account');
       }
     } catch (e) {
-      print('Error deleting user account: $e');
       throw Exception('Failed to delete account: $e');
     }
   }
@@ -2763,7 +2475,6 @@ static Future<Map<String, dynamic>> signupWholesaler(
         }
       }
 
-      print('OTP Verification - Normalized Phone: $normalizedPhone');
 
       final response = await _makeRequest(
         'POST',
@@ -2776,15 +2487,12 @@ static Future<Map<String, dynamic>> signupWholesaler(
       );
 
 
-      print('OTP Verification Response Status: ${response.statusCode}');
-      print('OTP Verification Response Body: ${response.body}');
 
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         if (responseData['data']?['token'] != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('auth_token', responseData['data']['token']);
+          await _secureStorage.write(key: 'auth_token', value: responseData['data']['token']);
         }
         return {
           'success': true,
@@ -2800,7 +2508,6 @@ static Future<Map<String, dynamic>> signupWholesaler(
         };
       }
     } catch (error) {
-      print('OTP Verification Error: $error');
       return {
         'success': false,
         'message': 'Network or server error occurred',
@@ -2814,9 +2521,8 @@ static Future<Map<String, dynamic>> signupWholesaler(
   }) async {
     try {
       // Get API key or any existing auth tokens if available
-      final prefs = await SharedPreferences.getInstance();
-      final apiKey = prefs.getString('api_key') ?? '';
-      final tempToken = prefs.getString('temp_auth_token') ?? '';
+      final apiKey = await _secureStorage.read(key: 'api_key') ?? '';
+      final tempToken = await _secureStorage.read(key: 'temp_auth_token') ?? '';
 
 
       // Build headers with authentication
@@ -2871,7 +2577,6 @@ static Future<Map<String, dynamic>> signupWholesaler(
       ];
 
       for (final url in possibleUrls) {
-        print('Trying URL: $url');
 
       
 
@@ -2884,12 +2589,9 @@ static Future<Map<String, dynamic>> signupWholesaler(
             },
       );
 
-          print('Response for $url: ${response.statusCode}');
-
           if (response.statusCode == 200) {
             final Map<String, dynamic> responseData = json.decode(
                 response.body);
-            print('Success with URL: $url');
 
             if (responseData['status'] == 200 &&
                 responseData.containsKey('data')) {
@@ -2897,7 +2599,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
             }
           }
         } catch (e) {
-          print('Error with $url: $e');
+          // Error with URL
         }
       }
 
@@ -2912,18 +2614,17 @@ static Future<Map<String, dynamic>> signupWholesaler(
   static Future<Map<String, dynamic>?> getServiceProviderById(
   String providerId) async {
   try {
-    // Get auth token from shared preferences
-    final prefs = await SharedPreferences.getInstance();
-    final String? authToken = prefs.getString('auth_token');
+    // Get auth token from secure storage
+    final String? authToken = await _secureStorage.read(key: 'auth_token');
     if (authToken == null) {
       debugPrint('No auth token found');
       return null;
     }
     
-       
+    debugPrint('Fetching service provider by ID: $providerId');
 
     final url = '${baseUrl}/api/service-providers/$providerId';
-    print('ApiService: Making request to: $url');
+    debugPrint('API URL: $url');
     
     final response = await _makeRequest(
         'GET',
@@ -2934,17 +2635,38 @@ static Future<Map<String, dynamic>> signupWholesaler(
       },
       );
     
-    print('ApiService: Response status: ${response.statusCode}');
+    debugPrint('Response status: ${response.statusCode}');
+    debugPrint('Response body: ${response.body}');
     
     if (response.statusCode == 200) {
       final dynamic responseData = json.decode(response.body);
+      debugPrint('Parsed response data: $responseData');
+      
       if (responseData['status'] == 200 && responseData.containsKey('data')) {
         // Convert to Map<String, dynamic> using Map.from()
-        return Map<String, dynamic>.from(responseData['data']);
+        final enhancedData = Map<String, dynamic>.from(responseData['data']);
+        debugPrint('Enhanced service provider data: $enhancedData');
+        
+        // Log key fields for debugging
+        debugPrint('Service Provider ID: ${enhancedData['_id']}');
+        debugPrint('Service Provider Name: ${enhancedData['fullName'] ?? enhancedData['businessName']}');
+        debugPrint('Service Type: ${enhancedData['serviceType']}');
+        debugPrint('Available Hours: ${enhancedData['availableHours']}');
+        debugPrint('Available Days: ${enhancedData['availableDays']}');
+        debugPrint('Years Experience: ${enhancedData['yearsExperience']}');
+        debugPrint('Certificate Images: ${enhancedData['certificateImages']}');
+        
+        return enhancedData;
       } else {
         debugPrint('API Error: ${responseData['message']}');
         return null;
       }
+    } else if (response.statusCode == 404) {
+      debugPrint('Service provider not found');
+      return null;
+    } else if (response.statusCode == 400) {
+      debugPrint('Invalid service provider ID format');
+      return null;
     } else {
       debugPrint('HTTP Error: ${response.statusCode} - ${response.body}');
       return null;
@@ -3018,7 +2740,6 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         requestBody['phone'] = phone.trim();
       }
 
-      print('Checking existence for: $requestBody');
 
       final response = await _makeRequest(
           'POST',
@@ -3029,8 +2750,6 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         );
 
 
-      print('Check exists response status: ${response.statusCode}');
-      print('Check exists response body: ${response.body}');
 
       final responseData = jsonDecode(response.body);
 
@@ -3045,7 +2764,6 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         throw Exception(responseData['message'] ?? 'Failed to check existence');
       }
     } catch (e) {
-      print('Error checking email/phone existence: $e');
       return {
         'success': false,
         'message': 'Error checking existence: ${e.toString()}',
@@ -3063,14 +2781,10 @@ static Future<List<NotificationModel>> fetchNotifications() async {
   static Future<bool> updateServiceProviderDescription(
       String description) async {
     try {
-      print('ApiService: Updating service provider description');
-
       // Get the auth token
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      final token = await _secureStorage.read(key: 'auth_token');
 
       if (token == null) {
-        print('ApiService: Not authenticated - throwing error');
         throw Exception('Not authenticated');
       }
 
@@ -3086,7 +2800,6 @@ static Future<List<NotificationModel>> fetchNotifications() async {
 
       // Make API request to update profile
       final url = '${baseUrl}/api/service-provider/update';
-      print('ApiService: Making request to: $url');
 
       final response = await _makeRequest(
           'PUT',
@@ -3099,33 +2812,27 @@ static Future<List<NotificationModel>> fetchNotifications() async {
 
         );
 
-      print('ApiService: Response status: ${response.statusCode}');
-
       // Check response status
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        print('ApiService: Description updated successfully');
 
         // Update cached data
         try {
-          final cachedData = prefs.getString('service_provider_data');
+          final cachedData = await _secureStorage.read(key: 'service_provider_data');
           if (cachedData != null) {
             final Map<String, dynamic> data = json.decode(cachedData);
             data['description'] = description;
-            prefs.setString('service_provider_data', json.encode(data));
+            await _secureStorage.write(key: 'service_provider_data', value: json.encode(data));
           }
         } catch (e) {
-          print('ApiService: Error updating cached data: $e');
+          // Error updating cached data
         }
 
         return true;
       } else {
-        print(
-            'ApiService: Failed to update description: ${response.statusCode}');
         return false;
       }
     } catch (e) {
-      print('ApiService: Error in updateServiceProviderDescription: $e');
       return false;
     }
   }
@@ -3179,14 +2886,11 @@ static Future<List<NotificationModel>> fetchNotifications() async {
             .map((entity) => Map<String, dynamic>.from(entity))
             .toList();
 
-        print('Found ${sponsoredEntities.length} sponsored entities');
         return sponsoredEntities;
       } else {
-        print('Failed to fetch sponsored entities: ${response.statusCode}');
         return [];
       }
     } catch (e) {
-      print('Error fetching sponsored entities: $e');
       return [];
     }
   }
@@ -3202,10 +2906,8 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         return companyInfo?['sponsorship'] == true;
       }).toList();
 
-      print('Found ${sponsoredCompanies.length} sponsored companies');
       return sponsoredCompanies.cast<Map<String, dynamic>>();
     } catch (e) {
-      print('Error fetching sponsored companies: $e');
       return [];
     }
   }
@@ -3229,14 +2931,11 @@ static Future<List<NotificationModel>> fetchNotifications() async {
             .map((wholesaler) => Map<String, dynamic>.from(wholesaler))
             .toList();
 
-        print('Found ${sponsoredWholesalers.length} sponsored wholesalers');
         return sponsoredWholesalers;
       } else {
-        print('Failed to fetch wholesalers: ${response.statusCode}');
         return [];
       }
     } catch (e) {
-      print('Error fetching wholesalers: $e');
       return [];
     }
   }
@@ -3248,7 +2947,6 @@ static Future<List<NotificationModel>> fetchNotifications() async {
       // For now, returning empty list - you'll need to implement this based on your API
       return [];
     } catch (e) {
-      print('Error fetching sponsored service providers: $e');
       return [];
     }
   }
@@ -3263,20 +2961,17 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         return branch['sponsorship'] == true;
       }).toList();
 
-      print('Found ${sponsoredBranches.length} sponsored branches from direct branch API');
-
       // Also check for sponsored branches within wholesalers
       try {
         // Import wholesaler service to get wholesalers with sponsored branches
         // For now, we'll return the branches we found
         // You may need to implement this based on your wholesaler API structure
       } catch (e) {
-        print('Could not check wholesaler branches: $e');
+        // Could not check wholesaler branches
       }
 
       return sponsoredBranches;
     } catch (e) {
-      print('Error fetching sponsored branches: $e');
       return [];
     }
   }
@@ -3340,23 +3035,13 @@ static Future<List<NotificationModel>> fetchNotifications() async {
               'updatedAt': category['updatedAt'],
             };
             
-            // Debug logging for each category
-            print('Parsed category: "$categoryName" with ${subcategories.length} subcategories, logo: $logoUrl, color: $color');
           }
         }
 
-        print('Successfully fetched ${categoriesMap.length} categories from backend');
-        print('Categories: ${categoriesMap.keys.toList()}');
-        
-        // Debug: Print the final map structure
-        categoriesMap.forEach((category, data) {
-          print('Final map entry: "$category" -> $data');
-        });
         
         return categoriesMap;
       } else {
-        print('Failed to fetch categories: ${response.statusCode}');
-        print('Response body: [REDACTED]'); // Response body logged for security
+        // Failed to fetch categories
         // Return empty map on error
         return {};
       }
@@ -3396,28 +3081,15 @@ static Future<List<NotificationModel>> fetchNotifications() async {
             
             categoriesMap[categoryName] = subcategories;
             
-            // Debug logging for each category
-            print('Parsed category: "$categoryName" with ${subcategories.length} subcategories: $subcategories');
           }
         }
 
-        print('Successfully fetched ${categoriesMap.length} categories from backend');
-        print('Categories: ${categoriesMap.keys.toList()}');
-        
-        // Debug: Print the final map structure
-        categoriesMap.forEach((category, subs) {
-          print('Final map entry: "$category" -> $subs');
-        });
-        
         return categoriesMap;
       } else {
-        print('Failed to fetch categories: ${response.statusCode}');
-        print('Response body: [REDACTED]'); // Response body logged for security
         // Return empty map on error
         return {};
       }
     } catch (e) {
-      print('Error fetching categories: $e');
       // Return empty map on error
       return {};
     }
@@ -3425,13 +3097,8 @@ static Future<List<NotificationModel>> fetchNotifications() async {
 
   // Get all wholesaler categories from backend
   static Future<Map<String, List<String>>> getAllWholesalerCategories() async {
-    print('=== WHOLESALER CATEGORIES METHOD CALLED ===');
-    print('Method: getAllWholesalerCategories');
-    print('Return type: Map<String, List<String>>');
-    
     try {
       final url = '$baseUrl/api/wholesaler-categories';
-      print('getAllWholesalerCategories: Calling endpoint: $url');
       
       final response = await _makeRequest(
         'GET',
@@ -3439,15 +3106,9 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         headers: await _getHeaders(),
       );
 
-      print('getAllWholesalerCategories: Response status: ${response.statusCode}');
-      print('getAllWholesalerCategories: Response body: [REDACTED]'); // Response body logged for security
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         final List<dynamic> categoriesData = responseData['data'] ?? [];
-        
-        print('getAllWholesalerCategories: Parsed response data: $responseData');
-        print('getAllWholesalerCategories: Categories data: $categoriesData');
         
         // Convert the backend response to the expected format
         final Map<String, List<String>> categoriesMap = {};
@@ -3481,8 +3142,7 @@ static Future<List<NotificationModel>> fetchNotifications() async {
         print('=== WHOLESALER CATEGORIES METHOD COMPLETED ===');
         return categoriesMap;
       } else {
-        print('Failed to fetch wholesaler categories: ${response.statusCode}');
-        print('Response body: [REDACTED]'); // Response body logged for security
+        // Failed to fetch wholesaler categories
         print('=== WHOLESALER CATEGORIES METHOD FAILED ===');
         // Return empty map on error
         return {};

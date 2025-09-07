@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart';
 import '../models/booking.dart';
 import '../utils/token_manager.dart';
 
@@ -58,8 +59,7 @@ class BookingService {
       // Format date as YYYY-MM-DD for API query
       final formattedDate = DateFormat('yyyy-MM-dd').format(date);
 
-      print('BookingService: Fetching time slots for provider $providerId on date $formattedDate');
-      print('BookingService: API URL: $baseUrl/api/bookings/available-slots/$providerId?date=$formattedDate');
+      // Fetching time slots for provider
 
       final response = await _makeRequest(
         'GET',
@@ -70,35 +70,60 @@ class BookingService {
         },
       );
 
-      print('BookingService: Response status: ${response.statusCode}');
-      print('BookingService: Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
 
         if (data['status'] == 200 && data['data'] != null) {
           // Convert the data to List<String>
           final slots = List<String>.from(data['data']);
-          print('BookingService: Parsed time slots: $slots');
           return slots;
         } else {
           // Return empty list if no slots available
-          print('BookingService: No time slots available or invalid response');
           return [];
         }
       } else {
-        print('BookingService: API error - Status: ${response.statusCode}, Body: ${response.body}');
-        throw Exception('Failed to load time slots: ${response.statusCode}');
+        if (kDebugMode) {
+          throw Exception('Failed to load time slots: ${response.statusCode}');
+        } else {
+          throw Exception('Failed to load time slots. Please try again.');
+        }
       }
     } catch (e) {
       print('Error fetching available time slots: $e');
-      throw Exception('Failed to load time slots: $e');
+      if (kDebugMode) {
+        throw Exception('Failed to load time slots: $e');
+      } else {
+        throw Exception('Failed to load time slots. Please try again.');
+      }
     }
   }
 
   // Create a new booking
   Future<bool> createBooking(Booking booking, {String? mediaBase64, String? mediaFileName, String? mediaType}) async {
     try {
+      // Input validation
+      if (booking.serviceProviderId.trim().isEmpty) {
+        throw Exception('Service provider ID is required');
+      }
+      
+      if (booking.timeSlot.trim().isEmpty) {
+        throw Exception('Time slot is required');
+      }
+      
+      if (booking.phoneNumber.trim().isEmpty) {
+        throw Exception('Phone number is required');
+      }
+      
+      // Phone number format validation
+      if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(booking.phoneNumber.replaceAll(RegExp(r'[\s-]'), ''))) {
+        throw Exception('Invalid phone number format');
+      }
+      
+      // Date validation
+      if (booking.bookingDate.isBefore(DateTime.now())) {
+        throw Exception('Booking date cannot be in the past');
+      }
+      
       final formattedDate = booking.bookingDate.toUtc().toIso8601String();
 
       final requestBody = {
@@ -134,11 +159,19 @@ class BookingService {
         print('Response status: ${response.statusCode}');
         print('Response body: ${response.body}');
         final errorData = json.decode(response.body);
-        throw Exception(errorData['message'] ?? 'Failed to create booking. Status: ${response.statusCode}');
+        if (kDebugMode) {
+          throw Exception(errorData['message'] ?? 'Failed to create booking. Status: ${response.statusCode}');
+        } else {
+          throw Exception(errorData['message'] ?? 'Failed to create booking. Please try again.');
+        }
       }
     } catch (e) {
       print('Error creating booking: $e');
-      throw Exception('Failed to create booking: $e');
+      if (kDebugMode) {
+        throw Exception('Failed to create booking: $e');
+      } else {
+        throw Exception('Failed to create booking. Please try again.');
+      }
     }
   }
 
@@ -165,11 +198,19 @@ class BookingService {
           return [];
         }
       } else {
-        throw Exception('Failed to load bookings: ${response.statusCode}');
+        if (kDebugMode) {
+          throw Exception('Failed to load bookings: ${response.statusCode}');
+        } else {
+          throw Exception('Failed to load bookings. Please try again.');
+        }
       }
     } catch (e) {
       print('Error fetching user bookings: $e');
-      throw Exception('Failed to load bookings: $e');
+      if (kDebugMode) {
+        throw Exception('Failed to load bookings: $e');
+      } else {
+        throw Exception('Failed to load bookings. Please try again.');
+      }
     }
   }
 
@@ -200,6 +241,15 @@ class BookingService {
   // Update booking status
   Future<bool> updateBookingStatus(String bookingId, String status) async {
     try {
+      // Input validation
+      if (bookingId.trim().isEmpty) {
+        throw Exception('Booking ID is required');
+      }
+      
+      if (status.trim().isEmpty) {
+        throw Exception('Status is required');
+      }
+      
       // Validate status before sending to server
       final validStatus = status.trim().toLowerCase();
 
@@ -234,7 +284,7 @@ class BookingService {
   Future<List<Booking>> getProviderBookings() async {
     try {
       final token = await tokenManager.getToken();
-      print('BookingService: Getting provider bookings with token: ${token.substring(0, 20)}...');
+      // Token logging removed for security
 
       final response = await _makeRequest(
         'GET',
@@ -245,26 +295,19 @@ class BookingService {
         },
       );
 
-      print('BookingService: Response status: ${response.statusCode}');
-      print('BookingService: Response body: ${response.body}');
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
-        print('BookingService: Parsed response data: $data');
 
         if (data['status'] == 200 && data['data'] != null) {
           final List<dynamic> enrichedBookingsJson = data['data'];
           print('BookingService: Found ${enrichedBookingsJson.length} enriched bookings');
           
           final bookings = enrichedBookingsJson.map((enrichedBooking) {
-            print('BookingService: Processing enriched booking: $enrichedBooking');
-            
             // Extract the booking data from the enriched structure
             final bookingData = enrichedBooking['booking'];
             final userData = enrichedBooking['user'];
-            
-            print('BookingService: Booking data: $bookingData');
-            print('BookingService: User data: $userData');
             
             // Merge user data into booking data for the Booking.fromJson method
             final mergedData = Map<String, dynamic>.from(bookingData);
@@ -289,11 +332,19 @@ class BookingService {
         }
       } else {
         print('BookingService: API error - Status: ${response.statusCode}, Body: ${response.body}');
-        throw Exception('Failed to load bookings: ${response.statusCode}');
+        if (kDebugMode) {
+          throw Exception('Failed to load bookings: ${response.statusCode}');
+        } else {
+          throw Exception('Failed to load bookings. Please try again.');
+        }
       }
     } catch (e) {
       print('BookingService: Exception in getProviderBookings: $e');
-      throw Exception('Failed to load bookings: $e');
+      if (kDebugMode) {
+        throw Exception('Failed to load bookings: $e');
+      } else {
+        throw Exception('Failed to load bookings. Please try again.');
+      }
     }
   }
 

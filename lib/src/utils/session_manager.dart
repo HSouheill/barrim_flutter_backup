@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
+import 'package:barrim/src/utils/env_config.dart';
 
 // Session event types
 enum SessionEvent {
@@ -43,6 +45,16 @@ class SessionManager {
   static const String _sessionTimeoutKey = 'session_timeout';
   static const String _refreshTokenKey = 'refresh_token';
   
+  // Secure storage configuration
+  static const FlutterSecureStorage _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
+  
   // Default session timeout (30 minutes)
   static const Duration defaultSessionTimeout = Duration(minutes: 30);
   
@@ -68,7 +80,7 @@ class SessionManager {
     return _sessionEventController!.stream;
   }
   
-  // Save session data
+  // Save session data securely
   static Future<void> saveSession({
     required String token,
     required String userData,
@@ -76,57 +88,76 @@ class SessionManager {
     Duration? customTimeout,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      // Input validation
+      if (token.trim().isEmpty) {
+        throw SessionException('Token cannot be empty');
+      }
+      if (userData.trim().isEmpty) {
+        throw SessionException('User data cannot be empty');
+      }
+      
+      // Basic JWT format validation
+      if (!token.contains('.')) {
+        throw SessionException('Invalid token format');
+      }
+      
       final now = DateTime.now();
       final timeout = customTimeout ?? defaultSessionTimeout;
       
       await Future.wait([
-        prefs.setString(_tokenKey, token),
-        prefs.setString(_userKey, userData),
-        prefs.setInt(_lastActivityKey, now.millisecondsSinceEpoch),
-        prefs.setInt(_sessionTimeoutKey, timeout.inMilliseconds),
-        if (refreshToken != null) prefs.setString(_refreshTokenKey, refreshToken),
+        _storage.write(key: _tokenKey, value: token.trim()),
+        _storage.write(key: _userKey, value: userData.trim()),
+        _storage.write(key: _lastActivityKey, value: now.millisecondsSinceEpoch.toString()),
+        _storage.write(key: _sessionTimeoutKey, value: timeout.inMilliseconds.toString()),
+        if (refreshToken != null) _storage.write(key: _refreshTokenKey, value: refreshToken.trim()),
       ]);
       
       await _startSessionMonitoring();
       _notifySessionEvent(SessionEvent.sessionStarted);
       
-      print('Session saved successfully with ${timeout.inMinutes}min timeout');
+      if (!kReleaseMode) {
+        print('Session saved successfully with ${timeout.inMinutes}min timeout');
+      }
     } catch (e) {
-      print('Error saving session: $e');
+      if (!kReleaseMode) {
+        print('Error saving session: $e');
+      }
       throw SessionException('Failed to save session data');
     }
   }
   
-  // Get stored token
+  // Get stored token securely
   static Future<String?> getToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_tokenKey);
+      return await _storage.read(key: _tokenKey);
     } catch (e) {
-      print('Error getting token: $e');
+      if (!kReleaseMode) {
+        print('Error getting token: $e');
+      }
       return null;
     }
   }
   
-  // Get stored user data
+  // Get stored user data securely
   static Future<String?> getUserData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_userKey);
+      return await _storage.read(key: _userKey);
     } catch (e) {
-      print('Error getting user data: $e');
+      if (!kReleaseMode) {
+        print('Error getting user data: $e');
+      }
       return null;
     }
   }
   
-  // Get refresh token
+  // Get refresh token securely
   static Future<String?> getRefreshToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_refreshTokenKey);
+      return await _storage.read(key: _refreshTokenKey);
     } catch (e) {
-      print('Error getting refresh token: $e');
+      if (!kReleaseMode) {
+        print('Error getting refresh token: $e');
+      }
       return null;
     }
   }
@@ -134,14 +165,24 @@ class SessionManager {
   // Check if session is valid
   static Future<bool> isSessionValid() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final token = await _storage.read(key: _tokenKey);
+      final lastActivityMsStr = await _storage.read(key: _lastActivityKey);
+      final timeoutMsStr = await _storage.read(key: _sessionTimeoutKey);
       
-      final token = prefs.getString(_tokenKey);
-      final lastActivityMs = prefs.getInt(_lastActivityKey);
-      final timeoutMs = prefs.getInt(_sessionTimeoutKey);
+      if (token == null || lastActivityMsStr == null || timeoutMsStr == null) {
+        if (!kReleaseMode) {
+          print('Session validation failed: Missing session data');
+        }
+        return false;
+      }
       
-      if (token == null || lastActivityMs == null || timeoutMs == null) {
-        print('Session validation failed: Missing session data');
+      final lastActivityMs = int.tryParse(lastActivityMsStr);
+      final timeoutMs = int.tryParse(timeoutMsStr);
+      
+      if (lastActivityMs == null || timeoutMs == null) {
+        if (!kReleaseMode) {
+          print('Session validation failed: Invalid session data format');
+        }
         return false;
       }
       
@@ -151,14 +192,18 @@ class SessionManager {
       final now = DateTime.now();
       
       if (now.isAfter(expiryTime)) {
-        print('Session expired: Last activity was ${now.difference(lastActivity).inMinutes} minutes ago');
+        if (!kReleaseMode) {
+          print('Session expired: Last activity was ${now.difference(lastActivity).inMinutes} minutes ago');
+        }
         return false;
       }
       
       // Additional server-side validation
       return await _validateTokenWithServer(token);
     } catch (e) {
-      print('Error validating session: $e');
+      if (!kReleaseMode) {
+        print('Error validating session: $e');
+      }
       return false;
     }
   }
@@ -166,33 +211,37 @@ class SessionManager {
   // Validate token with server
   static Future<bool> _validateTokenWithServer(String token) async {
     try {
-      print('Validating token with server...');
       final response = await http.get(
-        Uri.parse('https://barrim.online/api/auth/validate-token'),
+        Uri.parse('${EnvConfig.apiBaseUrl}/api/auth/validate-token'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
+          'User-Agent': 'Barrim-Mobile-App/1.0',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
         },
       ).timeout(const Duration(seconds: 10));
-      
-      print('Token validation response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final responseData = data['data'] ?? {};
         final isValid = responseData['valid'] == true;
-        print('Token validation result: $isValid');
         return isValid;
       } else if (response.statusCode == 401) {
-        print('Token validation failed: Unauthorized');
+        if (!kReleaseMode) {
+          print('Token validation failed: Unauthorized');
+        }
         return false;
       } else {
-        print('Token validation failed: HTTP ${response.statusCode}');
-        print('Response body: ${response.body}');
+        if (!kReleaseMode) {
+          print('Token validation failed: HTTP ${response.statusCode}');
+        }
         return false;
       }
     } catch (e) {
-      print('Error validating token with server: $e');
+      if (!kReleaseMode) {
+        print('Error validating token with server: $e');
+      }
       // Return true for network errors to avoid false negatives
       return true;
     }
@@ -201,26 +250,34 @@ class SessionManager {
   // Update last activity timestamp
   static Future<void> updateLastActivity() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final now = DateTime.now();
-      await prefs.setInt(_lastActivityKey, now.millisecondsSinceEpoch);
+      await _storage.write(key: _lastActivityKey, value: now.millisecondsSinceEpoch.toString());
       
       // Restart session monitoring with updated activity
       await _startSessionMonitoring();
       
-      print('Last activity updated: ${now.toString()}');
+      if (!kReleaseMode) {
+        print('Last activity updated: ${now.toString()}');
+      }
     } catch (e) {
-      print('Error updating last activity: $e');
+      if (!kReleaseMode) {
+        print('Error updating last activity: $e');
+      }
     }
   }
   
   // Get time remaining until session expires
   static Future<Duration?> getTimeUntilExpiry() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final lastActivityMsStr = await _storage.read(key: _lastActivityKey);
+      final timeoutMsStr = await _storage.read(key: _sessionTimeoutKey);
       
-      final lastActivityMs = prefs.getInt(_lastActivityKey);
-      final timeoutMs = prefs.getInt(_sessionTimeoutKey);
+      if (lastActivityMsStr == null || timeoutMsStr == null) {
+        return null;
+      }
+      
+      final lastActivityMs = int.tryParse(lastActivityMsStr);
+      final timeoutMs = int.tryParse(timeoutMsStr);
       
       if (lastActivityMs == null || timeoutMs == null) {
         return null;
@@ -237,7 +294,9 @@ class SessionManager {
       
       return expiryTime.difference(now);
     } catch (e) {
-      print('Error getting time until expiry: $e');
+      if (!kReleaseMode) {
+        print('Error getting time until expiry: $e');
+      }
       return null;
     }
   }
@@ -272,13 +331,12 @@ class SessionManager {
         
         if (newToken != null) {
           // Update stored tokens
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_tokenKey, newToken);
+          await _storage.write(key: _tokenKey, value: newToken);
           if (newRefreshToken != null) {
-            await prefs.setString(_refreshTokenKey, newRefreshToken);
+            await _storage.write(key: _refreshTokenKey, value: newRefreshToken);
           }
           if (userData != null) {
-            await prefs.setString(_userKey, json.encode(userData));
+            await _storage.write(key: _userKey, value: json.encode(userData));
           }
           
           // Update last activity
@@ -307,25 +365,27 @@ class SessionManager {
     }
   }
   
-  // Clear session data
+  // Clear session data securely
   static Future<void> clearSession() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      
       await Future.wait([
-        prefs.remove(_tokenKey),
-        prefs.remove(_userKey),
-        prefs.remove(_lastActivityKey),
-        prefs.remove(_sessionTimeoutKey),
-        prefs.remove(_refreshTokenKey),
+        _storage.delete(key: _tokenKey),
+        _storage.delete(key: _userKey),
+        _storage.delete(key: _lastActivityKey),
+        _storage.delete(key: _sessionTimeoutKey),
+        _storage.delete(key: _refreshTokenKey),
       ]);
       
       _stopSessionMonitoring();
       _notifySessionEvent(SessionEvent.sessionEnded);
       
-      print('Session cleared successfully');
+      if (!kReleaseMode) {
+        print('Session cleared successfully');
+      }
     } catch (e) {
-      print('Error clearing session: $e');
+      if (!kReleaseMode) {
+        print('Error clearing session: $e');
+      }
     }
   }
   
@@ -377,10 +437,12 @@ class SessionManager {
   // Get session info for debugging
   static Future<Map<String, dynamic>> getSessionInfo() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString(_tokenKey);
-      final lastActivityMs = prefs.getInt(_lastActivityKey);
-      final timeoutMs = prefs.getInt(_sessionTimeoutKey);
+      final token = await _storage.read(key: _tokenKey);
+      final lastActivityMsStr = await _storage.read(key: _lastActivityKey);
+      final timeoutMsStr = await _storage.read(key: _sessionTimeoutKey);
+      
+      final lastActivityMs = lastActivityMsStr != null ? int.tryParse(lastActivityMsStr) : null;
+      final timeoutMs = timeoutMsStr != null ? int.tryParse(timeoutMsStr) : null;
       
       final lastActivity = lastActivityMs != null 
           ? DateTime.fromMillisecondsSinceEpoch(lastActivityMs)

@@ -108,7 +108,7 @@ class _CompanyProfileSettingsState extends State<CompanyProfileSettings> {
           if (userEmail.isEmpty) {
             print('CompanyProfileSettings: Email not found in company data, trying user profile');
             try {
-              final userProfile = await ApiService.getUserProfile(token);
+              final userProfile = await ApiService.getUserProfile(token!);
               userEmail = userProfile['email'] ?? '';
               print('CompanyProfileSettings: User email from user profile: $userEmail');
             } catch (profileError) {

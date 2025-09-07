@@ -65,7 +65,7 @@ class CompanyService {
     try {
       final token = await _tokenManager.getToken();
       if (!kReleaseMode) {
-        print('CompanyService: Token retrieved: ${token.isNotEmpty ? 'Token exists' : 'No token'}');
+        print('CompanyService: Token retrieved: ${token?.isNotEmpty == true ? 'Token exists' : 'No token'}');
       }
 
       final url = '$_baseUrl/api/companies/data';
@@ -87,10 +87,7 @@ class CompanyService {
         },
       );
 
-      if (!kReleaseMode) {
-        print('CompanyService: Response status code: ${response.statusCode}');
-        print('CompanyService: Response body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -101,18 +98,13 @@ class CompanyService {
             throw Exception(apiResponse.getEmptyDataMessage('company'));
           }
           final company = Company.fromJson(apiResponse.data!);
-          if (!kReleaseMode) {
-            print('CompanyService: Company object created: ${company.businessName}');
-          }
           return company;
         } else {
           throw Exception(apiResponse.message);
         }
       } else {
-        if (!kReleaseMode) {
-          print('CompanyService: Failed with status code: ${response.statusCode}');
-        }
-        throw Exception('Failed to load company data: ${response.body}');
+        // Failed to load company data
+        throw Exception('Failed to load company data');
       }
     } catch (e) {
       if (!kReleaseMode) {
@@ -137,19 +129,44 @@ class CompanyService {
   }) async {
     final token = await _tokenManager.getToken();
 
+    // Input validation
+    if (email != null && email.trim().isNotEmpty) {
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim())) {
+        throw Exception('Invalid email format');
+      }
+    }
+    
+    if (phone != null && phone.trim().isNotEmpty) {
+      if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(phone.replaceAll(RegExp(r'[\s-]'), ''))) {
+        throw Exception('Invalid phone number format');
+      }
+    }
+    
+    if (website != null && website.trim().isNotEmpty) {
+      if (!RegExp(r'^https?:\/\/').hasMatch(website.trim())) {
+        throw Exception('Website must start with http:// or https://');
+      }
+    }
+    
+    if (newPassword != null && newPassword.trim().isNotEmpty) {
+      if (newPassword.length < 6) {
+        throw Exception('New password must be at least 6 characters long');
+      }
+    }
+
     // Build request body with only non-null values
     final Map<String, dynamic> requestBody = {};
 
-    if (businessName != null) requestBody['businessName'] = businessName;
-    if (email != null) requestBody['email'] = email;
-    if (currentPassword != null) requestBody['currentPassword'] = currentPassword;
-    if (newPassword != null) requestBody['newPassword'] = newPassword;
-    if (fullName != null) requestBody['fullName'] = fullName;
-    if (phone != null) requestBody['phone'] = phone;
-    if (website != null) requestBody['website'] = website;
-    if (whatsApp != null) requestBody['whatsapp'] = whatsApp;
-    if (facebook != null) requestBody['facebook'] = facebook;
-    if (instagram != null) requestBody['instagram'] = instagram;
+    if (businessName != null) requestBody['businessName'] = businessName.trim();
+    if (email != null) requestBody['email'] = email.trim();
+    if (currentPassword != null) requestBody['currentPassword'] = currentPassword.trim();
+    if (newPassword != null) requestBody['newPassword'] = newPassword.trim();
+    if (fullName != null) requestBody['fullName'] = fullName.trim();
+    if (phone != null) requestBody['phone'] = phone.trim();
+    if (website != null) requestBody['website'] = website.trim();
+    if (whatsApp != null) requestBody['whatsapp'] = whatsApp.trim();
+    if (facebook != null) requestBody['facebook'] = facebook.trim();
+    if (instagram != null) requestBody['instagram'] = instagram.trim();
 
     final url = '$_baseUrl/api/companies/profile';
     
@@ -172,7 +189,7 @@ class CompanyService {
       final Map<String, dynamic> data = json.decode(response.body);
       return Company.fromJson(data['data']);
     } else {
-      throw Exception('Failed to update company profile: ${response.body}');
+      throw Exception('Failed to update company profile');
     }
   }
 
@@ -245,13 +262,28 @@ class CompanyService {
       final Map<String, dynamic> data = json.decode(response.body);
       return Company.fromJson(data['data']);
     } else {
-      throw Exception('Failed to update company profile with logo: ${response.body}');
+      throw Exception('Failed to update company profile with logo');
     }
   }
 
   // Upload logo only
   Future<String> uploadCompanyLogo(File logoFile) async {
     final token = await _tokenManager.getToken();
+
+    // Input validation
+    if (!await logoFile.exists()) {
+      throw Exception('Logo file does not exist');
+    }
+    
+    final fileSize = await logoFile.length();
+    if (fileSize > 5 * 1024 * 1024) { // 5MB limit
+      throw Exception('Logo file is too large. Maximum size is 5MB');
+    }
+    
+    final fileExtension = logoFile.path.split('.').last.toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'gif'].contains(fileExtension)) {
+      throw Exception('Invalid file format. Only JPG, PNG, and GIF are allowed');
+    }
 
     final url = '$_baseUrl/api/companies/logo';
     
@@ -272,8 +304,8 @@ class CompanyService {
     });
 
     // Add logo file
-    final fileExtension = logoFile.path.split('.').last.toLowerCase();
-    final contentType = _getContentType(fileExtension);
+    final logoFileExtension = logoFile.path.split('.').last.toLowerCase();
+    final contentType = _getContentType(logoFileExtension);
 
     request.files.add(
       await http.MultipartFile.fromPath(
@@ -292,7 +324,7 @@ class CompanyService {
       final Map<String, dynamic> data = json.decode(response.body);
       return data['data']['logoUrl'];
     } else {
-      throw Exception('Failed to upload logo: ${response.body}');
+      throw Exception('Failed to upload logo');
     }
   }
 
@@ -338,11 +370,7 @@ class CompanyService {
         },
       );
 
-      if (!kReleaseMode) {
-        print('Response status: ${response.statusCode}');
-        print('Response headers: ${response.headers}');
-        print('Response body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -353,15 +381,12 @@ class CompanyService {
             throw Exception(apiResponse.getEmptyDataMessage('branches'));
           }
           final branches = List<Map<String, dynamic>>.from(apiResponse.data!);
-          if (!kReleaseMode) {
-            print('Successfully fetched ${branches.length} branches');
-          }
           return branches;
         } else {
           throw Exception(apiResponse.message);
         }
       } else {
-        throw Exception('Failed to fetch branches: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to fetch branches');
       }
     } catch (e) {
       if (!kReleaseMode) {
@@ -373,14 +398,20 @@ class CompanyService {
 
   // Function to get a specific branch by ID
   Future<Map<String, dynamic>> getBranchById(String branchId) async {
-    if (!kReleaseMode) {
-      print('CompanyService: getBranchById called for ID: $branchId');
+    // Input validation
+    if (branchId.trim().isEmpty) {
+      throw Exception('Branch ID is required');
+    }
+    
+    // Basic ID format validation (assuming MongoDB ObjectId format)
+    if (!RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(branchId.trim())) {
+      throw Exception('Invalid branch ID format');
     }
 
     try {
       final token = await _tokenManager.getToken();
       if (!kReleaseMode) {
-        print('CompanyService: Token retrieved: ${token.isNotEmpty ? 'Token exists' : 'No token'}');
+        print('CompanyService: Token retrieved: ${token?.isNotEmpty == true ? 'Token exists' : 'No token'}');
       }
 
       final url = '$_baseUrl/api/companies/branches/$branchId';
@@ -402,10 +433,7 @@ class CompanyService {
         },
       );
 
-      if (!kReleaseMode) {
-        print('CompanyService: Response status code: ${response.statusCode}');
-        print('CompanyService: Response body: ${response.body}');
-      }
+      // Response logged without sensitive data
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -420,10 +448,8 @@ class CompanyService {
           throw Exception(apiResponse.message);
         }
       } else {
-        if (!kReleaseMode) {
-          print('CompanyService: Failed with status code: ${response.statusCode}');
-        }
-        throw Exception('Failed to load branch data: ${response.body}');
+        // Failed to load branch data
+        throw Exception('Failed to load branch data');
       }
     } catch (e) {
       if (!kReleaseMode) {
