@@ -5,6 +5,7 @@ import 'package:barrim/src/services/user_provider.dart';
 import 'package:barrim/src/services/google_maps_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
@@ -12,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
+import '../src/utils/edge_to_edge_helper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -154,7 +156,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     create: (context) => GoogleSignInProvider(),
     child: MaterialApp(
       title: 'Barrim',
-      home: const MyHomePage(), // Add this line
+      home: const MyHomePage(),
       theme: ThemeData.light().copyWith(
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
@@ -163,6 +165,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           },
         ),
       ),
+      builder: (context, child) {
+        // Configure system UI overlay for edge-to-edge support
+        // Using modern approach without deprecated APIs
+        EdgeToEdgeHelper.configureSystemUIOverlayForLightTheme();
+        return child!;
+      },
     ),
   );
 }
@@ -251,27 +259,31 @@ class _MyHomePageState extends State<MyHomePage> {
     // Get screen dimensions for responsive design
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Get system insets for edge-to-edge support using helper
+    final topPadding = EdgeToEdgeHelper.getTopPadding(context);
 
     return Scaffold(
       body: Stack(
         children: [
-          // Background image
+          // Background image - extends edge-to-edge
           Positioned.fill(
             child: Image.asset(
               'assets/images/background.png',
               fit: BoxFit.cover,
             ),
           ),
-          // Background overlay
+          // Background overlay - extends edge-to-edge
           Positioned.fill(
             child: Container(
               color: const Color(0xFF05054F).withAlpha((0.77 * 255).toInt()),
             ),
           ),
-          // Main content with responsive layout
+          // Main content with responsive layout and proper inset handling
           Column(
             children: [
-              // Top spacer - takes up the space above the text
+              // Top spacer - accounts for status bar
+              SizedBox(height: topPadding),
               Expanded(
                 flex: 5, // Adjust this ratio to control text position
                 child: Container(),
@@ -297,7 +309,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
               ),
-              // Bottom section with buttons
+              // Bottom section with buttons - uses SafeArea for navigation bar
               Container(
                 width: screenWidth,
                 decoration: const BoxDecoration(
@@ -308,6 +320,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 child: SafeArea(
                   top: false,
+                  bottom: true, // Ensure content doesn't overlap with navigation bar
                   child: Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: screenWidth * 0.08,

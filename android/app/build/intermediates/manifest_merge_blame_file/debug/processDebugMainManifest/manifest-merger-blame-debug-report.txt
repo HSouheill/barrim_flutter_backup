@@ -1,0 +1,739 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.Barrim.AppBarrim"
+4    android:versionCode="4"
+5    android:versionName="1.0.6" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="36" />
+10    <!--
+11         The INTERNET permission is required for development. Specifically,
+12         the Flutter tool needs it to communicate with the running application
+13         to allow setting breakpoints, to provide hot reload, etc.
+14    -->
+15    <uses-permission android:name="android.permission.INTERNET" />
+15-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:7:5-66
+15-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:7:22-64
+16    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+16-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:4:5-79
+16-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:4:22-76
+17    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+17-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:5:5-81
+17-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:5:22-78
+18    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+18-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:8:5-77
+18-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:8:22-74
+19
+20    <queries>
+20-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:13:5-37:15
+21
+22        <!-- For Google Maps -->
+23        <intent>
+23-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:15:9-18:18
+24            <action android:name="android.intent.action.VIEW" />
+24-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:13-65
+24-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:21-62
+25
+26            <data android:scheme="https" />
+26-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:13-44
+26-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:19-41
+27        </intent>
+28        <intent>
+28-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:19:9-22:18
+29            <action android:name="android.intent.action.VIEW" />
+29-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:13-65
+29-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:21-62
+30
+31            <data android:scheme="geo" />
+31-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:13-44
+31-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:19-41
+32        </intent>
+33        <intent>
+33-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:23:9-26:18
+34            <action android:name="android.intent.action.VIEW" />
+34-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:13-65
+34-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:21-62
+35
+36            <data android:scheme="comgooglemaps" />
+36-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:13-44
+36-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:19-41
+37        </intent>
+38        <intent>
+38-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:27:9-30:18
+39            <action android:name="android.intent.action.VIEW" />
+39-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:13-65
+39-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:21-62
+40
+41            <data android:scheme="http" />
+41-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:13-44
+41-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:19-41
+42        </intent>
+43        <intent>
+43-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:15:9-18:18
+44            <action android:name="android.intent.action.VIEW" />
+44-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:13-65
+44-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:21-62
+45
+46            <data android:scheme="https" />
+46-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:13-44
+46-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:19-41
+47        </intent>
+48
+49        <package android:name="com.google.android.apps.maps" />
+49-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:36:9-64
+49-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:36:18-61
+50    </queries>
+51    <!--
+52 Required to query activities that can process text, see:
+53         https://developer.android.com/training/package-visibility and
+54         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+55
+56         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin.
+57    -->
+58    <queries>
+58-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:13:5-37:15
+59        <intent>
+60            <action android:name="android.intent.action.PROCESS_TEXT" />
+61
+62            <data android:mimeType="text/plain" />
+62-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:13-44
+63        </intent>
+64    </queries>
+65
+66    <uses-permission android:name="android.permission.WAKE_LOCK" />
+66-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:8:5-68
+66-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:8:22-65
+67    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /> <!-- Required by older versions of Google Play services to create IID tokens -->
+67-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:9:5-79
+67-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:9:22-76
+68    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+68-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:26:5-82
+68-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:26:22-79
+69    <uses-permission android:name="android.permission.VIBRATE" />
+69-->[:flutter_local_notifications] /Users/mackbookpro/.pub-cache/hosted/pub.dev/flutter_local_notifications-19.4.1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:7:5-66
+69-->[:flutter_local_notifications] /Users/mackbookpro/.pub-cache/hosted/pub.dev/flutter_local_notifications-19.4.1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:7:22-63
+70
+71    <uses-feature
+71-->[com.google.android.gms:play-services-maps:19.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/4d001d7dd79fce09885ff64813dc9e9f/transformed/jetified-play-services-maps-19.2.0/AndroidManifest.xml:22:5-24:33
+72        android:glEsVersion="0x00020000"
+72-->[com.google.android.gms:play-services-maps:19.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/4d001d7dd79fce09885ff64813dc9e9f/transformed/jetified-play-services-maps-19.2.0/AndroidManifest.xml:23:8-40
+73        android:required="true" />
+73-->[com.google.android.gms:play-services-maps:19.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/4d001d7dd79fce09885ff64813dc9e9f/transformed/jetified-play-services-maps-19.2.0/AndroidManifest.xml:24:8-31
+74
+75    <uses-permission android:name="com.google.android.providers.gsf.permission.READ_GSERVICES" />
+75-->[com.google.android.recaptcha:recaptcha:18.6.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0a29339ecf296cf8ec73be02d102c2fb/transformed/jetified-recaptcha-18.6.1/AndroidManifest.xml:9:5-98
+75-->[com.google.android.recaptcha:recaptcha:18.6.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0a29339ecf296cf8ec73be02d102c2fb/transformed/jetified-recaptcha-18.6.1/AndroidManifest.xml:9:22-95
+76
+77    <permission
+77-->[androidx.core:core:1.13.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/5705ac3980966ad59a282f1db12ee5fc/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+78        android:name="com.Barrim.AppBarrim.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+78-->[androidx.core:core:1.13.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/5705ac3980966ad59a282f1db12ee5fc/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+79        android:protectionLevel="signature" />
+79-->[androidx.core:core:1.13.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/5705ac3980966ad59a282f1db12ee5fc/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+80
+81    <uses-permission android:name="com.Barrim.AppBarrim.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+81-->[androidx.core:core:1.13.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/5705ac3980966ad59a282f1db12ee5fc/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+81-->[androidx.core:core:1.13.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/5705ac3980966ad59a282f1db12ee5fc/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+82
+83    <application
+84        android:name="android.app.Application"
+85        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+85-->[androidx.core:core:1.13.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/5705ac3980966ad59a282f1db12ee5fc/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+86        android:debuggable="true"
+87        android:extractNativeLibs="false"
+88        android:icon="@mipmap/ic_launcher"
+89        android:label="Barrim"
+90        android:networkSecurityConfig="@xml/network_security_config" >
+91        <meta-data
+92            android:name="com.google.android.geo.API_KEY"
+93            android:value="@string/google_maps_api_key" />
+94
+95        <activity
+96            android:name="com.Barrim.AppBarrim.MainActivity"
+97            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+98            android:enableOnBackInvokedCallback="true"
+99            android:exported="true"
+100            android:hardwareAccelerated="true"
+101            android:launchMode="singleTop"
+102            android:taskAffinity=""
+103            android:theme="@style/LaunchTheme"
+104            android:windowSoftInputMode="adjustResize" >
+105
+106            <!--
+107                 Specifies an Android theme to apply to this Activity as soon as
+108                 the Android process has started. This theme is visible to the user
+109                 while the Flutter UI initializes. After that, this theme continues
+110                 to determine the Window background behind the Flutter UI.
+111            -->
+112            <meta-data
+113                android:name="io.flutter.embedding.android.NormalTheme"
+114                android:resource="@style/NormalTheme" />
+115
+116            <intent-filter>
+117                <action android:name="android.intent.action.MAIN" />
+118
+119                <category android:name="android.intent.category.LAUNCHER" />
+120            </intent-filter>
+121        </activity>
+122        <!--
+123             Don't delete the meta-data below.
+124             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java
+125        -->
+126        <meta-data
+127            android:name="flutterEmbedding"
+128            android:value="2" />
+129        <!--
+130           Declares a provider which allows us to store files to share in
+131           '.../caches/share_plus' and grant the receiving action access
+132        -->
+133        <provider
+133-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:13:9-21:20
+134            android:name="dev.fluttercommunity.plus.share.ShareFileProvider"
+134-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:14:13-77
+135            android:authorities="com.Barrim.AppBarrim.flutter.share_provider"
+135-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:15:13-74
+136            android:exported="false"
+136-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:16:13-37
+137            android:grantUriPermissions="true" >
+137-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:17:13-47
+138            <meta-data
+138-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:18:13-20:68
+139                android:name="android.support.FILE_PROVIDER_PATHS"
+139-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:19:17-67
+140                android:resource="@xml/flutter_share_file_paths" />
+140-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:20:17-65
+141        </provider>
+142        <!--
+143           This manifest declared broadcast receiver allows us to use an explicit
+144           Intent when creating a PendingItent to be informed of the user's choice
+145        -->
+146        <receiver
+146-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:26:9-32:20
+147            android:name="dev.fluttercommunity.plus.share.SharePlusPendingIntent"
+147-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:27:13-82
+148            android:exported="false" >
+148-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:28:13-37
+149            <intent-filter>
+149-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:29:13-31:29
+150                <action android:name="EXTRA_CHOSEN_COMPONENT" />
+150-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:30:17-65
+150-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:30:25-62
+151            </intent-filter>
+152        </receiver>
+153
+154        <service
+154-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:14:9-17:72
+155            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingBackgroundService"
+155-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:15:13-107
+156            android:exported="false"
+156-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:16:13-37
+157            android:permission="android.permission.BIND_JOB_SERVICE" />
+157-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:17:13-69
+158        <service
+158-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:18:9-24:19
+159            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService"
+159-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:19:13-97
+160            android:exported="false" >
+160-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:20:13-37
+161            <intent-filter>
+161-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:21:13-23:29
+162                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+162-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:22:17-78
+162-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:22:25-75
+163            </intent-filter>
+164        </service>
+165
+166        <receiver
+166-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:26:9-33:20
+167            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingReceiver"
+167-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:27:13-98
+168            android:exported="true"
+168-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:28:13-36
+169            android:permission="com.google.android.c2dm.permission.SEND" >
+169-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:29:13-73
+170            <intent-filter>
+170-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:30:13-32:29
+171                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+171-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:31:17-81
+171-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:31:25-78
+172            </intent-filter>
+173        </receiver>
+174
+175        <service
+175-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:35:9-39:19
+176            android:name="com.google.firebase.components.ComponentDiscoveryService"
+176-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:35:18-89
+177            android:directBootAware="true"
+177-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:32:13-43
+178            android:exported="false" >
+178-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:68:13-37
+179            <meta-data
+179-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:36:13-38:85
+180                android:name="com.google.firebase.components:io.flutter.plugins.firebase.messaging.FlutterFirebaseAppRegistrar"
+180-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:37:17-128
+181                android:value="com.google.firebase.components.ComponentRegistrar" />
+181-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:38:17-82
+182            <meta-data
+182-->[:firebase_core] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_core-3.15.2/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:9:13-11:85
+183                android:name="com.google.firebase.components:io.flutter.plugins.firebase.core.FlutterFirebaseCoreRegistrar"
+183-->[:firebase_core] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_core-3.15.2/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:10:17-124
+184                android:value="com.google.firebase.components.ComponentRegistrar" />
+184-->[:firebase_core] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_core-3.15.2/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:11:17-82
+185            <meta-data
+185-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:69:13-71:85
+186                android:name="com.google.firebase.components:com.google.firebase.auth.FirebaseAuthRegistrar"
+186-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:70:17-109
+187                android:value="com.google.firebase.components.ComponentRegistrar" />
+187-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:71:17-82
+188            <meta-data
+188-->[com.google.firebase:firebase-firestore:25.1.4] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/3d0495420ac4bccef54af2af3384a022/transformed/jetified-firebase-firestore-25.1.4/AndroidManifest.xml:17:13-19:85
+189                android:name="com.google.firebase.components:com.google.firebase.firestore.FirebaseFirestoreKtxRegistrar"
+189-->[com.google.firebase:firebase-firestore:25.1.4] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/3d0495420ac4bccef54af2af3384a022/transformed/jetified-firebase-firestore-25.1.4/AndroidManifest.xml:18:17-122
+190                android:value="com.google.firebase.components.ComponentRegistrar" />
+190-->[com.google.firebase:firebase-firestore:25.1.4] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/3d0495420ac4bccef54af2af3384a022/transformed/jetified-firebase-firestore-25.1.4/AndroidManifest.xml:19:17-82
+191            <meta-data
+191-->[com.google.firebase:firebase-firestore:25.1.4] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/3d0495420ac4bccef54af2af3384a022/transformed/jetified-firebase-firestore-25.1.4/AndroidManifest.xml:20:13-22:85
+192                android:name="com.google.firebase.components:com.google.firebase.firestore.FirestoreRegistrar"
+192-->[com.google.firebase:firebase-firestore:25.1.4] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/3d0495420ac4bccef54af2af3384a022/transformed/jetified-firebase-firestore-25.1.4/AndroidManifest.xml:21:17-111
+193                android:value="com.google.firebase.components.ComponentRegistrar" />
+193-->[com.google.firebase:firebase-firestore:25.1.4] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/3d0495420ac4bccef54af2af3384a022/transformed/jetified-firebase-firestore-25.1.4/AndroidManifest.xml:22:17-82
+194            <meta-data
+194-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:57:13-59:85
+195                android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingKtxRegistrar"
+195-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:58:17-122
+196                android:value="com.google.firebase.components.ComponentRegistrar" />
+196-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:59:17-82
+197            <meta-data
+197-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:60:13-62:85
+198                android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingRegistrar"
+198-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:61:17-119
+199                android:value="com.google.firebase.components.ComponentRegistrar" />
+199-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:62:17-82
+200            <meta-data
+200-->[com.google.firebase:firebase-installations:18.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/8aa76914f1e572a7c90ddc50edbdc4a2/transformed/jetified-firebase-installations-18.0.0/AndroidManifest.xml:15:13-17:85
+201                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsKtxRegistrar"
+201-->[com.google.firebase:firebase-installations:18.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/8aa76914f1e572a7c90ddc50edbdc4a2/transformed/jetified-firebase-installations-18.0.0/AndroidManifest.xml:16:17-130
+202                android:value="com.google.firebase.components.ComponentRegistrar" />
+202-->[com.google.firebase:firebase-installations:18.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/8aa76914f1e572a7c90ddc50edbdc4a2/transformed/jetified-firebase-installations-18.0.0/AndroidManifest.xml:17:17-82
+203            <meta-data
+203-->[com.google.firebase:firebase-installations:18.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/8aa76914f1e572a7c90ddc50edbdc4a2/transformed/jetified-firebase-installations-18.0.0/AndroidManifest.xml:18:13-20:85
+204                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar"
+204-->[com.google.firebase:firebase-installations:18.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/8aa76914f1e572a7c90ddc50edbdc4a2/transformed/jetified-firebase-installations-18.0.0/AndroidManifest.xml:19:17-127
+205                android:value="com.google.firebase.components.ComponentRegistrar" />
+205-->[com.google.firebase:firebase-installations:18.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/8aa76914f1e572a7c90ddc50edbdc4a2/transformed/jetified-firebase-installations-18.0.0/AndroidManifest.xml:20:17-82
+206            <meta-data
+206-->[com.google.firebase:firebase-common-ktx:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2959d20793a89165f80d946320aaff8f/transformed/jetified-firebase-common-ktx-21.0.0/AndroidManifest.xml:12:13-14:85
+207                android:name="com.google.firebase.components:com.google.firebase.ktx.FirebaseCommonLegacyRegistrar"
+207-->[com.google.firebase:firebase-common-ktx:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2959d20793a89165f80d946320aaff8f/transformed/jetified-firebase-common-ktx-21.0.0/AndroidManifest.xml:13:17-116
+208                android:value="com.google.firebase.components.ComponentRegistrar" />
+208-->[com.google.firebase:firebase-common-ktx:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2959d20793a89165f80d946320aaff8f/transformed/jetified-firebase-common-ktx-21.0.0/AndroidManifest.xml:14:17-82
+209            <meta-data
+209-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:35:13-37:85
+210                android:name="com.google.firebase.components:com.google.firebase.FirebaseCommonKtxRegistrar"
+210-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:36:17-109
+211                android:value="com.google.firebase.components.ComponentRegistrar" />
+211-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:37:17-82
+212            <meta-data
+212-->[com.google.firebase:firebase-datatransport:18.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/7324e5710ce1b034467d016938de5940/transformed/jetified-firebase-datatransport-18.2.0/AndroidManifest.xml:25:13-27:85
+213                android:name="com.google.firebase.components:com.google.firebase.datatransport.TransportRegistrar"
+213-->[com.google.firebase:firebase-datatransport:18.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/7324e5710ce1b034467d016938de5940/transformed/jetified-firebase-datatransport-18.2.0/AndroidManifest.xml:26:17-115
+214                android:value="com.google.firebase.components.ComponentRegistrar" />
+214-->[com.google.firebase:firebase-datatransport:18.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/7324e5710ce1b034467d016938de5940/transformed/jetified-firebase-datatransport-18.2.0/AndroidManifest.xml:27:17-82
+215        </service>
+216
+217        <provider
+217-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:41:9-45:38
+218            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingInitProvider"
+218-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:42:13-102
+219            android:authorities="com.Barrim.AppBarrim.flutterfirebasemessaginginitprovider"
+219-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:43:13-88
+220            android:exported="false"
+220-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:44:13-37
+221            android:initOrder="99" />
+221-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:45:13-35
+222
+223        <activity
+223-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:29:9-46:20
+224            android:name="com.google.firebase.auth.internal.GenericIdpActivity"
+224-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:30:13-80
+225            android:excludeFromRecents="true"
+225-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:31:13-46
+226            android:exported="true"
+226-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:32:13-36
+227            android:launchMode="singleTask"
+227-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:33:13-44
+228            android:theme="@android:style/Theme.Translucent.NoTitleBar" >
+228-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:34:13-72
+229            <intent-filter>
+229-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:35:13-45:29
+230                <action android:name="android.intent.action.VIEW" />
+230-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:13-65
+230-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:21-62
+231
+232                <category android:name="android.intent.category.DEFAULT" />
+232-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:38:17-76
+232-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:38:27-73
+233                <category android:name="android.intent.category.BROWSABLE" />
+233-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:39:17-78
+233-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:39:27-75
+234
+235                <data
+235-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:13-44
+236                    android:host="firebase.auth"
+237                    android:path="/"
+238                    android:scheme="genericidp" />
+238-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:19-41
+239            </intent-filter>
+240        </activity>
+241        <activity
+241-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:47:9-64:20
+242            android:name="com.google.firebase.auth.internal.RecaptchaActivity"
+242-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:48:13-79
+243            android:excludeFromRecents="true"
+243-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:49:13-46
+244            android:exported="true"
+244-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:50:13-36
+245            android:launchMode="singleTask"
+245-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:51:13-44
+246            android:theme="@android:style/Theme.Translucent.NoTitleBar" >
+246-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:52:13-72
+247            <intent-filter>
+247-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:53:13-63:29
+248                <action android:name="android.intent.action.VIEW" />
+248-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:13-65
+248-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:16:21-62
+249
+250                <category android:name="android.intent.category.DEFAULT" />
+250-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:38:17-76
+250-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:38:27-73
+251                <category android:name="android.intent.category.BROWSABLE" />
+251-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:39:17-78
+251-->[com.google.firebase:firebase-auth:23.2.1] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/be2746600fa89c81088dac455384a684/transformed/jetified-firebase-auth-23.2.1/AndroidManifest.xml:39:27-75
+252
+253                <data
+253-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:13-44
+254                    android:host="firebase.auth"
+255                    android:path="/"
+256                    android:scheme="recaptcha" />
+256-->/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/AndroidManifest.xml:17:19-41
+257            </intent-filter>
+258        </activity>
+259
+260        <receiver
+260-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:29:9-40:20
+261            android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver"
+261-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:30:13-78
+262            android:exported="true"
+262-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:31:13-36
+263            android:permission="com.google.android.c2dm.permission.SEND" >
+263-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:32:13-73
+264            <intent-filter>
+264-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:30:13-32:29
+265                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+265-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:31:17-81
+265-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:31:25-78
+266            </intent-filter>
+267
+268            <meta-data
+268-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:37:13-39:40
+269                android:name="com.google.android.gms.cloudmessaging.FINISHED_AFTER_HANDLED"
+269-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:38:17-92
+270                android:value="true" />
+270-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:39:17-37
+271        </receiver>
+272        <!--
+273             FirebaseMessagingService performs security checks at runtime,
+274             but set to not exported to explicitly avoid allowing another app to call it.
+275        -->
+276        <service
+276-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:46:9-53:19
+277            android:name="com.google.firebase.messaging.FirebaseMessagingService"
+277-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:47:13-82
+278            android:directBootAware="true"
+278-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:48:13-43
+279            android:exported="false" >
+279-->[com.google.firebase:firebase-messaging:24.1.2] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/2c904236aff14154cdcd84d12d12f808/transformed/jetified-firebase-messaging-24.1.2/AndroidManifest.xml:49:13-37
+280            <intent-filter android:priority="-500" >
+280-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:21:13-23:29
+281                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+281-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:22:17-78
+281-->[:firebase_messaging] /Users/mackbookpro/.pub-cache/hosted/pub.dev/firebase_messaging-15.2.10/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:22:25-75
+282            </intent-filter>
+283        </service>
+284
+285        <provider
+285-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:23:9-28:39
+286            android:name="com.google.firebase.provider.FirebaseInitProvider"
+286-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:24:13-77
+287            android:authorities="com.Barrim.AppBarrim.firebaseinitprovider"
+287-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:25:13-72
+288            android:directBootAware="true"
+288-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:26:13-43
+289            android:exported="false"
+289-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:27:13-37
+290            android:initOrder="100" />
+290-->[com.google.firebase:firebase-common:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/e8996d91563209f0fc7566eceea0a64a/transformed/jetified-firebase-common-21.0.0/AndroidManifest.xml:28:13-36
+291
+292        <service
+292-->[:geolocator_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/geolocator_android-4.6.2/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:8:9-12:56
+293            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+293-->[:geolocator_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/geolocator_android-4.6.2/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:9:13-77
+294            android:enabled="true"
+294-->[:geolocator_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/geolocator_android-4.6.2/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:10:13-35
+295            android:exported="false"
+295-->[:geolocator_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/geolocator_android-4.6.2/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:11:13-37
+296            android:foregroundServiceType="location" />
+296-->[:geolocator_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/geolocator_android-4.6.2/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:12:13-53
+297        <service
+297-->[:location] /Users/mackbookpro/.pub-cache/hosted/pub.dev/location-5.0.3/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:11:9-15:56
+298            android:name="com.lyokone.location.FlutterLocationService"
+298-->[:location] /Users/mackbookpro/.pub-cache/hosted/pub.dev/location-5.0.3/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:12:13-71
+299            android:enabled="true"
+299-->[:location] /Users/mackbookpro/.pub-cache/hosted/pub.dev/location-5.0.3/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:13:13-35
+300            android:exported="false"
+300-->[:location] /Users/mackbookpro/.pub-cache/hosted/pub.dev/location-5.0.3/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:14:13-37
+301            android:foregroundServiceType="location" />
+301-->[:location] /Users/mackbookpro/.pub-cache/hosted/pub.dev/location-5.0.3/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:15:13-53
+302
+303        <provider
+303-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:9:9-17:20
+304            android:name="io.flutter.plugins.imagepicker.ImagePickerFileProvider"
+304-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:10:13-82
+305            android:authorities="com.Barrim.AppBarrim.flutter.image_provider"
+305-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:11:13-74
+306            android:exported="false"
+306-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:12:13-37
+307            android:grantUriPermissions="true" >
+307-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:13:13-47
+308            <meta-data
+308-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:18:13-20:68
+309                android:name="android.support.FILE_PROVIDER_PATHS"
+309-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:19:17-67
+310                android:resource="@xml/flutter_image_picker_file_paths" />
+310-->[:share_plus] /Users/mackbookpro/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:20:17-65
+311        </provider> <!-- Trigger Google Play services to install the backported photo picker module. -->
+312        <service
+312-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:19:9-31:19
+313            android:name="com.google.android.gms.metadata.ModuleDependencies"
+313-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:20:13-78
+314            android:enabled="false"
+314-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:21:13-36
+315            android:exported="false" >
+315-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:22:13-37
+316            <intent-filter>
+316-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:24:13-26:29
+317                <action android:name="com.google.android.gms.metadata.MODULE_DEPENDENCIES" />
+317-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:25:17-94
+317-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:25:25-91
+318            </intent-filter>
+319
+320            <meta-data
+320-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:28:13-30:36
+321                android:name="photopicker_activity:0:required"
+321-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:29:17-63
+322                android:value="" />
+322-->[:image_picker_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+1/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:30:17-33
+323        </service>
+324
+325        <activity
+325-->[:url_launcher_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/url_launcher_android-6.3.18/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:8:9-11:74
+326            android:name="io.flutter.plugins.urllauncher.WebViewActivity"
+326-->[:url_launcher_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/url_launcher_android-6.3.18/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:9:13-74
+327            android:exported="false"
+327-->[:url_launcher_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/url_launcher_android-6.3.18/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:10:13-37
+328            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" /> <!-- Needs to be explicitly declared on P+ -->
+328-->[:url_launcher_android] /Users/mackbookpro/.pub-cache/hosted/pub.dev/url_launcher_android-6.3.18/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:11:13-71
+329        <uses-library
+329-->[com.google.android.gms:play-services-maps:19.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/4d001d7dd79fce09885ff64813dc9e9f/transformed/jetified-play-services-maps-19.2.0/AndroidManifest.xml:33:7-86
+330            android:name="org.apache.http.legacy"
+330-->[com.google.android.gms:play-services-maps:19.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/4d001d7dd79fce09885ff64813dc9e9f/transformed/jetified-play-services-maps-19.2.0/AndroidManifest.xml:33:21-58
+331            android:required="false" />
+331-->[com.google.android.gms:play-services-maps:19.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/4d001d7dd79fce09885ff64813dc9e9f/transformed/jetified-play-services-maps-19.2.0/AndroidManifest.xml:33:59-83
+332
+333        <service
+333-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:24:9-32:19
+334            android:name="androidx.credentials.playservices.CredentialProviderMetadataHolder"
+334-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:25:13-94
+335            android:enabled="true"
+335-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:26:13-35
+336            android:exported="false" >
+336-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:27:13-37
+337            <meta-data
+337-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:29:13-31:104
+338                android:name="androidx.credentials.CREDENTIAL_PROVIDER_KEY"
+338-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:30:17-76
+339                android:value="androidx.credentials.playservices.CredentialProviderPlayServicesImpl" />
+339-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:31:17-101
+340        </service>
+341
+342        <activity
+342-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:34:9-41:20
+343            android:name="androidx.credentials.playservices.HiddenActivity"
+343-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:35:13-76
+344            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+344-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:36:13-87
+345            android:enabled="true"
+345-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:37:13-35
+346            android:exported="false"
+346-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:38:13-37
+347            android:fitsSystemWindows="true"
+347-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:39:13-45
+348            android:theme="@style/Theme.Hidden" >
+348-->[androidx.credentials:credentials-play-services-auth:1.2.0-rc01] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0e196342e5b6082fd2eec37dec0bd686/transformed/jetified-credentials-play-services-auth-1.2.0-rc01/AndroidManifest.xml:40:13-48
+349        </activity>
+350        <activity
+350-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:23:9-27:75
+351            android:name="com.google.android.gms.auth.api.signin.internal.SignInHubActivity"
+351-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:24:13-93
+352            android:excludeFromRecents="true"
+352-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:25:13-46
+353            android:exported="false"
+353-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:26:13-37
+354            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+354-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:27:13-72
+355        <!--
+356            Service handling Google Sign-In user revocation. For apps that do not integrate with
+357            Google Sign-In, this service will never be started.
+358        -->
+359        <service
+359-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:33:9-37:51
+360            android:name="com.google.android.gms.auth.api.signin.RevocationBoundService"
+360-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:34:13-89
+361            android:exported="true"
+361-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:35:13-36
+362            android:permission="com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION"
+362-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:36:13-107
+363            android:visibleToInstantApps="true" />
+363-->[com.google.android.gms:play-services-auth:21.0.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/1ea486a25b446723eb6e3d25e9a66d2b/transformed/jetified-play-services-auth-21.0.0/AndroidManifest.xml:37:13-48
+364
+365        <activity
+365-->[com.google.android.gms:play-services-base:18.5.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0f1843d5c62bfa07e5ab9cf13fa3d0cc/transformed/jetified-play-services-base-18.5.0/AndroidManifest.xml:5:9-173
+366            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+366-->[com.google.android.gms:play-services-base:18.5.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0f1843d5c62bfa07e5ab9cf13fa3d0cc/transformed/jetified-play-services-base-18.5.0/AndroidManifest.xml:5:19-85
+367            android:exported="false"
+367-->[com.google.android.gms:play-services-base:18.5.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0f1843d5c62bfa07e5ab9cf13fa3d0cc/transformed/jetified-play-services-base-18.5.0/AndroidManifest.xml:5:146-170
+368            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+368-->[com.google.android.gms:play-services-base:18.5.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/0f1843d5c62bfa07e5ab9cf13fa3d0cc/transformed/jetified-play-services-base-18.5.0/AndroidManifest.xml:5:86-145
+369
+370        <provider
+370-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/9ee8b3a213604f0c00183d90c2122005/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:24:9-32:20
+371            android:name="androidx.startup.InitializationProvider"
+371-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/9ee8b3a213604f0c00183d90c2122005/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:25:13-67
+372            android:authorities="com.Barrim.AppBarrim.androidx-startup"
+372-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/9ee8b3a213604f0c00183d90c2122005/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:26:13-68
+373            android:exported="false" >
+373-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/9ee8b3a213604f0c00183d90c2122005/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:27:13-37
+374            <meta-data
+374-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/9ee8b3a213604f0c00183d90c2122005/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
+375                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+375-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/9ee8b3a213604f0c00183d90c2122005/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
+376                android:value="androidx.startup" />
+376-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/9ee8b3a213604f0c00183d90c2122005/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
+377            <meta-data
+377-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:29:13-31:52
+378                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+378-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:30:17-85
+379                android:value="androidx.startup" />
+379-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:31:17-49
+380        </provider>
+381
+382        <uses-library
+382-->[androidx.window:window:1.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/38ccf45dceace87f8fd989c8adabba81/transformed/jetified-window-1.2.0/AndroidManifest.xml:23:9-25:40
+383            android:name="androidx.window.extensions"
+383-->[androidx.window:window:1.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/38ccf45dceace87f8fd989c8adabba81/transformed/jetified-window-1.2.0/AndroidManifest.xml:24:13-54
+384            android:required="false" />
+384-->[androidx.window:window:1.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/38ccf45dceace87f8fd989c8adabba81/transformed/jetified-window-1.2.0/AndroidManifest.xml:25:13-37
+385        <uses-library
+385-->[androidx.window:window:1.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/38ccf45dceace87f8fd989c8adabba81/transformed/jetified-window-1.2.0/AndroidManifest.xml:26:9-28:40
+386            android:name="androidx.window.sidecar"
+386-->[androidx.window:window:1.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/38ccf45dceace87f8fd989c8adabba81/transformed/jetified-window-1.2.0/AndroidManifest.xml:27:13-51
+387            android:required="false" />
+387-->[androidx.window:window:1.2.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/38ccf45dceace87f8fd989c8adabba81/transformed/jetified-window-1.2.0/AndroidManifest.xml:28:13-37
+388
+389        <meta-data
+389-->[com.google.android.gms:play-services-basement:18.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/20b22c8745b8f3e7512939c843b3ead1/transformed/jetified-play-services-basement-18.4.0/AndroidManifest.xml:6:9-122
+390            android:name="com.google.android.gms.version"
+390-->[com.google.android.gms:play-services-basement:18.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/20b22c8745b8f3e7512939c843b3ead1/transformed/jetified-play-services-basement-18.4.0/AndroidManifest.xml:6:20-65
+391            android:value="@integer/google_play_services_version" />
+391-->[com.google.android.gms:play-services-basement:18.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/20b22c8745b8f3e7512939c843b3ead1/transformed/jetified-play-services-basement-18.4.0/AndroidManifest.xml:6:66-119
+392
+393        <service
+393-->[com.google.android.datatransport:transport-backend-cct:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/c33cbeb1be4933d85f96751a870d7615/transformed/jetified-transport-backend-cct-3.1.9/AndroidManifest.xml:28:9-34:19
+394            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+394-->[com.google.android.datatransport:transport-backend-cct:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/c33cbeb1be4933d85f96751a870d7615/transformed/jetified-transport-backend-cct-3.1.9/AndroidManifest.xml:29:13-103
+395            android:exported="false" >
+395-->[com.google.android.datatransport:transport-backend-cct:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/c33cbeb1be4933d85f96751a870d7615/transformed/jetified-transport-backend-cct-3.1.9/AndroidManifest.xml:30:13-37
+396            <meta-data
+396-->[com.google.android.datatransport:transport-backend-cct:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/c33cbeb1be4933d85f96751a870d7615/transformed/jetified-transport-backend-cct-3.1.9/AndroidManifest.xml:31:13-33:39
+397                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+397-->[com.google.android.datatransport:transport-backend-cct:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/c33cbeb1be4933d85f96751a870d7615/transformed/jetified-transport-backend-cct-3.1.9/AndroidManifest.xml:32:17-94
+398                android:value="cct" />
+398-->[com.google.android.datatransport:transport-backend-cct:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/c33cbeb1be4933d85f96751a870d7615/transformed/jetified-transport-backend-cct-3.1.9/AndroidManifest.xml:33:17-36
+399        </service>
+400        <service
+400-->[com.google.android.datatransport:transport-runtime:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/58157133743fde8f09b8f14a0a1a1347/transformed/jetified-transport-runtime-3.1.9/AndroidManifest.xml:26:9-30:19
+401            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+401-->[com.google.android.datatransport:transport-runtime:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/58157133743fde8f09b8f14a0a1a1347/transformed/jetified-transport-runtime-3.1.9/AndroidManifest.xml:27:13-117
+402            android:exported="false"
+402-->[com.google.android.datatransport:transport-runtime:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/58157133743fde8f09b8f14a0a1a1347/transformed/jetified-transport-runtime-3.1.9/AndroidManifest.xml:28:13-37
+403            android:permission="android.permission.BIND_JOB_SERVICE" >
+403-->[com.google.android.datatransport:transport-runtime:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/58157133743fde8f09b8f14a0a1a1347/transformed/jetified-transport-runtime-3.1.9/AndroidManifest.xml:29:13-69
+404        </service>
+405
+406        <receiver
+406-->[com.google.android.datatransport:transport-runtime:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/58157133743fde8f09b8f14a0a1a1347/transformed/jetified-transport-runtime-3.1.9/AndroidManifest.xml:32:9-34:40
+407            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+407-->[com.google.android.datatransport:transport-runtime:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/58157133743fde8f09b8f14a0a1a1347/transformed/jetified-transport-runtime-3.1.9/AndroidManifest.xml:33:13-132
+408            android:exported="false" />
+408-->[com.google.android.datatransport:transport-runtime:3.1.9] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/58157133743fde8f09b8f14a0a1a1347/transformed/jetified-transport-runtime-3.1.9/AndroidManifest.xml:34:13-37
+409        <receiver
+409-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:34:9-52:20
+410            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+410-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:35:13-76
+411            android:directBootAware="false"
+411-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:36:13-44
+412            android:enabled="true"
+412-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:37:13-35
+413            android:exported="true"
+413-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:38:13-36
+414            android:permission="android.permission.DUMP" >
+414-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:39:13-57
+415            <intent-filter>
+415-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:40:13-42:29
+416                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+416-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:41:17-91
+416-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:41:25-88
+417            </intent-filter>
+418            <intent-filter>
+418-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:43:13-45:29
+419                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+419-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:44:17-85
+419-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:44:25-82
+420            </intent-filter>
+421            <intent-filter>
+421-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:46:13-48:29
+422                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+422-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:47:17-88
+422-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:47:25-85
+423            </intent-filter>
+424            <intent-filter>
+424-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:49:13-51:29
+425                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+425-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:50:17-95
+425-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/f3949c768da80406bfea8605718cc7de/transformed/jetified-profileinstaller-1.4.0/AndroidManifest.xml:50:25-92
+426            </intent-filter>
+427        </receiver> <!-- The activities will be merged into the manifest of the hosting app. -->
+428        <activity
+428-->[com.google.android.play:core-common:2.0.3] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/72f66198fbb7f1abea9ece1989cc5ccd/transformed/jetified-core-common-2.0.3/AndroidManifest.xml:14:9-18:65
+429            android:name="com.google.android.play.core.common.PlayCoreDialogWrapperActivity"
+429-->[com.google.android.play:core-common:2.0.3] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/72f66198fbb7f1abea9ece1989cc5ccd/transformed/jetified-core-common-2.0.3/AndroidManifest.xml:15:13-93
+430            android:exported="false"
+430-->[com.google.android.play:core-common:2.0.3] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/72f66198fbb7f1abea9ece1989cc5ccd/transformed/jetified-core-common-2.0.3/AndroidManifest.xml:16:13-37
+431            android:stateNotNeeded="true"
+431-->[com.google.android.play:core-common:2.0.3] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/72f66198fbb7f1abea9ece1989cc5ccd/transformed/jetified-core-common-2.0.3/AndroidManifest.xml:17:13-42
+432            android:theme="@style/Theme.PlayCore.Transparent" />
+432-->[com.google.android.play:core-common:2.0.3] /Users/mackbookpro/.gradle/caches/8.10.2/transforms/72f66198fbb7f1abea9ece1989cc5ccd/transformed/jetified-core-common-2.0.3/AndroidManifest.xml:18:13-62
+433    </application>
+434
+435</manifest>

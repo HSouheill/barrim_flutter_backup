@@ -1,0 +1,27 @@
+{
+  "Afghanistan": {
+    "Kabul": ["Kabul City", "Paghman"],
+    "Kandahar": ["Kandahar City", "Spin Boldak"]
+  },
+  "Angola": {
+    "Luanda": ["Luanda City", "Cacuaco"],
+    "Benguela": ["Benguela City", "Lobito"]
+  },
+  "Australia": {
+    "New South Wales": ["Sydney", "Newcastle", "Wollongong"],
+    "Victoria": ["Melbourne", "Geelong"],
+    "Queensland": ["Brisbane", "Gold Coast", "Cairns"]
+  },
+  "Albania": {
+    "Tirana": ["Tirana City", "Kamëz"],
+    "Durrës": ["Durrës City", "Shijak"]
+  },
+  "Lebanon": {
+    "Akkar": ["Halba", "Qoubaiyat"],
+    "Baalbek": ["Baalbek City", "Hermel"],
+    "Hermel": ["Hermel City", "Qaa"],
+    "Rashaya": ["Rashaya Village", "Aaiha"],
+    "West Beqaa": ["Saghbine", "Machghara"],
+    "Zahle": ["Zahle City", "Chtaura"]
+  }
+}

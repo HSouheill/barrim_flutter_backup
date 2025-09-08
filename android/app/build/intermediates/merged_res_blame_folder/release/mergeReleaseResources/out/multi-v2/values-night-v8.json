@@ -1,0 +1,84 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.Barrim.AppBarrim.app-mergeReleaseResources-73:/values-night-v8/values-night-v8.xml",
+            "map": [
+                {
+                    "source": "/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/res/values-night/styles.xml",
+                    "from": {
+                        "startLines": "3,14",
+                        "startColumns": "4,4",
+                        "startOffsets": "175,831",
+                        "endLines": "7,23",
+                        "endColumns": "12,12",
+                        "endOffsets": "482,1482"
+                    },
+                    "to": {
+                        "startLines": "2,6",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,236",
+                        "endLines": "5,15",
+                        "endColumns": "12,12",
+                        "endOffsets": "231,760"
+                    }
+                },
+                {
+                    "source": "/Users/mackbookpro/.gradle/caches/8.10.2/transforms/8ec95d1073b3bba2118976c4845569e3/transformed/appcompat-1.1.0/res/values-night-v8/values-night-v8.xml",
+                    "from": {
+                        "startLines": "-1,-1,-1,-1,-1,-1,-1,-1",
+                        "startColumns": "-1,-1,-1,-1,-1,-1,-1,-1",
+                        "startOffsets": "-1,-1,-1,-1,-1,-1,-1,-1"
+                    },
+                    "to": {
+                        "startLines": "16,17,18,19,20,21,22,23",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "765,835,919,1003,1099,1201,1303,1397",
+                        "endColumns": "69,83,83,95,101,101,93,88",
+                        "endOffsets": "830,914,998,1094,1196,1298,1392,1481"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "/Users/mackbookpro/.gradle/daemon/8.10.2/com.Barrim.AppBarrim.app-mergeReleaseResources-73:/values-night-v8/values-night-v8.xml",
+            "map": [
+                {
+                    "source": "/Users/mackbookpro/Desktop/barrim_flutter_backup/android/app/src/main/res/values-night/styles.xml",
+                    "from": {
+                        "startLines": "3,14",
+                        "startColumns": "4,4",
+                        "startOffsets": "175,831",
+                        "endLines": "7,23",
+                        "endColumns": "12,12",
+                        "endOffsets": "482,1475"
+                    },
+                    "to": {
+                        "startLines": "2,6",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,236",
+                        "endLines": "5,15",
+                        "endColumns": "12,12",
+                        "endOffsets": "231,835"
+                    }
+                },
+                {
+                    "source": "/Users/mackbookpro/.gradle/caches/8.10.2/transforms/8ec95d1073b3bba2118976c4845569e3/transformed/appcompat-1.1.0/res/values-night-v8/values-night-v8.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,125,209,293,389,491,593,687",
+                        "endColumns": "69,83,83,95,101,101,93,88",
+                        "endOffsets": "120,204,288,384,486,588,682,771"
+                    },
+                    "to": {
+                        "startLines": "16,17,18,19,20,21,22,23",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "840,910,994,1078,1174,1276,1378,1472",
+                        "endColumns": "69,83,83,95,101,101,93,88",
+                        "endOffsets": "905,989,1073,1169,1271,1373,1467,1556"
+                    }
+                }
+            ]
+        }
+    ]
+}
