@@ -48,6 +48,9 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     });
 
     try {
+      // Get address data from SignupUserPage4 as fallback
+      final addressData = widget.userData['address'] as Map<String, dynamic>?;
+      
       // Add location data to the existing user data
       final Map<String, dynamic> updatedUserData = {
         ...widget.userData,
@@ -55,15 +58,31 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
           'lat': selectedLocation!.latitude,
           'lng': selectedLocation!.longitude,
           'address': {
-            'country': country,
-            'city': city,
-            'district': district,
-            'street': street,
-            'postalCode': postalCode,
+            'country': (country?.isNotEmpty == true) ? country : addressData?['country'],
+            'city': (city?.isNotEmpty == true) ? city : addressData?['city'],
+            'district': (district?.isNotEmpty == true) ? district : addressData?['district'],
+            'street': (street?.isNotEmpty == true) ? street : addressData?['street'],
+            'postalCode': (postalCode?.isNotEmpty == true) ? postalCode : addressData?['postalCode'],
             'fullAddress': fullAddress,
           }
         }
       };
+      
+      // Debug print to verify final location data
+      print('=== SIGNUP USER PAGE 5 FINAL LOCATION DEBUG ===');
+      print('Selected location lat: ${selectedLocation!.latitude}');
+      print('Selected location lng: ${selectedLocation!.longitude}');
+      print('Geocoded country: $country');
+      print('Geocoded city: $city');
+      print('Geocoded street: $street');
+      print('Fallback country: ${addressData?['country']}');
+      print('Fallback city: ${addressData?['city']}');
+      print('Fallback street: ${addressData?['street']}');
+      print('Final country: ${(country?.isNotEmpty == true) ? country : addressData?['country']}');
+      print('Final city: ${(city?.isNotEmpty == true) ? city : addressData?['city']}');
+      print('Final street: ${(street?.isNotEmpty == true) ? street : addressData?['street']}');
+      print('Updated userData: $updatedUserData');
+      print('===============================================');
 
       final response = await ApiService.signupUser(updatedUserData);
 
@@ -193,6 +212,12 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
         _addMarker(userLocation);
 
+        // Debug print to verify current location capture
+        print('=== CURRENT LOCATION DEBUG ===');
+        print('Current location lat: ${userLocation.latitude}');
+        print('Current location lng: ${userLocation.longitude}');
+        print('==============================');
+
         // Call submit signup after marker is set
         _submitSignup(context);
       }
@@ -214,6 +239,12 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     super.initState();
     // Check for permissions on startup
     _checkLocationPermission();
+    
+    // Debug print to verify address data from SignupUserPage4
+    print('=== SIGNUP USER PAGE 5 DEBUG ===');
+    print('Received userData: ${widget.userData}');
+    print('Address data: ${widget.userData['address']}');
+    print('=====================================');
   }
 
   Future<void> _checkLocationPermission() async {
@@ -434,17 +465,81 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
+        
+        // Get address data from SignupUserPage4 as fallback
+        final addressData = widget.userData['address'] as Map<String, dynamic>?;
+        
         setState(() {
-          country = place.country;
-          city = place.locality;
-          district = place.subLocality;
-          street = place.street;
-          postalCode = place.postalCode;
-          fullAddress = '${place.street}, ${place.subLocality}, ${place.locality}, ${place.country}';
+          // Use geocoded values if available, otherwise fallback to SignupUserPage4 data
+          country = place.country ?? addressData?['country'];
+          city = place.locality ?? addressData?['city'];
+          district = place.subLocality ?? addressData?['district'];
+          street = place.street ?? addressData?['street'];
+          postalCode = place.postalCode ?? addressData?['postalCode'];
+          
+          // Build full address with available data
+          final streetPart = street ?? '';
+          final districtPart = district ?? '';
+          final cityPart = city ?? '';
+          final countryPart = country ?? '';
+          
+          final addressParts = [streetPart, districtPart, cityPart, countryPart]
+              .where((part) => part.isNotEmpty)
+              .toList();
+          
+          fullAddress = addressParts.join(', ');
         });
+      } else {
+        // If geocoding fails, use data from SignupUserPage4
+        final addressData = widget.userData['address'] as Map<String, dynamic>?;
+        if (addressData != null) {
+          setState(() {
+            country = addressData['country'];
+            city = addressData['city'];
+            district = addressData['district'];
+            street = addressData['street'];
+            postalCode = addressData['postalCode'];
+            
+            // Build full address with available data
+            final streetPart = street ?? '';
+            final districtPart = district ?? '';
+            final cityPart = city ?? '';
+            final countryPart = country ?? '';
+            
+            final addressParts = [streetPart, districtPart, cityPart, countryPart]
+                .where((part) => part.isNotEmpty)
+                .toList();
+            
+            fullAddress = addressParts.join(', ');
+          });
+        }
       }
     } catch (e) {
       print('Error getting address: $e');
+      
+      // If geocoding fails completely, use data from SignupUserPage4
+      final addressData = widget.userData['address'] as Map<String, dynamic>?;
+      if (addressData != null) {
+        setState(() {
+          country = addressData['country'];
+          city = addressData['city'];
+          district = addressData['district'];
+          street = addressData['street'];
+          postalCode = addressData['postalCode'];
+          
+          // Build full address with available data
+          final streetPart = street ?? '';
+          final districtPart = district ?? '';
+          final cityPart = city ?? '';
+          final countryPart = country ?? '';
+          
+          final addressParts = [streetPart, districtPart, cityPart, countryPart]
+              .where((part) => part.isNotEmpty)
+              .toList();
+          
+          fullAddress = addressParts.join(', ');
+        });
+      }
     }
   }
 
@@ -461,6 +556,13 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       selectedLocation = position;
       _getAddressFromLatLng(position);
     });
+    
+    // Debug print to verify marker placement
+    print('=== MAP MARKER DEBUG ===');
+    print('Marker placed at lat: ${position.latitude}');
+    print('Marker placed at lng: ${position.longitude}');
+    print('Selected location: $selectedLocation');
+    print('========================');
   }
 
   @override

@@ -69,9 +69,6 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
       Position position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
 
-      _latitude = position.latitude;
-      _longitude = position.longitude;
-
       // Get address from coordinates
       List<Placemark> placemarks = await placemarkFromCoordinates(
         position.latitude,
@@ -81,12 +78,35 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
           _countryController.text = place.country ?? '';
           _districtController.text = place.administrativeArea ?? '';
           _cityController.text = place.locality ?? '';
           _streetController.text = place.street ?? '';
           _postalCodeController.text = place.postalCode ?? '';
         });
+        
+        // Debug print to verify location data
+        print('=== SIGNUP USER PAGE 4 LOCATION DEBUG ===');
+        print('Latitude: $_latitude');
+        print('Longitude: $_longitude');
+        print('Country: ${place.country}');
+        print('City: ${place.locality}');
+        print('Street: ${place.street}');
+        print('=========================================');
+      } else {
+        // If no placemarks found, still set the coordinates
+        setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+        });
+        
+        // Debug print to verify location data when no placemarks
+        print('=== SIGNUP USER PAGE 4 LOCATION DEBUG (NO PLACEMARKS) ===');
+        print('Latitude: $_latitude');
+        print('Longitude: $_longitude');
+        print('=========================================================');
       }
     } catch (e) {
       // ScaffoldMessenger.of(context).showSnackBar(
@@ -698,6 +718,8 @@ class _SignupUserPage4State extends State<SignupUserPage4> {
                                     // Debug print to see what address data is being passed
                                     print('=== SIGNUP USER PAGE 4 DEBUG ===');
                                     print('Address data: $addressData');
+                                    print('Latitude: $_latitude');
+                                    print('Longitude: $_longitude');
                                     final finalUserData = {...widget.userData, 'address': addressData};
                                     print('Updated userData: $finalUserData');
                                     print('=====================================');

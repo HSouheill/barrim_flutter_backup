@@ -90,6 +90,9 @@ class _MapComponentState extends State<MapComponent> {
 
   Set<google_maps.Marker> _buildGoogleMarkers() {
     final Set<google_maps.Marker> markers = {};
+    
+    print('MapComponent: Building markers, total waypoint markers: ${widget.wayPointMarkers.length}');
+    print('MapComponent: Waypoint marker types: ${widget.wayPointMarkers.map((m) => m.runtimeType).toList()}');
 
     // Note: Current location marker removed - using AnimatedLocationMarker overlay instead
 
@@ -101,14 +104,41 @@ class _MapComponentState extends State<MapComponent> {
           position: google_maps.LatLng(widget.destinationLocation!.latitude, widget.destinationLocation!.longitude),
           icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueRed),
           infoWindow: google_maps.InfoWindow(title: 'Destination'),
+          visible: true, // Ensure destination marker is always visible
         ),
       );
     }
 
-    // Add waypoint markers - preserve original markers with their dynamic colors
+    // Add waypoint markers - handle both Map<String, dynamic> and google_maps.Marker objects
     for (int i = 0; i < widget.wayPointMarkers.length; i++) {
       final marker = widget.wayPointMarkers[i];
-      if (marker is Map<String, dynamic> && marker['position'] != null) {
+      print('MapComponent: Processing marker $i: ${marker.runtimeType}');
+      
+      if (marker is google_maps.Marker) {
+        print('MapComponent: Found google_maps.Marker with ID: ${marker.markerId.value}');
+        print('MapComponent: Marker position: ${marker.position}');
+        print('MapComponent: Marker visible: ${marker.visible}');
+        // If it's already a google_maps.Marker, use it directly
+        // Create a new marker with the same properties but ensure visibility
+        markers.add(
+          google_maps.Marker(
+            markerId: marker.markerId,
+            position: marker.position,
+            icon: marker.icon,
+            infoWindow: marker.infoWindow,
+            visible: true, // Ensure marker is always visible
+            onTap: marker.onTap,
+            consumeTapEvents: marker.consumeTapEvents,
+            anchor: marker.anchor,
+            draggable: marker.draggable,
+            flat: marker.flat,
+            rotation: marker.rotation,
+            zIndex: marker.zIndex,
+          ),
+        );
+        print('MapComponent: Added google_maps.Marker to markers set');
+      } else if (marker is Map<String, dynamic> && marker['position'] != null) {
+        // Legacy support for Map format
         final position = marker['position'] as latlong.LatLng;
         final category = marker['category'] as String?;
         
@@ -129,11 +159,14 @@ class _MapComponentState extends State<MapComponent> {
               title: marker['title'] ?? 'Waypoint $i',
               snippet: category ?? 'Unknown category',
             ),
+            visible: true, // Ensure marker is always visible
           ),
         );
       }
     }
 
+    print('MapComponent: Final markers count: ${markers.length}');
+    print('MapComponent: Final marker IDs: ${markers.map((m) => m.markerId.value).toList()}');
     return markers;
   }
 

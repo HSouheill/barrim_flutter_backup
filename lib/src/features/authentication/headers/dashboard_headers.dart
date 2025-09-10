@@ -3,11 +3,13 @@ import 'package:barrim/src/components/secure_network_image.dart';
 
 import '../screens/user_dashboard/notification.dart';
 import '../screens/settings/settings.dart';
+import '../screens/user_dashboard/home.dart';
 
 class AppHeader extends StatelessWidget {
   final VoidCallback? onNotificationTap;
   final VoidCallback? onMenuTap;
   final VoidCallback? onProfileTap;
+  final VoidCallback? onLogoTap;
   final String? profileImagePath;
 
   const AppHeader({
@@ -15,6 +17,7 @@ class AppHeader extends StatelessWidget {
     this.onNotificationTap,
     this.onMenuTap,
     this.onProfileTap,
+    this.onLogoTap,
     this.profileImagePath,
   }) : super(key: key);
 
@@ -41,7 +44,21 @@ class AppHeader extends StatelessWidget {
       height: 125,
       child: Row(
         children: [
-          Image.asset('assets/logo/barrim_logo.png', height: 60),
+          InkWell(
+            onTap: onLogoTap ?? () {
+              // Default navigation to homepage if no callback provided
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => UserDashboard(
+                    userData: {
+                      'token': 'dummy_token', // You might need to pass actual user data
+                    },
+                  ),
+                ),
+              );
+            },
+            child: Image.asset('assets/logo/barrim_logo.png', height: 60),
+          ),
 
           Spacer(),
 

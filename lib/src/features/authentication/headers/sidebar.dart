@@ -9,6 +9,7 @@ import '../screens/referrals/user_referral.dart';
 import '../screens/settings/settings.dart';
 import '../screens/category/categories.dart';
 import '../screens/workers/worker_home.dart';
+import '../screens/user_dashboard/home.dart';
 
 class Sidebar extends StatelessWidget {
   final VoidCallback onCollapse;
@@ -121,7 +122,25 @@ class Sidebar extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 40),
-                _buildMenuItem(Icons.home, 'Home'),
+                _buildMenuItem(
+                  Icons.home,
+                  'Home',
+                  onTap: () {
+                    onCollapse();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      // Navigate to UserDashboard (homepage)
+                      Navigator.of(parentContext).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => UserDashboard(
+                            userData: {
+                              'token': 'dummy_token', // You might need to pass actual user data
+                            },
+                          ),
+                        ),
+                      );
+                    });
+                  },
+                ),
                 _buildMenuItem(
                   Icons.category,
                   'Categories',

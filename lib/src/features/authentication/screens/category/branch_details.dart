@@ -70,6 +70,23 @@ class _BranchDetailsPageState extends State<BranchDetailsPage> {
                       Stack(
                         children: [
                           _buildHeroImage(),
+                          // Back button overlay
+                          Positioned(
+                            top: 16,
+                            left: 16,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.5),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: Icon(Icons.arrow_back, color: Colors.white),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                              ),
+                            ),
+                          ),
                           Positioned(
                             bottom: 0,
                             left: 0,
@@ -365,7 +382,30 @@ class _BranchDetailsPageState extends State<BranchDetailsPage> {
             child: ElevatedButton(
               onPressed: () {
                 // Handle navigation
-                _openMap(widget.branch['location']);
+                print('BranchDetailsPage: Take Me There button pressed');
+                print('BranchDetailsPage: Branch data: ${widget.branch}');
+                print('BranchDetailsPage: Branch location: ${widget.branch['location']}');
+                
+                // Try to get location data from different possible fields
+                dynamic locationData = widget.branch['location'];
+                
+                // If no location field, try to construct it from latitude/longitude
+                if (locationData == null) {
+                  final lat = widget.branch['latitude'];
+                  final lng = widget.branch['longitude'];
+                  if (lat != null && lng != null) {
+                    locationData = {
+                      'lat': lat,
+                      'lng': lng,
+                      'street': widget.branch['address'] ?? '',
+                      'city': widget.branch['city'] ?? '',
+                      'country': widget.branch['country'] ?? '',
+                    };
+                    print('BranchDetailsPage: Constructed location from lat/lng: $locationData');
+                  }
+                }
+                
+                _openMap(locationData);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
@@ -384,13 +424,13 @@ class _BranchDetailsPageState extends State<BranchDetailsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildContactIcon(Icons.phone, Colors.green),
+              _buildContactIcon(Icons.phone, Colors.green, () => _makePhoneCall()),
               SizedBox(width: 16),
-              _buildContactIcon(Icons.message, Colors.green),
+              _buildContactIcon(Icons.message, Colors.green, () => _sendMessage()),
               SizedBox(width: 16),
-              _buildContactIcon(Icons.camera_alt, Colors.pink),
+              _buildInstagramIcon(() => _openInstagram()),
               SizedBox(width: 16),
-              _buildContactIcon(Icons.facebook, Colors.blue),
+              _buildContactIcon(Icons.facebook, Colors.blue, () => _openFacebook()),
             ],
           ),
         ],
@@ -398,29 +438,225 @@ class _BranchDetailsPageState extends State<BranchDetailsPage> {
     );
   }
 
-  Widget _buildContactIcon(IconData icon, Color color) {
-    return Container(
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        icon,
-        color: Colors.white,
-        size: 20,
+  Widget _buildContactIcon(IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.3),
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: 20,
+        ),
       ),
     );
   }
 
+  Widget _buildInstagramIcon(VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.pink,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.pink.withOpacity(0.3),
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Image.asset(
+          'assets/icons/instagram.png',
+          width: 20,
+          height: 20,
+          color: Colors.white,
+          errorBuilder: (context, error, stackTrace) {
+            print('BranchDetailsPage: Error loading Instagram icon: $error');
+            return Icon(
+              Icons.camera_alt,
+              color: Colors.white,
+              size: 20,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // Phone call functionality
+  void _makePhoneCall() async {
+    final phoneNumber = widget.branch['phone'] ?? widget.branch['phoneNumber'];
+    if (phoneNumber != null && phoneNumber.toString().isNotEmpty) {
+      final Uri phoneUri = Uri.parse('tel:${phoneNumber.toString()}');
+      print('BranchDetailsPage: Making phone call to: $phoneNumber');
+      
+      try {
+        if (await canLaunchUrl(phoneUri)) {
+          await launchUrl(phoneUri);
+          print('BranchDetailsPage: Successfully launched phone call');
+        } else {
+          print('BranchDetailsPage: Cannot launch phone call');
+          _showErrorSnackBar('Cannot make phone call. Please check your device settings.');
+        }
+      } catch (e) {
+        print('BranchDetailsPage: Error making phone call: $e');
+        _showErrorSnackBar('Error making phone call: ${e.toString()}');
+      }
+    } else {
+      print('BranchDetailsPage: No phone number available');
+      _showErrorSnackBar('No phone number available for this branch.');
+    }
+  }
+
+  // Send message functionality
+  void _sendMessage() async {
+    final phoneNumber = widget.branch['phone'] ?? widget.branch['phoneNumber'];
+    if (phoneNumber != null && phoneNumber.toString().isNotEmpty) {
+      final Uri messageUri = Uri.parse('sms:${phoneNumber.toString()}');
+      print('BranchDetailsPage: Sending message to: $phoneNumber');
+      
+      try {
+        if (await canLaunchUrl(messageUri)) {
+          await launchUrl(messageUri);
+          print('BranchDetailsPage: Successfully launched message app');
+        } else {
+          print('BranchDetailsPage: Cannot launch message app');
+          _showErrorSnackBar('Cannot send message. Please check your device settings.');
+        }
+      } catch (e) {
+        print('BranchDetailsPage: Error sending message: $e');
+        _showErrorSnackBar('Error sending message: ${e.toString()}');
+      }
+    } else {
+      print('BranchDetailsPage: No phone number available for messaging');
+      _showErrorSnackBar('No phone number available for messaging.');
+    }
+  }
+
+  // Open Instagram functionality
+  void _openInstagram() async {
+    final instagramUrl = widget.branch['instagram'] ?? 
+                        widget.branch['socialMedia']?['instagram'] ?? 
+                        widget.branch['company']?['instagram'];
+    
+    if (instagramUrl != null && instagramUrl.toString().isNotEmpty) {
+      String url = instagramUrl.toString();
+      
+      // Ensure the URL has proper protocol
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://$url';
+      }
+      
+      final Uri instagramUri = Uri.parse(url);
+      print('BranchDetailsPage: Opening Instagram: $url');
+      
+      try {
+        if (await canLaunchUrl(instagramUri)) {
+          await launchUrl(instagramUri, mode: LaunchMode.externalApplication);
+          print('BranchDetailsPage: Successfully launched Instagram');
+        } else {
+          print('BranchDetailsPage: Cannot launch Instagram');
+          _showErrorSnackBar('Cannot open Instagram. Please check your device settings.');
+        }
+      } catch (e) {
+        print('BranchDetailsPage: Error opening Instagram: $e');
+        _showErrorSnackBar('Error opening Instagram: ${e.toString()}');
+      }
+    } else {
+      print('BranchDetailsPage: No Instagram URL available');
+      _showErrorSnackBar('No Instagram page available for this branch.');
+    }
+  }
+
+  // Open Facebook functionality
+  void _openFacebook() async {
+    final facebookUrl = widget.branch['facebook'] ?? 
+                       widget.branch['socialMedia']?['facebook'] ?? 
+                       widget.branch['company']?['facebook'];
+    
+    if (facebookUrl != null && facebookUrl.toString().isNotEmpty) {
+      String url = facebookUrl.toString();
+      
+      // Ensure the URL has proper protocol
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://$url';
+      }
+      
+      final Uri facebookUri = Uri.parse(url);
+      print('BranchDetailsPage: Opening Facebook: $url');
+      
+      try {
+        if (await canLaunchUrl(facebookUri)) {
+          await launchUrl(facebookUri, mode: LaunchMode.externalApplication);
+          print('BranchDetailsPage: Successfully launched Facebook');
+        } else {
+          print('BranchDetailsPage: Cannot launch Facebook');
+          _showErrorSnackBar('Cannot open Facebook. Please check your device settings.');
+        }
+      } catch (e) {
+        print('BranchDetailsPage: Error opening Facebook: $e');
+        _showErrorSnackBar('Error opening Facebook: ${e.toString()}');
+      }
+    } else {
+      print('BranchDetailsPage: No Facebook URL available');
+      _showErrorSnackBar('No Facebook page available for this branch.');
+    }
+  }
+
+  // Helper method to show error messages
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // Helper method to show info messages
+  void _showInfoSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.blue,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   void _openMap(dynamic location) async {
+    print('BranchDetailsPage: Opening map for location: $location');
+    print('BranchDetailsPage: Location type: ${location.runtimeType}');
+    
     double? lat;
     double? lng;
 
     // If location is a Map, check for coordinates, lat/lng keys
     if (location is Map) {
+      print('BranchDetailsPage: Location is a Map with keys: ${location.keys.toList()}');
+      
       if (location.containsKey('coordinates')) {
         var coords = location['coordinates'];
+        print('BranchDetailsPage: Found coordinates: $coords');
         if (coords is List && coords.length >= 2) {
           lng = coords[0] is num ? (coords[0] as num).toDouble() : null;
           lat = coords[1] is num ? (coords[1] as num).toDouble() : null;
@@ -428,29 +664,129 @@ class _BranchDetailsPageState extends State<BranchDetailsPage> {
       } else if (location.containsKey('lat') && location.containsKey('lng')) {
         lat = location['lat'] is num ? (location['lat'] as num).toDouble() : null;
         lng = location['lng'] is num ? (location['lng'] as num).toDouble() : null;
+        print('BranchDetailsPage: Found lat/lng: lat=$lat, lng=$lng');
       }
     } else {
       // Try to access as Address object
       try {
         lat = location.lat?.toDouble();
         lng = location.lng?.toDouble();
-      } catch (_) {}
+        print('BranchDetailsPage: Address object - lat=$lat, lng=$lng');
+      } catch (e) {
+        print('BranchDetailsPage: Error accessing Address object: $e');
+      }
     }
+
+    print('BranchDetailsPage: Final coordinates - lat=$lat, lng=$lng');
 
     if (lat != null && lng != null && lat != 0 && lng != 0) {
       final Uri mapUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-      if (await canLaunchUrl(mapUri)) {
-        await launchUrl(mapUri);
-        return;
+      print('BranchDetailsPage: Opening map with coordinates: $mapUri');
+      
+      try {
+        if (await canLaunchUrl(mapUri)) {
+          await launchUrl(mapUri, mode: LaunchMode.externalApplication);
+          print('BranchDetailsPage: Successfully opened map with coordinates');
+          return;
+        } else {
+          print('BranchDetailsPage: Cannot launch URL with coordinates');
+          // Try alternative approach
+          await _launchMapAlternative(lat, lng);
+        }
+      } catch (e) {
+        print('BranchDetailsPage: Error launching map with coordinates: $e');
+        // Try alternative approach
+        await _launchMapAlternative(lat, lng);
       }
     }
 
     // Fallback to address string
     String address = _formatAddress(location);
+    print('BranchDetailsPage: Fallback to address: $address');
+    
     if (address.isNotEmpty) {
       final Uri mapUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}');
-      if (await canLaunchUrl(mapUri)) {
-        await launchUrl(mapUri);
+      print('BranchDetailsPage: Opening map with address: $mapUri');
+      
+      try {
+        if (await canLaunchUrl(mapUri)) {
+          await launchUrl(mapUri, mode: LaunchMode.externalApplication);
+          print('BranchDetailsPage: Successfully opened map with address');
+        } else {
+          print('BranchDetailsPage: Cannot launch URL with address');
+          // Try alternative approach
+          await _launchMapAlternative(null, null, address);
+        }
+      } catch (e) {
+        print('BranchDetailsPage: Error launching map with address: $e');
+        // Try alternative approach
+        await _launchMapAlternative(null, null, address);
+      }
+    } else {
+      print('BranchDetailsPage: No address available for fallback');
+    }
+  }
+
+  // Alternative method to launch maps
+  Future<void> _launchMapAlternative(double? lat, double? lng, [String? address]) async {
+    try {
+      String query;
+      if (lat != null && lng != null) {
+        query = '$lat,$lng';
+      } else if (address != null && address.isNotEmpty) {
+        query = Uri.encodeComponent(address);
+      } else {
+        print('BranchDetailsPage: No valid location data for alternative launch');
+        return;
+      }
+
+      // Try different map URLs
+      final List<String> mapUrls = [
+        'https://maps.google.com/maps?q=$query',
+        'https://www.google.com/maps/search/?api=1&query=$query',
+        'geo:$query',
+        'comgooglemaps://?q=$query',
+        'maps://?q=$query',
+      ];
+
+      for (String url in mapUrls) {
+        try {
+          final Uri uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+            print('BranchDetailsPage: Successfully opened map with alternative URL: $url');
+            return;
+          }
+        } catch (e) {
+          print('BranchDetailsPage: Failed to launch alternative URL $url: $e');
+          continue;
+        }
+      }
+      
+      print('BranchDetailsPage: All alternative map URLs failed');
+      
+      // Show user-friendly error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to open map. Please try again or check your device settings.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('BranchDetailsPage: Error in alternative map launch: $e');
+      
+      // Show user-friendly error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening map: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
       }
     }
   }
