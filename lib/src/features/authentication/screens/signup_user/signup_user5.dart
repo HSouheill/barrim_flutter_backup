@@ -6,7 +6,6 @@ import 'package:geocoding/geocoding.dart';
 import '../custom_header.dart';
 import '../../../../services/api_service.dart';
 import '../verification_code.dart';
-import '../welcome_page.dart';
 import '../white_headr.dart';
 
 class SignupUserPage5 extends StatefulWidget {
@@ -27,10 +26,9 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
   // Address-related variables
   String? country;
-  String? city;
+  String? governorate;
   String? district;
-  String? street;
-  String? postalCode;
+  String? city;
   String? fullAddress;
 
   void _submitSignup(BuildContext context) async {
@@ -52,6 +50,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       final addressData = widget.userData['address'] as Map<String, dynamic>?;
       
       // Add location data to the existing user data
+      // The API service expects location data to be flattened at the top level
       final Map<String, dynamic> updatedUserData = {
         ...widget.userData,
         'location': {
@@ -59,10 +58,9 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
           'lng': selectedLocation!.longitude,
           'address': {
             'country': (country?.isNotEmpty == true) ? country : addressData?['country'],
-            'city': (city?.isNotEmpty == true) ? city : addressData?['city'],
+            'governorate': (governorate?.isNotEmpty == true) ? governorate : addressData?['governorate'],
             'district': (district?.isNotEmpty == true) ? district : addressData?['district'],
-            'street': (street?.isNotEmpty == true) ? street : addressData?['street'],
-            'postalCode': (postalCode?.isNotEmpty == true) ? postalCode : addressData?['postalCode'],
+            'city': (city?.isNotEmpty == true) ? city : addressData?['city'],
             'fullAddress': fullAddress,
           }
         }
@@ -73,14 +71,17 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       print('Selected location lat: ${selectedLocation!.latitude}');
       print('Selected location lng: ${selectedLocation!.longitude}');
       print('Geocoded country: $country');
+      print('Geocoded governorate: $governorate');
+      print('Geocoded district: $district');
       print('Geocoded city: $city');
-      print('Geocoded street: $street');
       print('Fallback country: ${addressData?['country']}');
+      print('Fallback governorate: ${addressData?['governorate']}');
+      print('Fallback district: ${addressData?['district']}');
       print('Fallback city: ${addressData?['city']}');
-      print('Fallback street: ${addressData?['street']}');
       print('Final country: ${(country?.isNotEmpty == true) ? country : addressData?['country']}');
+      print('Final governorate: ${(governorate?.isNotEmpty == true) ? governorate : addressData?['governorate']}');
+      print('Final district: ${(district?.isNotEmpty == true) ? district : addressData?['district']}');
       print('Final city: ${(city?.isNotEmpty == true) ? city : addressData?['city']}');
-      print('Final street: ${(street?.isNotEmpty == true) ? street : addressData?['street']}');
       print('Updated userData: $updatedUserData');
       print('===============================================');
 
@@ -463,50 +464,63 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
         position.longitude,
       );
 
+      // Get address data from SignupUserPage4 as fallback
+      final addressData = widget.userData['address'] as Map<String, dynamic>?;
+      
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         
-        // Get address data from SignupUserPage4 as fallback
-        final addressData = widget.userData['address'] as Map<String, dynamic>?;
-        
         setState(() {
-          // Use geocoded values if available, otherwise fallback to SignupUserPage4 data
-          country = place.country ?? addressData?['country'];
-          city = place.locality ?? addressData?['city'];
-          district = place.subLocality ?? addressData?['district'];
-          street = place.street ?? addressData?['street'];
-          postalCode = place.postalCode ?? addressData?['postalCode'];
+          // Use geocoded values if available and not empty, otherwise fallback to SignupUserPage4 data
+          country = (place.country?.isNotEmpty == true) ? place.country : addressData?['country'];
+          governorate = (place.administrativeArea?.isNotEmpty == true) ? place.administrativeArea : addressData?['governorate'];
+          district = (place.subAdministrativeArea?.isNotEmpty == true) ? place.subAdministrativeArea : addressData?['district'];
+          city = (place.locality?.isNotEmpty == true) ? place.locality : addressData?['city'];
+          
+          // Debug print to verify address data
+          print('=== GEOCODING DEBUG ===');
+          print('Geocoded country: ${place.country}');
+          print('Geocoded governorate: ${place.administrativeArea}');
+          print('Geocoded district: ${place.subAdministrativeArea}');
+          print('Geocoded city: ${place.locality}');
+          print('Fallback country: ${addressData?['country']}');
+          print('Fallback governorate: ${addressData?['governorate']}');
+          print('Fallback district: ${addressData?['district']}');
+          print('Fallback city: ${addressData?['city']}');
+          print('Final country: $country');
+          print('Final governorate: $governorate');
+          print('Final district: $district');
+          print('Final city: $city');
+          print('======================');
           
           // Build full address with available data
-          final streetPart = street ?? '';
-          final districtPart = district ?? '';
           final cityPart = city ?? '';
+          final districtPart = district ?? '';
+          final governoratePart = governorate ?? '';
           final countryPart = country ?? '';
           
-          final addressParts = [streetPart, districtPart, cityPart, countryPart]
+          final addressParts = [cityPart, districtPart, governoratePart, countryPart]
               .where((part) => part.isNotEmpty)
               .toList();
           
           fullAddress = addressParts.join(', ');
         });
       } else {
-        // If geocoding fails, use data from SignupUserPage4
-        final addressData = widget.userData['address'] as Map<String, dynamic>?;
+        // If no placemarks found, use data from SignupUserPage4
         if (addressData != null) {
           setState(() {
             country = addressData['country'];
-            city = addressData['city'];
+            governorate = addressData['governorate'];
             district = addressData['district'];
-            street = addressData['street'];
-            postalCode = addressData['postalCode'];
+            city = addressData['city'];
             
             // Build full address with available data
-            final streetPart = street ?? '';
-            final districtPart = district ?? '';
             final cityPart = city ?? '';
+            final districtPart = district ?? '';
+            final governoratePart = governorate ?? '';
             final countryPart = country ?? '';
             
-            final addressParts = [streetPart, districtPart, cityPart, countryPart]
+            final addressParts = [cityPart, districtPart, governoratePart, countryPart]
                 .where((part) => part.isNotEmpty)
                 .toList();
             
@@ -522,18 +536,17 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       if (addressData != null) {
         setState(() {
           country = addressData['country'];
-          city = addressData['city'];
+          governorate = addressData['governorate'];
           district = addressData['district'];
-          street = addressData['street'];
-          postalCode = addressData['postalCode'];
+          city = addressData['city'];
           
           // Build full address with available data
-          final streetPart = street ?? '';
-          final districtPart = district ?? '';
           final cityPart = city ?? '';
+          final districtPart = district ?? '';
+          final governoratePart = governorate ?? '';
           final countryPart = country ?? '';
           
-          final addressParts = [streetPart, districtPart, cityPart, countryPart]
+          final addressParts = [cityPart, districtPart, governoratePart, countryPart]
               .where((part) => part.isNotEmpty)
               .toList();
           
@@ -609,7 +622,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                 left: 0,
                 right: 0,
                 child: CustomHeader(
-                  currentPageIndex: 2, // Same page index as manual entry
+                  currentPageIndex: 4, // Same page index as manual entry
                   totalPages: 4,
                   subtitle: 'User',
                   onBackPressed: () => Navigator.of(context).pop(),
@@ -684,16 +697,14 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            if (street != null)
-                              _buildAddressRow('Street', street!),
-                            if (district != null)
-                              _buildAddressRow('District', district!),
                             if (city != null)
                               _buildAddressRow('City', city!),
+                            if (district != null)
+                              _buildAddressRow('District', district!),
+                            if (governorate != null)
+                              _buildAddressRow('Governorate', governorate!),
                             if (country != null)
                               _buildAddressRow('Country', country!),
-                            if (postalCode != null)
-                              _buildAddressRow('Postal Code', postalCode!),
                           ],
                         ),
                       ),

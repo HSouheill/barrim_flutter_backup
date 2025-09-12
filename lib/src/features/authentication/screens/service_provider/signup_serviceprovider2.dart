@@ -5,7 +5,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:country_picker/country_picker.dart';
 import '../custom_header.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 import '../responsive_utils.dart';
 import 'signup_serviceprovider3.dart';
@@ -24,13 +23,10 @@ class SignupServiceprovider2 extends StatefulWidget {
 class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _countryController = TextEditingController();
+  final TextEditingController _governorateController = TextEditingController();
   final TextEditingController _districtController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
-  final TextEditingController _streetController = TextEditingController();
-  final TextEditingController _postalCodeController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  bool _agreeToTerms = false;
   String? _selectedGender;
   bool _isLoadingLocation = false;
   double? _latitude;
@@ -42,10 +38,6 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
       _isLoadingLocation = true;
     });
 
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-      timeLimit: Duration(seconds: 30), // Increase timeout to 30 seconds
-    );
 
     try {
       // Check if location services are enabled
@@ -70,7 +62,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
           ),
         );
 
-        if (enabled ?? false) {
+        if (enabled == true) {
           await Geolocator.openLocationSettings();
         }
         return;
@@ -108,16 +100,11 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
 
         setState(() {
           _countryController.text = place.country ?? '';
-          _districtController.text = place.administrativeArea ?? '';
+          _governorateController.text = place.administrativeArea ?? '';
+          _districtController.text = place.subAdministrativeArea ?? '';
           _cityController.text = place.locality ?? '';
-          _streetController.text = place.street ?? '';
-          _postalCodeController.text = place.postalCode ?? '';
         });
       }
-    } on PlatformException catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Failed to get location: ${e.message}')),
-      // );
     } catch (e) {
       // ScaffoldMessenger.of(context).showSnackBar(
       //   SnackBar(content: Text('Error: $e')),
@@ -189,7 +176,8 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
       onSelect: (Country country) {
         setState(() {
           _countryController.text = country.name;
-          // Reset district and city when country changes
+          // Reset governorate, district and city when country changes
+          _governorateController.clear();
           _districtController.clear();
           _cityController.clear();
           _availableCities = [];
@@ -198,7 +186,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
     );
   }
 
-  void _showDistrictPicker() {
+  void _showGovernoratePicker() {
     // Get governments for the selected country
     final governments = getGovernmentsForCountry(_countryController.text);
     
@@ -208,7 +196,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select Government',
+            'Select Governorate',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -230,11 +218,14 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
                   ),
                   onTap: () {
                     setState(() {
-                      _districtController.text = governments[index].name;
+                      _governorateController.text = governments[index].name;
                       _availableCities = governments[index].cities.map((city) => city.name).toList();
+                      _districtController.clear();
                       _cityController.clear();
                     });
                     Navigator.pop(context);
+                    // Get coordinates if all fields are now filled
+                    _getCoordinatesFromAddress();
                   },
                 );
               },
@@ -245,11 +236,11 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
     );
   }
 
-  void _showCityPicker() {
+  void _showDistrictPicker() {
     if (_availableCities.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a Government first'),
+          content: Text('Please select a governorate first'),
         ),
       );
       return;
@@ -261,7 +252,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select City',
+            'Select District',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -283,9 +274,108 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
                   ),
                   onTap: () {
                     setState(() {
-                      _cityController.text = _availableCities[index];
+                      _districtController.text = _availableCities[index];
+                      _cityController.clear();
                     });
                     Navigator.pop(context);
+                    // Get coordinates if all fields are now filled
+                    _getCoordinatesFromAddress();
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _getCoordinatesFromAddress() async {
+    if (_countryController.text.isNotEmpty &&
+        _governorateController.text.isNotEmpty &&
+        _districtController.text.isNotEmpty &&
+        _cityController.text.isNotEmpty) {
+      
+      try {
+        // Build address string from selected fields
+        final addressString = '${_cityController.text}, ${_districtController.text}, ${_governorateController.text}, ${_countryController.text}';
+        
+        // Get coordinates from address
+        List<Location> locations = await locationFromAddress(addressString);
+        
+        if (locations.isNotEmpty) {
+          setState(() {
+            _latitude = locations[0].latitude;
+            _longitude = locations[0].longitude;
+          });
+          
+          print('=== MANUAL LOCATION COORDINATES ===');
+          print('Address: $addressString');
+          print('Latitude: $_latitude');
+          print('Longitude: $_longitude');
+          print('===================================');
+        }
+      } catch (e) {
+        print('Error getting coordinates from address: $e');
+        // If geocoding fails, set default coordinates (center of Lebanon)
+        setState(() {
+          _latitude = 33.8;
+          _longitude = 35.8;
+        });
+      }
+    }
+  }
+
+  void _showCityPicker() {
+    if (_districtController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a district first'),
+        ),
+      );
+      return;
+    }
+
+    // Get cities for the selected district
+    final cities = getCitiesForGovernment(_countryController.text, _governorateController.text);
+    final selectedDistrict = cities.firstWhere(
+      (city) => city.name.toLowerCase() == _districtController.text.toLowerCase(),
+      orElse: () => cities.first,
+    );
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF05054F),
+          title: Text(
+            'Select City',
+            style: GoogleFonts.nunito(
+              color: Colors.white,
+              fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+            ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: selectedDistrict.streets.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(
+                    selectedDistrict.streets[index],
+                    style: GoogleFonts.nunito(
+                      color: Colors.white,
+                      fontSize: ResponsiveUtils.getInputLabelFontSize(context) * 0.9,
+                    ),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _cityController.text = selectedDistrict.streets[index];
+                    });
+                    Navigator.pop(context);
+                    // Get coordinates when city is selected (all fields are now filled)
+                    _getCoordinatesFromAddress();
                   },
                 );
               },
@@ -453,9 +543,19 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
 
                           SizedBox(height: constraints.maxHeight * 0.03),
 
+                          // Governorate Dropdown
+                          buildDropdownField(
+                            labelText: 'Governorate',
+                            controller: _governorateController,
+                            fontSize: getInputFontSize(),
+                            readOnly: _isLoadingLocation,
+                          ),
+
+                          SizedBox(height: constraints.maxHeight * 0.03),
+
                           // District Dropdown
                           buildDropdownField(
-                            labelText: 'Government',
+                            labelText: 'District',
                             controller: _districtController,
                             fontSize: getInputFontSize(),
                             readOnly: _isLoadingLocation,
@@ -469,35 +569,6 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
                             controller: _cityController,
                             fontSize: getInputFontSize(),
                             readOnly: _isLoadingLocation,
-                          ),
-
-                          SizedBox(height: constraints.maxHeight * 0.03),
-
-                          // Street and Postal Code (Row)
-                          Row(
-                            children: [
-                              // Street Field
-                              Expanded(
-                                flex: 1,
-                                child: buildTextField(
-                                  labelText: 'Street',
-                                  controller: _streetController,
-                                  fontSize: getInputFontSize(),
-                                  readOnly: _isLoadingLocation,
-                                ),
-                              ),
-                              SizedBox(width: constraints.maxWidth * 0.04),
-                              // Postal Code Field
-                              Expanded(
-                                flex: 1,
-                                child: buildTextField(
-                                  labelText: 'Postal Code',
-                                  controller: _postalCodeController,
-                                  fontSize: getInputFontSize(),
-                                  readOnly: _isLoadingLocation,
-                                ),
-                              ),
-                            ],
                           ),
 
                           SizedBox(height: constraints.maxHeight * 0.04),
@@ -527,8 +598,13 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
                                 ],
                               ),
                               child: ElevatedButton(
-                                onPressed: () {
+                                onPressed: () async {
                                   if (_formKey.currentState!.validate()) {
+                                    // Ensure we have coordinates before proceeding
+                                    if (_latitude == null || _longitude == null) {
+                                      await _getCoordinatesFromAddress();
+                                    }
+
                                     // In SignupServiceprovider2
                                     print("Phone Number in Screen 2: ${widget.userData['phone']}");
 
@@ -541,10 +617,9 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
                                             ...widget.userData, // Spread the existing data
                                             'location': {
                                               'country': _countryController.text,
+                                              'governorate': _governorateController.text,
                                               'district': _districtController.text,
                                               'city': _cityController.text,
-                                              'street': _streetController.text,
-                                              'postalCode': _postalCodeController.text,
                                               'lat': _latitude ?? 0.0,
                                               'lng': _longitude ?? 0.0,
                                               'allowed': true,
@@ -652,7 +727,9 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
       onTap: () {
         if (labelText == 'Country') {
           _showCountryPicker();
-        } else if (labelText == 'Government') {
+        } else if (labelText == 'Governorate') {
+          _showGovernoratePicker();
+        } else if (labelText == 'District') {
           _showDistrictPicker();
         } else if (labelText == 'City') {
           _showCityPicker();
@@ -795,10 +872,9 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
   @override
   void dispose() {
     _countryController.dispose();
+    _governorateController.dispose();
     _districtController.dispose();
     _cityController.dispose();
-    _streetController.dispose();
-    _postalCodeController.dispose();
     super.dispose();
   }
 }

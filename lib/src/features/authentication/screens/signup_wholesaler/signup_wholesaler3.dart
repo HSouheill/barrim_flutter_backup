@@ -27,10 +27,9 @@ class SignupWholesaler3 extends StatefulWidget {
 class _SignupWholesaler3State extends State<SignupWholesaler3> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _countryController = TextEditingController();
+  final TextEditingController _governorateController = TextEditingController();
   final TextEditingController _districtController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
-  final TextEditingController _streetController = TextEditingController();
-  final TextEditingController _postalCodeController = TextEditingController();
   bool _agreeToTerms = false;
   bool _isLoadingLocation = false;
   double? _latitude;
@@ -111,10 +110,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
         "phone": phone,
         "location": {
           "country": _countryController.text.isNotEmpty ? _countryController.text : "Unknown",
+          "governorate": _governorateController.text.isNotEmpty ? _governorateController.text : "Unknown",
           "district": _districtController.text.isNotEmpty ? _districtController.text : "Unknown",
           "city": _cityController.text.isNotEmpty ? _cityController.text : "Unknown",
-          "street": _streetController.text.isNotEmpty ? _streetController.text : "Unknown",
-          "postalCode": _postalCodeController.text.isNotEmpty ? _postalCodeController.text : "00000",
           "coordinates": {
             "lat": _latitude ?? 0.0,
             "lng": _longitude ?? 0.0
@@ -129,10 +127,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
           "emails": emails,
           "address": {
             "country": _countryController.text.isNotEmpty ? _countryController.text : "Unknown",
+            "governorate": _governorateController.text.isNotEmpty ? _governorateController.text : "Unknown",
             "district": _districtController.text.isNotEmpty ? _districtController.text : "Unknown",
             "city": _cityController.text.isNotEmpty ? _cityController.text : "Unknown",
-            "street": _streetController.text.isNotEmpty ? _streetController.text : "Unknown",
-            "postalCode": _postalCodeController.text.isNotEmpty ? _postalCodeController.text : "00000",
             "lat": _latitude ?? 0.0,
             "lng": _longitude ?? 0.0
           },
@@ -159,10 +156,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
       
       print("\nLocation Info:");
       print("Country: ${requestData['location']['country']}");
+      print("Governorate: ${requestData['location']['governorate']}");
       print("District: ${requestData['location']['district']}");
       print("City: ${requestData['location']['city']}");
-      print("Street: ${requestData['location']['street']}");
-      print("Postal Code: ${requestData['location']['postalCode']}");
       print("Coordinates: ${requestData['location']['coordinates']}");
       
       print("\nWholesaler Info:");
@@ -174,10 +170,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
       
       print("\nWholesaler Address:");
       print("Country: ${requestData['wholesalerInfo']['address']['country']}");
+      print("Governorate: ${requestData['wholesalerInfo']['address']['governorate']}");
       print("District: ${requestData['wholesalerInfo']['address']['district']}");
       print("City: ${requestData['wholesalerInfo']['address']['city']}");
-      print("Street: ${requestData['wholesalerInfo']['address']['street']}");
-      print("Postal Code: ${requestData['wholesalerInfo']['address']['postalCode']}");
       print("Coordinates: lat=${requestData['wholesalerInfo']['address']['lat']}, lng=${requestData['wholesalerInfo']['address']['lng']}");
       
       if (requestData['wholesalerInfo']['socialMedia'] != null) {
@@ -316,10 +311,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
         Placemark place = placemarks[0];
         setState(() {
           _countryController.text = place.country ?? '';
-          _districtController.text = place.administrativeArea ?? '';
+          _governorateController.text = place.administrativeArea ?? '';
+          _districtController.text = place.subAdministrativeArea ?? '';
           _cityController.text = place.locality ?? '';
-          _streetController.text = place.street ?? '';
-          _postalCodeController.text = place.postalCode ?? '';
         });
       }
     } catch (e) {
@@ -336,10 +330,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
   void _handleFieldTap(String field) {
     // If fields are empty, auto-fill location when user taps on them
     if (_countryController.text.isEmpty &&
+        _governorateController.text.isEmpty &&
         _districtController.text.isEmpty &&
-        _cityController.text.isEmpty &&
-        _streetController.text.isEmpty &&
-        _postalCodeController.text.isEmpty) {
+        _cityController.text.isEmpty) {
       _getCurrentLocation();
     }
   }
@@ -393,7 +386,8 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
       onSelect: (Country country) {
         setState(() {
           _countryController.text = country.name;
-          // Reset district and city when country changes
+          // Reset governorate, district and city when country changes
+          _governorateController.clear();
           _districtController.clear();
           _cityController.clear();
           _availableCities = [];
@@ -402,7 +396,7 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
     );
   }
 
-  void _showDistrictPicker() {
+  void _showGovernoratePicker() {
     final constraints = MediaQuery.of(context).size;
     final fontSize = constraints.width < 360.0 ? 16.0 : (constraints.width >= 360.0 && constraints.width < 600.0 ? 22.0 : 26.0);
     
@@ -415,7 +409,7 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select Government',
+            'Select Governorate',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: fontSize,
@@ -437,8 +431,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
                   ),
                   onTap: () {
                     setState(() {
-                      _districtController.text = governments[index].name;
+                      _governorateController.text = governments[index].name;
                       _availableCities = governments[index].cities.map((city) => city.name).toList();
+                      _districtController.clear();
                       _cityController.clear();
                     });
                     Navigator.pop(context);
@@ -452,11 +447,11 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
     );
   }
 
-  void _showCityPicker() {
+  void _showDistrictPicker() {
     if (_availableCities.isEmpty) {
       // ScaffoldMessenger.of(context).showSnackBar(
       //   const SnackBar(
-      //     content: Text('Please select a district first'),
+      //     content: Text('Please select a governorate first'),
       //   ),
       // );
       return;
@@ -471,7 +466,7 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select City',
+            'Select District',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: fontSize,
@@ -493,7 +488,69 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
                   ),
                   onTap: () {
                     setState(() {
-                      _cityController.text = _availableCities[index];
+                      _districtController.text = _availableCities[index];
+                      _cityController.clear();
+                    });
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCityPicker() {
+    if (_districtController.text.isEmpty) {
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(
+      //     content: Text('Please select a district first'),
+      //   ),
+      // );
+      return;
+    }
+
+    final constraints = MediaQuery.of(context).size;
+    final fontSize = constraints.width < 360.0 ? 16.0 : (constraints.width >= 360.0 && constraints.width < 600.0 ? 22.0 : 26.0);
+    
+    // Get cities for the selected district
+    final cities = getCitiesForGovernment(_countryController.text, _governorateController.text);
+    final selectedDistrict = cities.firstWhere(
+      (city) => city.name.toLowerCase() == _districtController.text.toLowerCase(),
+      orElse: () => cities.first,
+    );
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF05054F),
+          title: Text(
+            'Select City',
+            style: GoogleFonts.nunito(
+              color: Colors.white,
+              fontSize: fontSize,
+            ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: selectedDistrict.streets.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(
+                    selectedDistrict.streets[index],
+                    style: GoogleFonts.nunito(
+                      color: Colors.white,
+                      fontSize: fontSize * 0.9,
+                    ),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _cityController.text = selectedDistrict.streets[index];
                     });
                     Navigator.pop(context);
                   },
@@ -641,11 +698,24 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
 
                           SizedBox(height: constraints.maxHeight * 0.03),
 
+                          // Governorate Dropdown
+                          GestureDetector(
+                            onTap: () => _handleFieldTap('governorate'),
+                            child: buildDropdownField(
+                              labelText: 'Governorate',
+                              controller: _governorateController,
+                              fontSize: getInputFontSize(MediaQuery.of(context).size),
+                              readOnly: _isLoadingLocation,
+                            ),
+                          ),
+
+                          SizedBox(height: constraints.maxHeight * 0.03),
+
                           // District Dropdown
                           GestureDetector(
                             onTap: () => _handleFieldTap('district'),
                             child: buildDropdownField(
-                              labelText: 'Government',
+                              labelText: 'District',
                               controller: _districtController,
                               fontSize: getInputFontSize(MediaQuery.of(context).size),
                               readOnly: _isLoadingLocation,
@@ -663,41 +733,6 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
                               fontSize: getInputFontSize(MediaQuery.of(context).size),
                               readOnly: _isLoadingLocation,
                             ),
-                          ),
-
-                          SizedBox(height: constraints.maxHeight * 0.03),
-
-                          // Street and Postal Code (Row)
-                          Row(
-                            children: [
-                              // Street Field
-                              Expanded(
-                                flex: 1,
-                                child: GestureDetector(
-                                  onTap: () => _handleFieldTap('street'),
-                                  child: buildTextField(
-                                    labelText: 'Street',
-                                    controller: _streetController,
-                                    fontSize: getInputFontSize(MediaQuery.of(context).size),
-                                    readOnly: _isLoadingLocation,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: constraints.maxWidth * 0.04),
-                              // Postal Code Field
-                              Expanded(
-                                flex: 1,
-                                child: GestureDetector(
-                                  onTap: () => _handleFieldTap('postalCode'),
-                                  child: buildTextField(
-                                    labelText: 'Postal Code',
-                                    controller: _postalCodeController,
-                                    fontSize: getInputFontSize(MediaQuery.of(context).size),
-                                    readOnly: _isLoadingLocation,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ),
 
                           SizedBox(height: constraints.maxHeight * 0.03),
@@ -1056,7 +1091,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
       onTap: () {
         if (labelText == 'Country') {
           _showCountryPicker();
-        } else if (labelText == 'Government') {
+        } else if (labelText == 'Governorate') {
+          _showGovernoratePicker();
+        } else if (labelText == 'District') {
           _showDistrictPicker();
         } else if (labelText == 'City') {
           _showCityPicker();
@@ -1109,10 +1146,9 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
   @override
   void dispose() {
     _countryController.dispose();
+    _governorateController.dispose();
     _districtController.dispose();
     _cityController.dispose();
-    _streetController.dispose();
-    _postalCodeController.dispose();
     super.dispose();
   }
 }

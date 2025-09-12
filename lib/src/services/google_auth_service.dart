@@ -15,6 +15,10 @@ class GoogleSignInProvider extends ChangeNotifier {
       'email',
       'profile',
     ],
+    // Configure client ID for Android
+    clientId: Platform.isAndroid 
+        ? '307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com'
+        : null, // iOS will use the default from GoogleService-Info.plist
   );
   GoogleSignInAccount? _user;
   GoogleSignInAccount get user => _user!;
@@ -74,25 +78,38 @@ class GoogleSignInProvider extends ChangeNotifier {
 
       // Start the Google Sign In process
       try {
+        print("Starting Google Sign-In process...");
+        print("Platform: ${Platform.isAndroid ? 'Android' : 'iOS'}");
+        print("Client ID configured: ${Platform.isAndroid ? 'Yes' : 'Using default'}");
+        
         // Sign out first to ensure fresh login
         await googleSignIn.signOut();
+        print("Signed out from previous session");
         
         // Force a new sign-in to get fresh tokens
         final googleUser = await googleSignIn.signIn();
         if (googleUser == null) {
+          print("Google Sign-In was canceled by user");
           _isLoading = false;
           notifyListeners();
           return null; // User canceled the sign-in flow
         }
         _user = googleUser;
+        print("Google Sign-In successful for user: ${googleUser.email}");
       } catch (e) {
         print("Google Sign In error: $e");
-        if (e.toString().contains('network_error')) {
+        print("Error type: ${e.runtimeType}");
+        
+        if (e.toString().contains('network_error') || e.toString().contains('NETWORK_ERROR')) {
           throw Exception('Network error occurred. Please check your connection and try again.');
-        } else if (e.toString().contains('sign_in_canceled')) {
+        } else if (e.toString().contains('sign_in_canceled') || e.toString().contains('SIGN_IN_CANCELED')) {
           _isLoading = false;
           notifyListeners();
           return null; // User canceled sign-in
+        } else if (e.toString().contains('sign_in_failed') || e.toString().contains('SIGN_IN_FAILED')) {
+          throw Exception('Google Sign-In failed. Please check your Google account settings and try again.');
+        } else if (e.toString().contains('DEVELOPER_ERROR')) {
+          throw Exception('Google Sign-In configuration error. Please contact support.');
         } else {
           throw Exception('Failed to sign in with Google: ${e.toString()}');
         }

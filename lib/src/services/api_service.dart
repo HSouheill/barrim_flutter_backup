@@ -308,6 +308,7 @@ class ApiService {
           locationData['country'] = address['country'] ?? '';
           locationData['city'] = address['city'] ?? '';
           locationData['district'] = address['district'] ?? '';
+          locationData['governorate'] = address['governorate'] ?? '';
           locationData['street'] = address['street'] ?? '';
           locationData['postalCode'] = address['postalCode'] ?? '';
           locationData['fullAddress'] = address['fullAddress'] ?? '';
@@ -326,6 +327,12 @@ class ApiService {
         'interestedDeals': userData['interestedDeals'] ?? [],
         'location': locationData,
       };
+      
+      // Debug print to verify what's being sent to backend
+      print('=== API SERVICE SIGNUP DEBUG ===');
+      print('Location data being sent: $locationData');
+      print('Full request data: $requestData');
+      print('================================');
       
       
       // await ApiService.signupBusiness(requestData);

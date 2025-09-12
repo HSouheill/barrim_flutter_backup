@@ -10,7 +10,6 @@ import '../custom_header.dart';
 import '../responsive_utils.dart';
 import '../verification_code.dart';
 import '../white_headr.dart';
-import '../login_page.dart';
 import '../welcome_page.dart';
 import '../../../../services/api_service.dart';
 import '../../../../data/global_locations.dart';
@@ -27,10 +26,9 @@ class SignupCompany3 extends StatefulWidget {
 class _SignupCompany3State extends State<SignupCompany3> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _countryController = TextEditingController();
+  final TextEditingController _governorateController = TextEditingController();
   final TextEditingController _districtController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
-  final TextEditingController _streetController = TextEditingController();
-  final TextEditingController _postalCodeController = TextEditingController();
   bool _agreeToTerms = false;
   bool _isLoadingLocation = false;
   double? _latitude;
@@ -86,10 +84,9 @@ class _SignupCompany3State extends State<SignupCompany3> {
         Placemark place = placemarks[0];
         setState(() {
           _countryController.text = place.country ?? '';
-          _districtController.text = place.administrativeArea ?? '';
+          _governorateController.text = place.administrativeArea ?? '';
+          _districtController.text = place.subAdministrativeArea ?? '';
           _cityController.text = place.locality ?? '';
-          _streetController.text = '${place.street ?? ''} ${place.subThoroughfare ?? ''}';
-          _postalCodeController.text = place.postalCode ?? '';
         });
       }
     } catch (e) {
@@ -150,7 +147,8 @@ class _SignupCompany3State extends State<SignupCompany3> {
       onSelect: (Country country) {
         setState(() {
           _countryController.text = country.name;
-          // Reset district and city when country changes
+          // Reset governorate, district and city when country changes
+          _governorateController.clear();
           _districtController.clear();
           _cityController.clear();
           _availableCities = [];
@@ -159,7 +157,7 @@ class _SignupCompany3State extends State<SignupCompany3> {
     );
   }
 
-  void _showDistrictPicker() {
+  void _showGovernoratePicker() {
     // Get governments for the selected country
     final governments = getGovernmentsForCountry(_countryController.text);
     
@@ -169,7 +167,7 @@ class _SignupCompany3State extends State<SignupCompany3> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select Government',
+            'Select Governorate',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -191,11 +189,14 @@ class _SignupCompany3State extends State<SignupCompany3> {
                   ),
                   onTap: () {
                     setState(() {
-                      _districtController.text = governments[index].name;
+                      _governorateController.text = governments[index].name;
                       _availableCities = governments[index].cities.map((city) => city.name).toList();
+                      _districtController.clear();
                       _cityController.clear();
                     });
                     Navigator.pop(context);
+                    // Get coordinates if all fields are now filled
+                    _getCoordinatesFromAddress();
                   },
                 );
               },
@@ -206,11 +207,11 @@ class _SignupCompany3State extends State<SignupCompany3> {
     );
   }
 
-  void _showCityPicker() {
+  void _showDistrictPicker() {
     if (_availableCities.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a Government first'),
+          content: Text('Please select a governorate first'),
         ),
       );
       return;
@@ -222,7 +223,7 @@ class _SignupCompany3State extends State<SignupCompany3> {
         return AlertDialog(
           backgroundColor: const Color(0xFF05054F),
           title: Text(
-            'Select City',
+            'Select District',
             style: GoogleFonts.nunito(
               color: Colors.white,
               fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -244,9 +245,72 @@ class _SignupCompany3State extends State<SignupCompany3> {
                   ),
                   onTap: () {
                     setState(() {
-                      _cityController.text = _availableCities[index];
+                      _districtController.text = _availableCities[index];
+                      _cityController.clear();
                     });
                     Navigator.pop(context);
+                    // Get coordinates if all fields are now filled
+                    _getCoordinatesFromAddress();
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCityPicker() {
+    if (_districtController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a district first'),
+        ),
+      );
+      return;
+    }
+
+    // Get cities for the selected district
+    final cities = getCitiesForGovernment(_countryController.text, _governorateController.text);
+    final selectedDistrict = cities.firstWhere(
+      (city) => city.name.toLowerCase() == _districtController.text.toLowerCase(),
+      orElse: () => cities.first,
+    );
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF05054F),
+          title: Text(
+            'Select City',
+            style: GoogleFonts.nunito(
+              color: Colors.white,
+              fontSize: ResponsiveUtils.getInputLabelFontSize(context),
+            ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: selectedDistrict.streets.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(
+                    selectedDistrict.streets[index],
+                    style: GoogleFonts.nunito(
+                      color: Colors.white,
+                      fontSize: ResponsiveUtils.getInputLabelFontSize(context) * 0.9,
+                    ),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _cityController.text = selectedDistrict.streets[index];
+                    });
+                    Navigator.pop(context);
+                    // Get coordinates when city is selected (all fields are now filled)
+                    _getCoordinatesFromAddress();
                   },
                 );
               },
@@ -268,6 +332,11 @@ class _SignupCompany3State extends State<SignupCompany3> {
         const SnackBar(content: Text("Please agree to the Terms of Service and Privacy Policy")),
       );
       return;
+    }
+
+    // Ensure we have coordinates before submitting
+    if (_latitude == null || _longitude == null) {
+      await _getCoordinatesFromAddress();
     }
 
     // Get the logo file if it exists
@@ -292,10 +361,9 @@ class _SignupCompany3State extends State<SignupCompany3> {
 
     print("\nLocation Info:");
     print("Country: ${_countryController.text}");
+    print("Governorate: ${_governorateController.text}");
     print("District: ${_districtController.text}");
     print("City: ${_cityController.text}");
-    print("Street: ${_streetController.text}");
-    print("Postal Code: ${_postalCodeController.text}");
     print("Latitude: $_latitude");
     print("Longitude: $_longitude");
     print("==============================");
@@ -313,25 +381,15 @@ class _SignupCompany3State extends State<SignupCompany3> {
 
     final phone = widget.userData['phone'] ?? '';
     try {
-      // Collect location data
-      final location = {
-        "country": _countryController.text,
-        "district": _districtController.text,
-        "city": _cityController.text,
-        "street": _streetController.text,
-        "postalCode": _postalCodeController.text,
-        "lat": _latitude ?? 0.0,
-        "lng": _longitude ?? 0.0,
-      };
+      // Location data is now included directly in updatedUserData below
 
       // Create the complete user data object - ensuring all companyInfo keys are consistent
       final updatedUserData = {
         ...widget.userData,
         "country": _countryController.text,
+        "governorate": _governorateController.text,
         "district": _districtController.text,
         "city": _cityController.text,
-        "street": _streetController.text,
-        "postalCode": _postalCodeController.text,
         "lat": _latitude ?? 0.0,
         "lng": _longitude ?? 0.0,
         "userType": "company",
@@ -386,16 +444,42 @@ class _SignupCompany3State extends State<SignupCompany3> {
     }
   }
 
-  void _handleFieldTap(String field) {
-    // If fields are empty, auto-fill location when user taps on them
-    if (_countryController.text.isEmpty &&
-        _districtController.text.isEmpty &&
-        _cityController.text.isEmpty &&
-        _streetController.text.isEmpty &&
-        _postalCodeController.text.isEmpty) {
-      _autoFillLocation();
+  Future<void> _getCoordinatesFromAddress() async {
+    if (_countryController.text.isNotEmpty &&
+        _governorateController.text.isNotEmpty &&
+        _districtController.text.isNotEmpty &&
+        _cityController.text.isNotEmpty) {
+      
+      try {
+        // Build address string from selected fields
+        final addressString = '${_cityController.text}, ${_districtController.text}, ${_governorateController.text}, ${_countryController.text}';
+        
+        // Get coordinates from address
+        List<Location> locations = await locationFromAddress(addressString);
+        
+        if (locations.isNotEmpty) {
+          setState(() {
+            _latitude = locations[0].latitude;
+            _longitude = locations[0].longitude;
+          });
+          
+          print('=== MANUAL LOCATION COORDINATES ===');
+          print('Address: $addressString');
+          print('Latitude: $_latitude');
+          print('Longitude: $_longitude');
+          print('===================================');
+        }
+      } catch (e) {
+        print('Error getting coordinates from address: $e');
+        // If geocoding fails, set default coordinates (center of Lebanon)
+        setState(() {
+          _latitude = 33.8;
+          _longitude = 35.8;
+        });
+      }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -495,10 +579,22 @@ class _SignupCompany3State extends State<SignupCompany3> {
                               ),
                               const SizedBox(height: 20),
                               GestureDetector(
+                                onTap: _showGovernoratePicker,
+                                child: AbsorbPointer(
+                                  child: buildTextField(
+                                    labelText: 'Governorate',
+                                    controller: _governorateController,
+                                    readOnly: true,
+                                    suffixIcon: Icons.keyboard_arrow_down,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              GestureDetector(
                                 onTap: _showDistrictPicker,
                                 child: AbsorbPointer(
                                   child: buildTextField(
-                                    labelText: 'Government',
+                                    labelText: 'District',
                                     controller: _districtController,
                                     readOnly: true,
                                     suffixIcon: Icons.keyboard_arrow_down,
@@ -516,18 +612,6 @@ class _SignupCompany3State extends State<SignupCompany3> {
                                     suffixIcon: Icons.keyboard_arrow_down,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 20),
-                              buildTextField(
-                                labelText: 'Street',
-                                controller: _streetController,
-                                readOnly: _isLoadingLocation,
-                              ),
-                              const SizedBox(height: 20),
-                              buildTextField(
-                                labelText: 'Postal Code',
-                                controller: _postalCodeController,
-                                readOnly: _isLoadingLocation,
                               ),
                               const SizedBox(height: 30),
                               Row(
@@ -855,10 +939,9 @@ class _SignupCompany3State extends State<SignupCompany3> {
   @override
   void dispose() {
     _countryController.dispose();
+    _governorateController.dispose();
     _districtController.dispose();
     _cityController.dispose();
-    _streetController.dispose();
-    _postalCodeController.dispose();
     super.dispose();
   }
 }

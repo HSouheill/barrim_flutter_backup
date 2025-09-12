@@ -34,11 +34,8 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
   late TextEditingController _countryController;
   late TextEditingController _districtController;
   late TextEditingController _cityController;
-  late TextEditingController _streetController;
-  late TextEditingController _postalCodeController;
 
   // Calendar-related variables
-  CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
@@ -57,12 +54,8 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
 
   // Location data
   Map<String, dynamic> _locationData = {};
-  List<String> _countries = [];
-  List<String> _districts = [];
-  List<String> _cities = [];
   String? _selectedCountry;
   String? _selectedDistrict;
-  String? _selectedCity;
 
   // For Lebanon-specific districts/cities
   List<String> _lebanonDistricts = [];
@@ -90,8 +83,6 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
     _countryController = TextEditingController(text: 'Lebanon');
     _districtController = TextEditingController();
     _cityController = TextEditingController();
-    _streetController = TextEditingController();
-    _postalCodeController = TextEditingController();
   }
 
   Future<void> _loadLocationData() async {
@@ -99,7 +90,6 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
     final Map<String, dynamic> jsonData = json.decode(jsonString);
     setState(() {
       _locationData = jsonData;
-      _countries = jsonData.keys.toList();
     });
   }
 
@@ -123,17 +113,10 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
         // Set location dropdowns from provider data
         _selectedCountry = provider.location?.country;
         if (_selectedCountry != null && _locationData.containsKey(_selectedCountry)) {
-          _districts = (_locationData[_selectedCountry] as Map<String, dynamic>).keys.toList();
           _selectedDistrict = provider.location?.district;
-          if (_selectedDistrict != null && (_locationData[_selectedCountry] as Map<String, dynamic>).containsKey(_selectedDistrict)) {
-            _cities = List<String>.from((_locationData[_selectedCountry][_selectedDistrict] as List<dynamic>));
-            _selectedCity = provider.location?.city;
-          }
         }
         _districtController.text = provider.location?.district ?? '';
         _cityController.text = provider.location?.city ?? '';
-        _streetController.text = provider.location?.street ?? '';
-        _postalCodeController.text = provider.location?.postalCode ?? '';
 
         // Set available days if they exist
         if (provider.serviceProviderInfo?.availableDays != null) {
@@ -198,8 +181,6 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
     _countryController.dispose();
     _districtController.dispose();
     _cityController.dispose();
-    _streetController.dispose();
-    _postalCodeController.dispose();
     super.dispose();
   }
 
@@ -267,8 +248,6 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
           'country': _countryController.text,
           'district': _districtController.text,
           'city': _cityController.text,
-          'street': _streetController.text,
-          'postalCode': _postalCodeController.text,
         },
       };
 
@@ -473,18 +452,6 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
                         },
                         enabled: _countryController.text == 'Lebanon',
                       ),
-                      const SizedBox(height: 16),
-                      // Street (remains a text field)
-                      _buildFieldLabel('Street'),
-                      _buildTextField(_streetController, 'Enter street'),
-                      const SizedBox(height: 16),
-                      // Postal Code
-                      _buildFieldLabel('Postal Code'),
-                      _buildTextField(
-                        _postalCodeController,
-                        'Enter postal code',
-                        keyboardType: TextInputType.number,
-                      ),
                       const SizedBox(height: 24),
 
                       // Availability Calendar
@@ -686,7 +653,6 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
         // List of time slots
         ..._timeSlots.asMap().entries.map((entry) {
           final index = entry.key;
-          final slot = entry.value;
           return Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Row(

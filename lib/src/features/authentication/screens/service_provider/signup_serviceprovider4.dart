@@ -20,7 +20,6 @@ class SignupServiceprovider4 extends StatefulWidget {
 
 class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
   final List<String> _weekdays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-  final List<String> _fullWeekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   // Calendar state variables
   DateTime _currentDate = DateTime.now();
@@ -133,9 +132,10 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
     _selectedDaysPerMonth[monthKey] = [];
 
     // Select all days in the current month that match the selected pattern from first month
+    // but exclude past days
     for (int day = 1; day <= daysInMonth; day++) {
       final date = DateTime(_currentDate.year, _currentDate.month, day);
-      if (_firstMonthWeekdayPattern[date.weekday] == true) {
+      if (_firstMonthWeekdayPattern[date.weekday] == true && !_isPastDay(day)) {
         _selectedDaysPerMonth[monthKey]!.add(day);
       }
     }
@@ -159,12 +159,23 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
     }
   }
 
+  // Check if a day is in the past
+  bool _isPastDay(int day) {
+    final date = DateTime(_currentDate.year, _currentDate.month, day);
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    return date.isBefore(todayDate);
+  }
+
   // Handle day selection
   void _selectDay(int day) {
+    // Prevent selection of past days
+    if (_isPastDay(day)) {
+      return;
+    }
+
     setState(() {
       final monthKey = _getMonthKey(_currentDate);
-      final date = DateTime(_currentDate.year, _currentDate.month, day);
-      final weekday = date.weekday; // 1=Monday, 7=Sunday
 
       // Initialize the month if not already in the map
       _selectedDaysPerMonth.putIfAbsent(monthKey, () => []);
@@ -223,9 +234,10 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
       _selectedDaysPerMonth[monthKey] = [];
 
       // Select all days that match the first month pattern
+      // but exclude past days
       for (int day = 1; day <= daysInMonth; day++) {
         final date = DateTime(monthDate.year, monthDate.month, day);
-        if (_firstMonthWeekdayPattern[date.weekday] == true) {
+        if (_firstMonthWeekdayPattern[date.weekday] == true && !_isPastDay(day)) {
           _selectedDaysPerMonth[monthKey]!.add(day);
         }
       }
@@ -593,31 +605,36 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
             ),
 
             // Current month days
-            ...currentMonthDays.map((day) =>
-                GestureDetector(
-                  onTap: disableSelection ? null : () => _selectDay(day),
-                  child: Container(
-                    margin: EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: selectedDays.contains(day) ? Color(0xFF009DFF) : null,
-                      borderRadius: BorderRadius.circular(5),
-                      // Add subtle indicator for disabled cells
-                      border: disableSelection ? Border.all(color: Colors.grey.withOpacity(0.2)) : null,
-                    ),
-                    child: Center(
-                      child: Text(
-                        day.toString(),
-                        style: GoogleFonts.nunito(
-                          fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.8,
-                          color: selectedDays.contains(day) ? Colors.white :
-                          disableSelection ? Colors.black.withOpacity(0.6) : Colors.black,
-                          fontWeight: selectedDays.contains(day) ? FontWeight.bold : FontWeight.normal,
-                        ),
+            ...currentMonthDays.map((day) {
+              final isPastDay = _isPastDay(day);
+              final isDisabled = disableSelection || isPastDay;
+              
+              return GestureDetector(
+                onTap: isDisabled ? null : () => _selectDay(day),
+                child: Container(
+                  margin: EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: selectedDays.contains(day) ? Color(0xFF009DFF) : 
+                           isPastDay ? Colors.red.withOpacity(0.3) : null,
+                    borderRadius: BorderRadius.circular(5),
+                    // Add subtle indicator for disabled cells
+                    border: isDisabled ? Border.all(color: Colors.grey.withOpacity(0.2)) : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      day.toString(),
+                      style: GoogleFonts.nunito(
+                        fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.8,
+                        color: selectedDays.contains(day) ? Colors.white :
+                               isPastDay ? Colors.red :
+                               isDisabled ? Colors.black.withOpacity(0.6) : Colors.black,
+                        fontWeight: selectedDays.contains(day) ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                   ),
-                )
-            ),
+                ),
+              );
+            }),
 
             // Next month days
             ...nextMonthDays.map((day) =>

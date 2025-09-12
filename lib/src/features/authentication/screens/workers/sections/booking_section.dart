@@ -562,6 +562,10 @@ class _BookingSectionState extends State<BookingSection> {
       );
 
       if (success) {
+        // Store the selected time slot before clearing the form
+        final selectedTimeSlot = _selectedTimeSlot;
+        final selectedDate = _selectedDate;
+        
         // Reset form
         _phoneController.clear();
         _detailsController.clear();
@@ -574,9 +578,8 @@ class _BookingSectionState extends State<BookingSection> {
 
         await _loadAvailableTimeSlots();
 
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(content: Text('Appointment booked successfully!')),
-        // );
+        // Show success popup with the stored values
+        _showBookingSuccessDialog(selectedDate, selectedTimeSlot);
       }
     } catch (e) {
       String errorMsg = e.toString();
@@ -597,6 +600,86 @@ class _BookingSectionState extends State<BookingSection> {
         _isBookingInProgress = false;
       });
     }
+  }
+
+  void _showBookingSuccessDialog(DateTime selectedDate, String? selectedTimeSlot) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.bottomLeft,
+                end: Alignment.topRight,
+                colors: [
+                  Color(0xFF0094FF),
+                  Color(0xFF05055A),
+                  Color(0xFF0094FF),
+                ],
+              ),
+            ),
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.white,
+                  size: 60,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Booking Successful!',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Your appointment has been booked for ${DateFormat('EEEE, MMM d, yyyy').format(selectedDate)} at ${selectedTimeSlot ?? 'selected time'}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF05055A),
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
