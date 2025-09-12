@@ -242,8 +242,7 @@ class ApiService {
           await saveToken(token);
           await AuthManager.saveAuthData(token);
 
-          // Verify token was saved
-          final savedToken = await AuthManager.getToken();
+          // Token saved successfully
 
           // Store user type for future reference
           String userType = responseData['data']['user']['userType'] ?? 'user';
@@ -831,7 +830,6 @@ class ApiService {
           'location': responseData['data']['location'] ?? {},
         };
       } else {
-        final errorResponse = json.decode(response.body);
         throw Exception('Failed to load company data: ${response.statusCode}');
       }
     } catch (e) {
@@ -2527,17 +2525,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
     required String phone,
   }) async {
     try {
-      // Get API key or any existing auth tokens if available
-      final apiKey = await _secureStorage.read(key: 'api_key') ?? '';
-      final tempToken = await _secureStorage.read(key: 'temp_auth_token') ?? '';
-
-
-      // Build headers with authentication
-      final headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $tempToken',  // Use temporary token if available
-        'X-API-Key': apiKey,                   // Include API key if your backend expects it
-      };
+      // Prepare request body
 
       final response = await _makeRequest(
         'POST',
@@ -2821,8 +2809,6 @@ static Future<List<NotificationModel>> fetchNotifications() async {
 
       // Check response status
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-
         // Update cached data
         try {
           final cachedData = await _secureStorage.read(key: 'service_provider_data');
@@ -3159,6 +3145,53 @@ static Future<List<NotificationModel>> fetchNotifications() async {
       print('=== WHOLESALER CATEGORIES METHOD ERROR ===');
       // Return empty map on error
       return {};
+    }
+  }
+
+  // Voucher System Functions
+
+  /// Get available vouchers for the current user
+  static Future<Map<String, dynamic>> getAvailableVouchers() async {
+    try {
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/vouchers'),
+        headers: await _getHeaders(),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return responseData['data'] ?? {};
+      } else {
+        throw Exception(
+            responseData['message'] ?? 'Failed to get available vouchers');
+      }
+    } catch (e) {
+      throw Exception('Failed to get available vouchers: ${e.toString()}');
+    }
+  }
+
+  /// Purchase a voucher with points
+  static Future<Map<String, dynamic>> purchaseVoucher(String voucherId) async {
+    try {
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/vouchers/purchase'),
+        headers: await _getHeaders(),
+        body: jsonEncode({'voucherId': voucherId}),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return responseData;
+      } else {
+        throw Exception(
+            responseData['message'] ?? 'Failed to purchase voucher');
+      }
+    } catch (e) {
+      throw Exception('Failed to purchase voucher: ${e.toString()}');
     }
   }
 

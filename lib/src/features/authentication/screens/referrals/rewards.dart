@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../services/api_service.dart';
+import '../../../../models/voucher.dart';
 import '../user_dashboard/notification.dart' as notification;
 import '../user_dashboard/home.dart';
 import '../category/categories.dart';
 import '../workers/worker_home.dart';
-import '../booking/myboooking.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
 import 'user_referral.dart';
@@ -24,6 +24,8 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
   String errorMessage = '';
   bool _isSidebarOpen = false;
   String? _profileImagePath;
+  List<UserVoucher> vouchers = [];
+  bool isLoadingVouchers = false;
 
   void _toggleSidebar() {
     setState(() {
@@ -189,9 +191,10 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 1, vsync: this);
     _fetchReferralData();
     _fetchUserData();
+    _fetchVouchers();
   }
 
   @override
@@ -230,7 +233,7 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
   Future<void> _fetchUserData() async {
     try {
       final userData = await ApiService.getUserData();
-      if (userData != null && userData['profilePic'] != null) {
+      if (userData['profilePic'] != null) {
         setState(() {
           _profileImagePath = ApiService.getImageUrl(userData['profilePic']);
           print('Profile Image Path: $_profileImagePath');
@@ -241,6 +244,64 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
     } catch (e) {
       print('Error fetching user data: $e');
       // Don't update state on error to keep existing profile picture
+    }
+  }
+
+  Future<void> _fetchVouchers() async {
+    setState(() {
+      isLoadingVouchers = true;
+    });
+
+    try {
+      final voucherData = await ApiService.getAvailableVouchers();
+      
+      // Debug: Print voucher data
+      print('Voucher Data from API: $voucherData');
+      
+      setState(() {
+        if (voucherData['vouchers'] != null) {
+          vouchers = (voucherData['vouchers'] as List)
+              .map((voucherJson) => UserVoucher.fromJson(voucherJson))
+              .toList();
+          print('Parsed ${vouchers.length} vouchers');
+        }
+        isLoadingVouchers = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoadingVouchers = false;
+        hasError = true;
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _purchaseVoucher(String voucherId) async {
+    try {
+      final result = await ApiService.purchaseVoucher(voucherId);
+      
+      if (result['status'] == 200) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Voucher purchased successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Refresh vouchers and points
+        await _fetchVouchers();
+        await _fetchReferralData();
+      } else {
+        throw Exception(result['message'] ?? 'Failed to purchase voucher');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to purchase voucher: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -379,33 +440,80 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                   controller: _tabController,
                   children: [
                     // Rewards Tab
-                    ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      children: [
-                        _buildRewardCard(
-                          title: 'Get 20% discount code to use for any activity!',
-                          pointsCost: 30,
-                          iconColor: Colors.red,
-                          discount: '20%',
-                          available: true,
-                        ),
-                        _buildRewardCard(
-                          title: 'Get 30% discount code to use for any activity!',
-                          pointsCost: 50,
-                          iconColor: Colors.red,
-                          discount: '30%',
-                          available: true,
-                        ),
-                        _buildRewardCard(
-                          title: '1x Free Booking of your choice!',
-                          pointsCost: 60,
-                          imageAsset: 'assets/images/booking.jpg',
-                          available: true,
-                        ),
-
-                        const SizedBox(height: 16),
-                      ],
-                    ),
+                    isLoadingVouchers
+                        ? Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                            ),
+                          )
+                        : hasError
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.error_outline,
+                                      size: 64,
+                                      color: Colors.red,
+                                    ),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'Failed to load vouchers',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      errorMessage,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: Colors.grey[600]),
+                                    ),
+                                    SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: _fetchVouchers,
+                                      child: Text('Retry'),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : vouchers.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.card_giftcard,
+                                          size: 64,
+                                          color: Colors.grey[400],
+                                        ),
+                                        SizedBox(height: 16),
+                                        Text(
+                                          'No vouchers available',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          'Check back later for new rewards!',
+                                          style: TextStyle(color: Colors.grey[500]),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    itemCount: vouchers.length,
+                                    itemBuilder: (context, index) {
+                                      final userVoucher = vouchers[index];
+                                      return _buildVoucherCard(userVoucher);
+                                    },
+                                  ),
                   ],
                 ),
               ),
@@ -437,14 +545,15 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildRewardCard({
-    required String title,
-    required int pointsCost,
-    Color iconColor = Colors.blue,
-    String? discount,
-    String? imageAsset,
-    required bool available,
-  }) {
+  Widget _buildVoucherCard(UserVoucher userVoucher) {
+    final voucher = userVoucher.voucher;
+    final canPurchase = userVoucher.canPurchase && points >= voucher.points;
+    
+    // Debug: Print voucher information
+    print('Voucher: ${voucher.title}');
+    print('Image URL: ${voucher.imageUrl}');
+    print('Full Image URL: ${voucher.imageUrl != null ? ApiService.getImageUrl(voucher.imageUrl!) : 'No image'}');
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -453,50 +562,110 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
       ),
       child: Row(
         children: [
-          // Left side - discount badge or image
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: discount != null ? iconColor : null,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                bottomLeft: Radius.circular(8),
-              ),
-              image: imageAsset != null
-                  ? DecorationImage(
-                image: AssetImage(imageAsset),
-                fit: BoxFit.cover,
-              )
-                  : null,
+          // Left side - voucher image or discount badge
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(8),
+              bottomLeft: Radius.circular(8),
             ),
-            child: discount != null
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    discount,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+            child: Container(
+              width: 80,
+              height: 80,
+              color: voucher.imageUrl == null 
+                  ? (voucher.discount != null ? Colors.red : Colors.blue)
+                  : null,
+              child: voucher.imageUrl != null
+                  ? Image.network(
+                      ApiService.getImageUrl(voucher.imageUrl!),
+                      fit: BoxFit.cover,
+                      width: 80,
+                      height: 80,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Error loading voucher image: $error');
+                        print('Image URL: ${ApiService.getImageUrl(voucher.imageUrl!)}');
+                        return Container(
+                          color: voucher.discount != null ? Colors.red : Colors.blue,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (voucher.discount != null) ...[
+                                  Text(
+                                    voucher.discount!,
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const Text(
+                                    'Discount',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ] else ...[
+                                  Icon(
+                                    Icons.card_giftcard,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                  const Text(
+                                    'Voucher',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  : Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (voucher.discount != null) ...[
+                            Text(
+                              voucher.discount!,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const Text(
+                              'Discount',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ] else ...[
+                            Icon(
+                              Icons.card_giftcard,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                            const Text(
+                              'Voucher',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const Text(
-                    'Discount Code',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            )
-                : null,
+            ),
           ),
 
-          // Right side - reward details
+          // Right side - voucher details
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -504,12 +673,26 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    voucher.title,
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  if (voucher.description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      voucher.description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -524,7 +707,7 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '$pointsCost',
+                            '${voucher.points}',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -534,18 +717,23 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                         ],
                       ),
                       ElevatedButton(
-                        onPressed: available && points >= pointsCost ? () {} : null,
+                        onPressed: canPurchase
+                            ? () => _purchaseVoucher(voucher.id)
+                            : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: available && points >= pointsCost ? Colors.blue : Colors.grey[300],
+                          backgroundColor: canPurchase ? Colors.blue : Colors.grey[300],
                           minimumSize: const Size(60, 30),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
                         ),
-                        child: const Text(
-                          'Get',
-                          style: TextStyle(color: Colors.white),
+                        child: Text(
+                          canPurchase ? 'Get' : 'Insufficient Points',
+                          style: TextStyle(
+                            color: canPurchase ? Colors.white : Colors.grey[600],
+                            fontSize: canPurchase ? 14 : 10,
+                          ),
                         ),
                       ),
                     ],
