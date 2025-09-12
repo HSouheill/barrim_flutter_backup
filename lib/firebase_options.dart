@@ -41,13 +41,12 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCv-XhnrDaOgM-EzK9VMHHbz8gs8yLT8lU',
-    appId: '1:307776183600:web:9b6bd80ac294904bb5fcf5',
+    apiKey: 'AIzaSyDG54P5AZ3i3uj1l_A1SCIi-vutN0nVAK8',
+    appId: '1:307776183600:web:1664503f45a706b1b5fcf5',
     messagingSenderId: '307776183600',
     projectId: 'barrim-3b45a',
     authDomain: 'barrim-3b45a.firebaseapp.com',
     storageBucket: 'barrim-3b45a.firebasestorage.app',
-    measurementId: 'G-H0ML7PXS6V',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -59,34 +58,29 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDYwCHkNIoKE2-Dxn4ck3C5N_xxNOCnUxI',
-    appId: '1:307776183600:ios:5bf9edb81f519538b5fcf5',
+    apiKey: 'AIzaSyDG54P5AZ3i3uj1l_A1SCIi-vutN0nVAK8',
+    appId: '1:307776183600:ios:1664503f45a706b1b5fcf5',
     messagingSenderId: '307776183600',
     projectId: 'barrim-3b45a',
     storageBucket: 'barrim-3b45a.firebasestorage.app',
-    androidClientId: '307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com',
-    iosClientId: '307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com',
-    iosBundleId: 'com.barrim.barrim',
+    iosBundleId: 'com.Barrim.AppBarrim',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDYwCHkNIoKE2-Dxn4ck3C5N_xxNOCnUxI',
-    appId: '1:307776183600:ios:5bf9edb81f519538b5fcf5',
+    apiKey: 'AIzaSyDG54P5AZ3i3uj1l_A1SCIi-vutN0nVAK8',
+    appId: '1:307776183600:ios:1664503f45a706b1b5fcf5',
     messagingSenderId: '307776183600',
     projectId: 'barrim-3b45a',
     storageBucket: 'barrim-3b45a.firebasestorage.app',
-    androidClientId: '307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com',
-    iosClientId: '307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com',
-    iosBundleId: 'com.barrim.barrim',
+    iosBundleId: 'com.Barrim.AppBarrim',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCv-XhnrDaOgM-EzK9VMHHbz8gs8yLT8lU',
-    appId: '1:307776183600:web:09405d1f6c0e2389b5fcf5',
+    apiKey: 'AIzaSyDG54P5AZ3i3uj1l_A1SCIi-vutN0nVAK8',
+    appId: '1:307776183600:web:1664503f45a706b1b5fcf5',
     messagingSenderId: '307776183600',
     projectId: 'barrim-3b45a',
     authDomain: 'barrim-3b45a.firebaseapp.com',
     storageBucket: 'barrim-3b45a.firebasestorage.app',
-    measurementId: 'G-PV9ZXF63ED',
   );
 }

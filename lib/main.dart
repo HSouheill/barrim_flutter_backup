@@ -14,6 +14,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
 import '../src/utils/edge_to_edge_helper.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +23,11 @@ Future<void> main() async {
   // Load environment variables
   await dotenv.load(fileName: ".env");
 
-  // Firebase initialization removed to avoid Apple sign-in conflicts
-  print("Firebase Core not initialized - using native Apple sign-in");
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  print("Firebase initialized successfully");
 
   // Initialize Google Maps services
   print("Initializing Google Maps services...");

@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:307776183600:android:1664503f45a706b1b5fcf5",
         "android_client_info": {
-          "package_name": "com.Barrim.AppBarrim"
+          "package_name": "com.barrim.barrim"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.Barrim.AppBarrim",
+            "package_name": "com.barrim.barrim",
             "certificate_hash": "764c1cf48f476fbef32d43baf8a5d5778625cbd0"
           }
         },
@@ -42,7 +42,7 @@
               "client_id": "307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.Barrim.AppBarrim",
+                "bundle_id": "com.barrim.barrim",
                 "app_store_id": "22375160039"
               }
             }
