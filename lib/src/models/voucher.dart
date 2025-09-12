@@ -80,11 +80,15 @@ class UserVoucher {
   final Voucher voucher;
   final bool canPurchase;
   final int userPoints;
+  final bool isPurchased;
+  final VoucherPurchase? purchase;
 
   UserVoucher({
     required this.voucher,
     required this.canPurchase,
     required this.userPoints,
+    this.isPurchased = false,
+    this.purchase,
   });
 
   factory UserVoucher.fromJson(Map<String, dynamic> json) {
@@ -95,6 +99,8 @@ class UserVoucher {
       voucher: Voucher.fromJson(json['voucher'] ?? {}),
       canPurchase: json['canPurchase'] ?? false,
       userPoints: json['userPoints'] ?? 0,
+      isPurchased: json['isPurchased'] ?? false,
+      purchase: json['purchase'] != null ? VoucherPurchase.fromJson(json['purchase']) : null,
     );
   }
 
@@ -103,6 +109,8 @@ class UserVoucher {
       'voucher': voucher.toJson(),
       'canPurchase': canPurchase,
       'userPoints': userPoints,
+      'isPurchased': isPurchased,
+      'purchase': purchase?.toJson(),
     };
   }
 }

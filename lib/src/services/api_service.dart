@@ -3195,5 +3195,27 @@ static Future<List<NotificationModel>> fetchNotifications() async {
     }
   }
 
+  /// Get user's purchased vouchers
+  static Future<Map<String, dynamic>> getUserPurchasedVouchers() async {
+    try {
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/vouchers/my-vouchers'),
+        headers: await _getHeaders(),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return responseData['data'] ?? {};
+      } else {
+        throw Exception(
+            responseData['message'] ?? 'Failed to get purchased vouchers');
+      }
+    } catch (e) {
+      throw Exception('Failed to get purchased vouchers: ${e.toString()}');
+    }
+  }
+
 }
 

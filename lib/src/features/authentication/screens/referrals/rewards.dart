@@ -26,6 +26,9 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
   String? _profileImagePath;
   List<UserVoucher> vouchers = [];
   bool isLoadingVouchers = false;
+  Set<String> purchasedVoucherIds = {};
+  List<UserVoucher> purchasedVouchers = [];
+  bool isLoadingPurchasedVouchers = false;
 
   void _toggleSidebar() {
     setState(() {
@@ -191,10 +194,11 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 1, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _fetchReferralData();
     _fetchUserData();
     _fetchVouchers();
+    _fetchPurchasedVouchers();
   }
 
   @override
@@ -276,6 +280,43 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
     }
   }
 
+  Future<void> _fetchPurchasedVouchers() async {
+    setState(() {
+      isLoadingPurchasedVouchers = true;
+    });
+
+    try {
+      final purchasedData = await ApiService.getUserPurchasedVouchers();
+      
+      // Debug: Print purchased voucher data
+      print('Purchased Voucher Data from API: $purchasedData');
+      
+      setState(() {
+        if (purchasedData['vouchers'] != null) {
+          final vouchers = purchasedData['vouchers'] as List;
+          purchasedVoucherIds = vouchers
+              .map((userVoucher) => userVoucher['voucher']['_id'] as String)
+              .toSet();
+          
+          // Parse purchased vouchers
+          purchasedVouchers = vouchers
+              .map((userVoucherJson) => UserVoucher.fromJson(userVoucherJson))
+              .toList();
+          
+          print('Found ${purchasedVoucherIds.length} purchased vouchers');
+          print('Parsed ${purchasedVouchers.length} purchased voucher objects');
+        }
+        isLoadingPurchasedVouchers = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoadingPurchasedVouchers = false;
+      });
+      print('Error fetching purchased vouchers: $e');
+      // Don't update state on error to keep existing purchased vouchers
+    }
+  }
+
   Future<void> _purchaseVoucher(String voucherId) async {
     try {
       final result = await ApiService.purchaseVoucher(voucherId);
@@ -289,9 +330,15 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
           ),
         );
         
+        // Add to purchased vouchers set
+        setState(() {
+          purchasedVoucherIds.add(voucherId);
+        });
+        
         // Refresh vouchers and points
         await _fetchVouchers();
         await _fetchReferralData();
+        await _fetchPurchasedVouchers();
       } else {
         throw Exception(result['message'] ?? 'Failed to purchase voucher');
       }
@@ -392,7 +439,8 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                   unselectedLabelColor: Colors.grey,
                   indicatorColor: Colors.blue,
                   tabs: const [
-                    Tab(text: 'Rewards'),
+                    Tab(text: 'Available'),
+                    Tab(text: 'Purchased'),
                   ],
                 ),
               ),
@@ -439,7 +487,7 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    // Rewards Tab
+                    // Available Vouchers Tab
                     isLoadingVouchers
                         ? Center(
                             child: CircularProgressIndicator(
@@ -514,6 +562,49 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                                       return _buildVoucherCard(userVoucher);
                                     },
                                   ),
+                    
+                    // Purchased Vouchers Tab
+                    isLoadingPurchasedVouchers
+                        ? Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                            ),
+                          )
+                        : purchasedVouchers.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.shopping_bag_outlined,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'No purchased vouchers',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Purchase vouchers to see them here!',
+                                      style: TextStyle(color: Colors.grey[500]),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: purchasedVouchers.length,
+                                itemBuilder: (context, index) {
+                                  final userVoucher = purchasedVouchers[index];
+                                  return _buildPurchasedVoucherCard(userVoucher);
+                                },
+                              ),
                   ],
                 ),
               ),
@@ -547,12 +638,14 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
 
   Widget _buildVoucherCard(UserVoucher userVoucher) {
     final voucher = userVoucher.voucher;
-    final canPurchase = userVoucher.canPurchase && points >= voucher.points;
+    final isPurchased = purchasedVoucherIds.contains(voucher.id);
+    final canPurchase = userVoucher.canPurchase && points >= voucher.points && !isPurchased;
     
     // Debug: Print voucher information
     print('Voucher: ${voucher.title}');
     print('Image URL: ${voucher.imageUrl}');
     print('Full Image URL: ${voucher.imageUrl != null ? ApiService.getImageUrl(voucher.imageUrl!) : 'No image'}');
+    print('Is Purchased: $isPurchased');
     
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -560,7 +653,9 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
+      child: Stack(
+        children: [
+          Row(
         children: [
           // Left side - voucher image or discount badge
           ClipRRect(
@@ -721,7 +816,11 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                             ? () => _purchaseVoucher(voucher.id)
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: canPurchase ? Colors.blue : Colors.grey[300],
+                          backgroundColor: isPurchased 
+                              ? Colors.green 
+                              : canPurchase 
+                                  ? Colors.blue 
+                                  : Colors.grey[300],
                           minimumSize: const Size(60, 30),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                           shape: RoundedRectangleBorder(
@@ -729,10 +828,22 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                           ),
                         ),
                         child: Text(
-                          canPurchase ? 'Get' : 'Insufficient Points',
+                          isPurchased 
+                              ? 'Purchased' 
+                              : canPurchase 
+                                  ? 'Get' 
+                                  : 'Insufficient Points',
                           style: TextStyle(
-                            color: canPurchase ? Colors.white : Colors.grey[600],
-                            fontSize: canPurchase ? 14 : 10,
+                            color: isPurchased 
+                                ? Colors.white 
+                                : canPurchase 
+                                    ? Colors.white 
+                                    : Colors.grey[600],
+                            fontSize: isPurchased 
+                                ? 12 
+                                : canPurchase 
+                                    ? 14 
+                                    : 10,
                           ),
                         ),
                       ),
@@ -744,7 +855,259 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
           ),
         ],
       ),
+          // Purchased indicator
+          if (isPurchased)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.check,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
+  }
+
+  Widget _buildPurchasedVoucherCard(UserVoucher userVoucher) {
+    final voucher = userVoucher.voucher;
+    final purchase = userVoucher.purchase;
+    
+    // Debug: Print voucher information
+    print('Purchased Voucher: ${voucher.title}');
+    print('Purchase Date: ${purchase?.purchasedAt}');
+    print('Is Used: ${purchase?.isUsed}');
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Stack(
+        children: [
+          Row(
+            children: [
+              // Left side - voucher image or discount badge
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  bottomLeft: Radius.circular(8),
+                ),
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  color: voucher.imageUrl == null 
+                      ? (voucher.discount != null ? Colors.red : Colors.blue)
+                      : null,
+                  child: voucher.imageUrl != null
+                      ? Image.network(
+                          ApiService.getImageUrl(voucher.imageUrl!),
+                          fit: BoxFit.cover,
+                          width: 80,
+                          height: 80,
+                          errorBuilder: (context, error, stackTrace) {
+                            print('Error loading voucher image: $error');
+                            print('Image URL: ${ApiService.getImageUrl(voucher.imageUrl!)}');
+                            return Container(
+                              color: voucher.discount != null ? Colors.red : Colors.blue,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (voucher.discount != null) ...[
+                                      Text(
+                                        voucher.discount!,
+                                        style: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const Text(
+                                        'Discount',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ] else ...[
+                                      Icon(
+                                        Icons.card_giftcard,
+                                        color: Colors.white,
+                                        size: 32,
+                                      ),
+                                      const Text(
+                                        'Voucher',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (voucher.discount != null) ...[
+                                Text(
+                                  voucher.discount!,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const Text(
+                                  'Discount',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ] else ...[
+                                Icon(
+                                  Icons.card_giftcard,
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
+                                const Text(
+                                  'Voucher',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                ),
+              ),
+
+              // Right side - voucher details
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        voucher.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (voucher.description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          voucher.description,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      if (purchase != null) ...[
+                        Text(
+                          'Purchased: ${_formatDate(purchase.purchasedAt)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Image.asset(
+                                'assets/icons/points.png',
+                                height: 20,
+                                width: 20,
+                                color: Colors.green,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${voucher.points}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: purchase?.isUsed == true ? Colors.orange : Colors.green,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              purchase?.isUsed == true ? 'Used' : 'Available',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // Purchased indicator
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.green,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.check,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 }
 
