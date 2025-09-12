@@ -295,7 +295,7 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
         if (purchasedData['vouchers'] != null) {
           final vouchers = purchasedData['vouchers'] as List;
           purchasedVoucherIds = vouchers
-              .map((userVoucher) => userVoucher['voucher']['_id'] as String)
+              .map((userVoucher) => userVoucher['voucher']['id'] as String)
               .toSet();
           
           // Parse purchased vouchers
@@ -305,6 +305,14 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
           
           print('Found ${purchasedVoucherIds.length} purchased vouchers');
           print('Parsed ${purchasedVouchers.length} purchased voucher objects');
+          
+          // Debug: Print each voucher details
+          for (int i = 0; i < purchasedVouchers.length; i++) {
+            final voucher = purchasedVouchers[i].voucher;
+            final purchase = purchasedVouchers[i].purchase;
+            print('Voucher $i: ${voucher.title} (ID: ${voucher.id})');
+            print('Purchase $i: Used=${purchase?.isUsed}, Date=${purchase?.purchasedAt}');
+          }
         }
         isLoadingPurchasedVouchers = false;
       });
@@ -594,6 +602,11 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                                       'Purchase vouchers to see them here!',
                                       style: TextStyle(color: Colors.grey[500]),
                                     ),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'Debug: purchasedVouchers.length = ${purchasedVouchers.length}',
+                                      style: TextStyle(color: Colors.red, fontSize: 12),
+                                    ),
                                   ],
                                 ),
                               )
@@ -602,6 +615,7 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
                                 itemCount: purchasedVouchers.length,
                                 itemBuilder: (context, index) {
                                   final userVoucher = purchasedVouchers[index];
+                                  print('Building purchased voucher card $index: ${userVoucher.voucher.title}');
                                   return _buildPurchasedVoucherCard(userVoucher);
                                 },
                               ),

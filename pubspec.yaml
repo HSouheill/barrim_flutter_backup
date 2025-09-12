@@ -19,7 +19,7 @@ dependencies:
   flutter_launcher_icons: ^0.14.4
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
-  flutter_native_splash: ^2.4.5
+  # flutter_native_splash: ^2.4.5  # Removed splash screen
   google_maps_flutter: ^2.10.1
   location: ^5.0.3
   csc_picker: ^0.2.7
@@ -72,11 +72,25 @@ flutter_launcher_icons:
     generate: true
     image_path: "assets/logo/app_logo.jpg"
 
-flutter_native_splash:
-  color: "#f7f6f1"
-  color_dark: "#272727"
-  image: assets/logo/logo.png
-  image_dark: assets/logo/logo.png
+# Splash screen removed
+# flutter_native_splash:
+#   color: "#f7f6f1"
+#   color_dark: "#272727"
+#   image: assets/logo/logo.png
+#   image_dark: assets/logo/logo.png
+#   android_12:
+#     image: assets/logo/logo.png
+#     icon_background_color: "#f7f6f1"
+#     image_dark: assets/logo/logo.png
+#     icon_background_color_dark: "#272727"
+#     
+#   web: false
+#   android: true
+#   ios: true
+#   # Increase image size
+#   android_gravity: center
+#   ios_content_mode: center
+#   fullscreen: true
 
 dev_dependencies:
   flutter_test:

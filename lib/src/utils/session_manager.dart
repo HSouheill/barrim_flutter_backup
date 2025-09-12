@@ -162,8 +162,8 @@ class SessionManager {
     }
   }
   
-  // Check if session is valid
-  static Future<bool> isSessionValid() async {
+  // Check if session is valid (local validation only by default)
+  static Future<bool> isSessionValid({bool validateWithServer = true}) async {
     try {
       final token = await _storage.read(key: _tokenKey);
       final lastActivityMsStr = await _storage.read(key: _lastActivityKey);
@@ -198,8 +198,12 @@ class SessionManager {
         return false;
       }
       
-      // Additional server-side validation
-      return await _validateTokenWithServer(token);
+      // Only validate with server if requested and not during startup
+      if (validateWithServer) {
+        return await _validateTokenWithServer(token);
+      }
+      
+      return true; // Local validation passed
     } catch (e) {
       if (!kReleaseMode) {
         print('Error validating session: $e');

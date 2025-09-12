@@ -41,7 +41,7 @@ class UserProvider extends ChangeNotifier {
     _initializeSession();
   }
 
-  // Initialize session by loading stored data
+  // Initialize session by loading stored data (non-blocking)
   Future<void> _initializeSession() async {
     if (_isInitialized) return;
     
@@ -49,25 +49,20 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Check if session is valid using SessionManager
-      final isValid = await SessionManager.isSessionValid();
+      // Load stored data without server validation to avoid blocking
+      final token = await SessionManager.getToken();
+      final userData = await SessionManager.getUserData();
       
-      if (isValid) {
-        // Restore session
-        final token = await SessionManager.getToken();
-        final userData = await SessionManager.getUserData();
+      if (token != null && userData != null) {
+        _token = token;
+        _user = User.fromJson(json.decode(userData));
+        _userData = json.decode(userData);
+        print('Session data loaded from storage for user: ${_user?.id}');
         
-        if (token != null && userData != null) {
-          _token = token;
-          _user = User.fromJson(json.decode(userData));
-          _userData = json.decode(userData);
-          print('Session restored successfully for user: ${_user?.id}');
-          
-          // Update last activity
-          await SessionManager.updateLastActivity();
-        }
+        // Validate session in background (non-blocking)
+        _validateSessionInBackground();
       } else {
-        print('Session is invalid or expired, session cleared');
+        print('No stored session data found');
         await _clearStoredData();
       }
 
@@ -89,6 +84,43 @@ class UserProvider extends ChangeNotifier {
       _isLoading = false;
       _isInitialized = true;
       notifyListeners();
+    }
+  }
+
+  // Validate session in background without blocking the UI
+  void _validateSessionInBackground() async {
+    try {
+      // First do local validation (fast)
+      final isLocallyValid = await SessionManager.isSessionValid(validateWithServer: false);
+      
+      if (!isLocallyValid) {
+        print('Session locally invalid - clearing session');
+        await _clearStoredData();
+        notifyListeners();
+        return;
+      }
+      
+      // Then do server validation with timeout (non-blocking)
+      final isValid = await SessionManager.isSessionValid(validateWithServer: true).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('Server validation timeout - keeping session for now');
+          return true; // Assume valid to avoid blocking
+        },
+      );
+      
+      if (!isValid) {
+        print('Server validation failed - clearing session');
+        await _clearStoredData();
+        notifyListeners();
+      } else {
+        print('Session validated successfully with server');
+        // Update last activity
+        await SessionManager.updateLastActivity();
+      }
+    } catch (e) {
+      print('Error validating session in background: $e');
+      // Don't clear session on validation error to avoid false negatives
     }
   }
 

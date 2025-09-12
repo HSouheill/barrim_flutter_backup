@@ -18,7 +18,7 @@ class SignupUserPage5 extends StatefulWidget {
 }
 
 class _SignupUserPage5State extends State<SignupUserPage5> {
-  late GoogleMapController mapController;
+  GoogleMapController? mapController;
   final LatLng _center = const LatLng(33.8, 35.8); // Center of Lebanon
   Set<Marker> markers = {};
   LatLng? selectedLocation;
@@ -40,6 +40,8 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       );
       return;
     }
+
+    if (!mounted) return;
 
     setState(() {
       isLoading = true;
@@ -85,7 +87,13 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       print('Updated userData: $updatedUserData');
       print('===============================================');
 
-      final response = await ApiService.signupUser(updatedUserData);
+      // Add timeout to prevent hanging
+      final response = await ApiService.signupUser(updatedUserData).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Request timed out');
+        },
+      );
 
       if (mounted) {
         // Check response body for success indication, regardless of error
@@ -119,6 +127,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
         }
       }
     } catch (e) {
+      print('Error in _submitSignup: $e');
       // Special handling for connection errors that might contain partial success
       if (e.toString().contains('OTP sent successfully')) {
         if (mounted) {
@@ -147,6 +156,8 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
   }
 
   Future<void> _getCurrentLocation() async {
+    if (!mounted) return;
+    
     setState(() {
       isLoading = true;
     });
@@ -154,46 +165,45 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     try {
       loc.Location location = loc.Location();
 
-      bool serviceEnabled;
-      loc.PermissionStatus permissionGranted;
-      loc.LocationData locationData;
-
       // Check if location services are enabled
-      serviceEnabled = await location.serviceEnabled();
+      bool serviceEnabled = await location.serviceEnabled();
       if (!serviceEnabled) {
         serviceEnabled = await location.requestService();
         if (!serviceEnabled) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Location services are disabled.'),
-            ),
-          );
-          setState(() {
-            isLoading = false;
-          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location services are disabled.'),
+              ),
+            );
+          }
           return;
         }
       }
 
       // Check if permission is granted
-      permissionGranted = await location.hasPermission();
+      loc.PermissionStatus permissionGranted = await location.hasPermission();
       if (permissionGranted == loc.PermissionStatus.denied) {
         permissionGranted = await location.requestPermission();
         if (permissionGranted != loc.PermissionStatus.granted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Location permission denied.'),
-            ),
-          );
-          setState(() {
-            isLoading = false;
-          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location permission denied.'),
+              ),
+            );
+          }
           return;
         }
       }
 
-      // Get location
-      locationData = await location.getLocation();
+      // Get location with timeout
+      loc.LocationData locationData = await location.getLocation().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Location request timed out');
+        },
+      );
 
       // Move to user's current location and add a marker
       if (locationData.latitude != null && locationData.longitude != null) {
@@ -202,14 +212,17 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
             locationData.longitude!
         );
 
-        mapController.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: userLocation,
-              zoom: 15,
+        // Check if mapController is initialized before using it
+        if (mapController != null) {
+          mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(
+                target: userLocation,
+                zoom: 15,
+              ),
             ),
-          ),
-        );
+          );
+        }
 
         _addMarker(userLocation);
 
@@ -221,17 +234,30 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
         // Call submit signup after marker is set
         _submitSignup(context);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to get location coordinates.'),
+            ),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error getting location: $e'),
-        ),
-      );
+      print('Error getting location: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error getting location: ${e.toString()}'),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -885,8 +911,8 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
   @override
   void dispose() {
     // Make sure to dispose the mapController to prevent memory leaks
-    if (this.mounted) {
-      mapController.dispose();
+    if (mounted && mapController != null) {
+      mapController!.dispose();
     }
     super.dispose();
   }

@@ -95,12 +95,14 @@ class UserVoucher {
     // Debug: Print the json structure
     print('UserVoucher JSON: $json');
     
+    final hasPurchase = json['purchase'] != null;
+    
     return UserVoucher(
       voucher: Voucher.fromJson(json['voucher'] ?? {}),
       canPurchase: json['canPurchase'] ?? false,
       userPoints: json['userPoints'] ?? 0,
-      isPurchased: json['isPurchased'] ?? false,
-      purchase: json['purchase'] != null ? VoucherPurchase.fromJson(json['purchase']) : null,
+      isPurchased: json['isPurchased'] ?? hasPurchase, // Set to true if there's a purchase
+      purchase: hasPurchase ? VoucherPurchase.fromJson(json['purchase']) : null,
     );
   }
 

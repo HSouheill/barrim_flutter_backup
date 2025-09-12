@@ -20,17 +20,117 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
+  try {
+    // Load environment variables with timeout
+    try {
+      await dotenv.load(fileName: ".env").timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print("Warning: Environment variables loading timeout");
+        },
+      );
+      print("Environment variables loaded successfully");
+    } catch (e) {
+      print("Warning: Could not load .env file: $e");
+      print("Continuing with default environment configuration...");
+    }
 
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  print("Firebase initialized successfully");
+    // Initialize Firebase with timeout and duplicate check
+    try {
+      // Check if Firebase is already initialized
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print("Warning: Firebase initialization timeout");
+            throw Exception("Firebase initialization timeout");
+          },
+        );
+        print("Firebase initialized successfully");
+      } else {
+        print("Firebase already initialized");
+      }
+    } catch (e) {
+      if (e.toString().contains('duplicate-app')) {
+        print("Firebase already initialized, continuing...");
+      } else {
+        print("Firebase initialization error: $e");
+        throw e;
+      }
+    }
 
-  // Initialize Google Maps services
-  print("Initializing Google Maps services...");
+    // Initialize notification service with timeout
+    final notificationService = NotificationService();
+    await notificationService.initialize().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        print("Warning: Notification service initialization timeout");
+      },
+    );
+
+    // Start the app immediately - don't wait for Google Maps
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => UserProvider()),
+          ChangeNotifierProvider(create: (_) => AuthProvider()),
+          ChangeNotifierProvider(create: (_) => NotificationProvider(notificationService)),
+          ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
+          // Other providers...
+        ],
+        child: MyApp(),
+      ),
+    );
+
+    // Initialize Google Maps services in the background (non-blocking)
+    _initializeGoogleMapsInBackground();
+  } catch (e) {
+    print("Critical error during app initialization: $e");
+    // Still try to run the app even if some services fail
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(
+                    'App initialization error',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Error: ${e.toString()}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Try to restart the app
+                      main();
+                    },
+                    child: Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Initialize Google Maps services in the background without blocking the app
+void _initializeGoogleMapsInBackground() async {
+  print("Initializing Google Maps services in background...");
   try {
     final mapsInitialized = await GoogleMapsService.initialize();
     if (mapsInitialized) {
@@ -41,23 +141,6 @@ Future<void> main() async {
   } catch (e) {
     print("Error during Google Maps initialization: $e");
   }
-
-  // Initialize notification service
-  final notificationService = NotificationService();
-  await notificationService.initialize(); // Make sure this method exists in NotificationService
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationProvider(notificationService)),
-        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
-        // Other providers...
-      ],
-      child: MyApp(),
-    ),
-  );
 }
 
 class MyApp extends StatefulWidget {
@@ -216,9 +299,20 @@ class _MyHomePageState extends State<MyHomePage> {
       print('UserProvider.isInitialized: ${userProvider.isInitialized}');
     }
 
-    // Wait for UserProvider to initialize
-    while (!userProvider.isInitialized) {
+    // Wait for UserProvider to initialize with timeout
+    int attempts = 0;
+    const maxAttempts = 50; // 5 seconds max wait time
+    
+    while (!userProvider.isInitialized && attempts < maxAttempts) {
       await Future.delayed(const Duration(milliseconds: 100));
+      attempts++;
+    }
+
+    if (!userProvider.isInitialized) {
+      if (kDebugMode) {
+        print('UserProvider initialization timeout - continuing without session');
+      }
+      return;
     }
 
     if (kDebugMode) {
@@ -235,21 +329,35 @@ class _MyHomePageState extends State<MyHomePage> {
         print('Session found - initializing WebSocket');
       }
       
-      // Use the new comprehensive session check
-      final sessionValid = await userProvider.checkAndHandleSession();
-      
-      if (sessionValid && !_websocketInitialized) {
-        notificationProvider.initWebSocket(
-          userProvider.token!,
-          userProvider.user!.id,
+      // Use the new comprehensive session check with timeout
+      try {
+        final sessionValid = await userProvider.checkAndHandleSession().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            if (kDebugMode) {
+              print('Session check timeout - skipping WebSocket initialization');
+            }
+            return false;
+          },
         );
-        _websocketInitialized = true;
-        if (kDebugMode) {
-          print('WebSocket initialized successfully');
+        
+        if (sessionValid && !_websocketInitialized) {
+          notificationProvider.initWebSocket(
+            userProvider.token!,
+            userProvider.user!.id,
+          );
+          _websocketInitialized = true;
+          if (kDebugMode) {
+            print('WebSocket initialized successfully');
+          }
+        } else if (!sessionValid) {
+          if (kDebugMode) {
+            print('Session expired or refresh failed during initialization');
+          }
         }
-      } else if (!sessionValid) {
+      } catch (e) {
         if (kDebugMode) {
-          print('Session expired or refresh failed during initialization');
+          print('Error during session initialization: $e');
         }
       }
     } else {
