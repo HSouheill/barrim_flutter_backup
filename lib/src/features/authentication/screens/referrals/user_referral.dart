@@ -4,15 +4,12 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart'; // For QR code generation
 import '../../../../services/api_service.dart';
-import '../company_dashboard/company_rewars.dart';
 import '../user_dashboard/notification.dart' as notification;
 import '../user_dashboard/home.dart';
 import '../category/categories.dart';
 import '../workers/worker_home.dart';
-import '../booking/myboooking.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 
 class ReferralPointsPage extends StatefulWidget {
@@ -198,7 +195,7 @@ class _ReferralPointsPageState extends State<ReferralPointsPage> {
   Future<void> _fetchUserData() async {
     try {
       final userData = await ApiService.getUserData();
-      if (userData != null && userData['profilePic'] != null) {
+      if (userData['profilePic'] != null) {
         setState(() {
           _profileImagePath = ApiService.getImageUrl(userData['profilePic']);
           print('Profile Image Path: $_profileImagePath');
@@ -235,13 +232,10 @@ class _ReferralPointsPageState extends State<ReferralPointsPage> {
         isLoading = false;
       });
 
-      // Show error to user
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('Failed to load referral data: $errorMessage'),
-      //     backgroundColor: Colors.red,
-      //   ),
-      // );
+      // Show authentication error dialog if needed
+      if (errorMessage.contains('Authentication required')) {
+        _showAuthenticationErrorDialog();
+      }
     }
   }
 
@@ -254,6 +248,29 @@ class _ReferralPointsPageState extends State<ReferralPointsPage> {
 
   Future<void> _refreshData() async {
     await _fetchReferralData();
+  }
+
+  void _showAuthenticationErrorDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('Authentication Required'),
+        content: Text('Please log in to access your referral data.'),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => LoginPage()),
+              );
+            },
+            child: Text('Go to Login'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

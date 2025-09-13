@@ -74,7 +74,9 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     _loadSponsorshipSubscriptionData(); // Load sponsorship subscription data
     // Set up periodic refresh for subscription status
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
-      _loadSubscriptionData();
+      if (!_isLoading) {
+        _loadSubscriptionData();
+      }
     });
 
     // Initialize animation controller
@@ -146,6 +148,12 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   Future<void> _loadSubscriptionData() async {
+    // Prevent multiple simultaneous calls
+    if (_isLoading) {
+      print('Subscription data is already loading, skipping duplicate call');
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -159,10 +167,18 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       print('Subscription Plans Data: ${plansResponse.data?.map((p) => p.toJson()).toList()}');
 
       if (plansResponse.success && plansResponse.data != null) {
+        // Deduplicate subscription plans by ID
+        final uniquePlans = <String, SubscriptionPlan>{};
+        for (final plan in plansResponse.data!) {
+          if (plan.id != null && plan.id!.isNotEmpty) {
+            uniquePlans[plan.id!] = plan;
+          }
+        }
+        
         setState(() {
-          _subscriptionPlans = plansResponse.data!;
+          _subscriptionPlans = uniquePlans.values.toList();
         });
-        print('Updated _subscriptionPlans: ${_subscriptionPlans.map((p) => p.toJson()).toList()}');
+        print('Updated _subscriptionPlans (deduplicated): ${_subscriptionPlans.map((p) => p.toJson()).toList()}');
       }
 
       // Load current subscription status
@@ -272,11 +288,9 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
 
   Future<void> _loadSponsorshipSubscriptionData() async {
     if (widget.branchId == null || widget.branchId!.isEmpty) {
-      print('DEBUG: Branch ID is null or empty, skipping sponsorship subscription data load');
       return;
     }
 
-    print('DEBUG: Loading sponsorship subscription data for branch: ${widget.branchId}');
 
     setState(() {
       _isLoadingSponsorshipSubscription = true;
@@ -288,21 +302,17 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         branchId: widget.branchId!,
       );
 
-      print('DEBUG: Sponsorship subscription API response: $response');
 
       if (mounted) {
         // Check for success in the response
         final isSuccess = response['status'] == 200 || response['success'] == true;
-        print('DEBUG: Response success check - status: ${response['status']}, success: ${response['success']}, isSuccess: $isSuccess');
         
         if (isSuccess && response['data'] != null) {
           final data = response['data'] as Map<String, dynamic>;
-          print('DEBUG: Found data in response, parsing...');
           
           // Parse the response data
           _parseSponsorshipSubscriptionData(data);
         } else {
-          print('DEBUG: No success or no data in response');
           setState(() {
             _sponsorshipSubscriptionData = SponsorshipSubscriptionTimeRemainingData(
               hasActiveSubscription: false,
@@ -314,7 +324,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         }
       }
     } catch (e) {
-      print('DEBUG: Error in _loadSponsorshipSubscriptionData: $e');
       if (mounted) {
         setState(() {
           _sponsorshipSubscriptionError = 'Failed to load sponsorship subscription data: ${e.toString()}';
@@ -326,14 +335,11 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
 
   void _parseSponsorshipSubscriptionData(Map<String, dynamic> data) {
     try {
-      print('DEBUG: Parsing sponsorship subscription data: $data');
       
       final hasActiveSubscription = data['hasActiveSubscription'] ?? false;
-      print('DEBUG: hasActiveSubscription: $hasActiveSubscription');
       
       if (hasActiveSubscription && data['timeRemaining'] != null) {
         final timeRemaining = data['timeRemaining'] as Map<String, dynamic>;
-        print('DEBUG: timeRemaining data: $timeRemaining');
         
         final remainingTime = SponsorshipSubscriptionTimeRemaining(
           days: timeRemaining['days'],
@@ -346,7 +352,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
           endDate: timeRemaining['endDate'] != null ? DateTime.parse(timeRemaining['endDate']) : null,
         );
         
-        print('DEBUG: Created remainingTime object: ${remainingTime.toJson()}');
         
         _sponsorshipSubscriptionData = SponsorshipSubscriptionTimeRemainingData(
           hasActiveSubscription: hasActiveSubscription,
@@ -363,22 +368,15 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
           message: data['message'],
         );
         
-        print('DEBUG: Parsed sponsorship subscription data successfully');
-        print('DEBUG: hasActiveSubscription: $hasActiveSubscription');
-        print('DEBUG: timeRemaining: ${remainingTime.toJson()}');
-        print('DEBUG: sponsorship: ${data['sponsorship']}');
-        print('DEBUG: entityInfo: ${data['entityInfo']}');
+
         
         // Start countdown timer if we have active subscription
         if (hasActiveSubscription && remainingTime.endDate != null) {
-          print('DEBUG: Starting countdown timer with end date: ${remainingTime.endDate}');
           _setSponsorshipEndDate(remainingTime.endDate);
         } else {
-          print('DEBUG: Stopping countdown timer - no end date or inactive subscription');
           _stopSponsorshipCountdownTimer();
         }
       } else {
-        print('DEBUG: No active subscription or time remaining data');
         _sponsorshipSubscriptionData = SponsorshipSubscriptionTimeRemainingData(
           hasActiveSubscription: false,
           message: data['message'] ?? 'No active sponsorship subscription found',
@@ -391,10 +389,8 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         _isLoadingSponsorshipSubscription = false;
       });
       
-      print('DEBUG: Final _sponsorshipSubscriptionData: $_sponsorshipSubscriptionData');
     } catch (e) {
-      print('DEBUG: Error parsing sponsorship subscription data: $e');
-      print('DEBUG: Stack trace: ${StackTrace.current}');
+
       setState(() {
         _sponsorshipSubscriptionData = SponsorshipSubscriptionTimeRemainingData(
           hasActiveSubscription: false,
@@ -608,6 +604,39 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                 );
               },
             ),
+            
+            // Back button
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios,
+                        color: Color(0xFF2079C2),
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  
+                ],
+              ),
+            ),
+            
             Expanded(
               child: Center(
                 child: Column(
@@ -661,6 +690,38 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                     MaterialPageRoute(builder: (context) => const CompanySettingsPage()),
                   );
                 },
+              ),
+
+              // Back button
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_ios,
+                          color: Color(0xFF2079C2),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                    
+                  ],
+                ),
               ),
 
               if (_isLoading)
@@ -952,17 +1013,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   Widget _buildSponsorshipSubscriptionSection() {
-    // print('DEBUG: _buildSponsorshipSubscriptionSection called');
-    // print('DEBUG: _sponsorshipSubscriptionData: $_sponsorshipSubscriptionData');
-    // print('DEBUG: _isLoadingSponsorshipSubscription: $_isLoadingSponsorshipSubscription');
-    // print('DEBUG: _sponsorshipSubscriptionError: $_sponsorshipSubscriptionError');
-    
-    // if (_sponsorshipSubscriptionData != null) {
-    //   print('DEBUG: hasActiveSubscription: ${_sponsorshipSubscriptionData!.hasActiveSubscription}');
-    //   print('DEBUG: timeRemaining: ${_sponsorshipSubscriptionData!.timeRemaining?.toJson()}');
-    //   print('DEBUG: sponsorship: ${_sponsorshipSubscriptionData!.sponsorship?.toJson()}');
-    //   print('DEBUG: entityInfo: ${_sponsorshipSubscriptionData!.entityInfo?.toJson()}');
-    // }
+
     
     return Column(
       children: [
@@ -1040,7 +1091,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
  
 
   Widget _buildTimeBox(String value, String label) {
-    print('DEBUG: _buildTimeBox called with value: $value, label: $label');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -1599,6 +1649,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
           CompanySubscriptionService.formatPrice(plan.price ?? 0),
           benefitsList,
           const Color(0xFF2079C2),
+          key: ValueKey('subscription_plan_${plan.id ?? index}'),
         );
       },
     );
@@ -1610,11 +1661,13 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       List<String> benefits,
       Color backgroundColor, {
         bool isFullWidth = false,
+        Key? key,
       }) {
     final bool isCurrentPlan = _currentSubscription?.plan?.title == title;
     final bool isActive = _currentSubscription?.isActive ?? false;
 
     return Container(
+      key: key,
       width: isFullWidth ? double.infinity : null,
       constraints: isFullWidth ? null : const BoxConstraints(maxWidth: 200),
       decoration: BoxDecoration(
@@ -1948,26 +2001,12 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     // Check if we have either regular subscription or sponsorship subscription
     final hasRegularSubscription = _remainingTimeData?.hasActiveSubscription == true;
     final hasSponsorshipSubscription = _sponsorshipSubscriptionData?.hasActiveSubscription == true;
-    
-    // print('DEBUG: _buildRemainingTimeWidget called');
-    // print('DEBUG: hasRegularSubscription: $hasRegularSubscription');
-    // print('DEBUG: hasSponsorshipSubscription: $hasSponsorshipSubscription');
-    // print('DEBUG: _remainingTimeData: $_remainingTimeData');
-    // print('DEBUG: _sponsorshipSubscriptionData: $_sponsorshipSubscriptionData');
-    
-    // if (_sponsorshipSubscriptionData != null) {
-    //   print('DEBUG: Sponsorship subscription data details:');
-    //   print('DEBUG: - hasActiveSubscription: ${_sponsorshipSubscriptionData!.hasActiveSubscription}');
-    //   print('DEBUG: - timeRemaining: ${_sponsorshipSubscriptionData!.timeRemaining?.toJson()}');
-    //   print('DEBUG: - sponsorship: ${_sponsorshipSubscriptionData!.sponsorship?.toJson()}');
-    // }
+
     
     if (!hasRegularSubscription && !hasSponsorshipSubscription) {
-      print('DEBUG: No active subscriptions found, returning empty widget');
       return const SizedBox.shrink();
     }
     
-    // print('DEBUG: Building remaining time widget with subscriptions');
     
     return Container(
       child: Column(
@@ -2060,22 +2099,15 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   Widget _buildSponsorshipSubscriptionTimeWidget() {
-    // print('DEBUG: _buildSponsorshipSubscriptionTimeWidget called');
     final data = _sponsorshipSubscriptionData!;
     final timeRemaining = data.timeRemaining;
     
-    // print('DEBUG: data: $data');
-    // print('DEBUG: timeRemaining: $timeRemaining');
-    // print('DEBUG: timeRemaining.toJson(): ${timeRemaining?.toJson()}');
+
     
     if (timeRemaining == null) {
-      // print('DEBUG: No time remaining data, returning empty widget');
       return const SizedBox.shrink();
     }
-    
-    // print('DEBUG: Building sponsorship subscription widget with time remaining');
-    // print('DEBUG: days: ${timeRemaining.days}, hours: ${timeRemaining.hours}, minutes: ${timeRemaining.minutes}');
-    
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -2345,7 +2377,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   void _startSponsorshipCountdownTimer() {
-    print('DEBUG: Starting sponsorship countdown timer');
     // Cancel existing timer if any
     _sponsorshipCountdownTimer?.cancel();
     
@@ -2355,7 +2386,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         // Update the sponsorship remaining time data with current time
         _updateSponsorshipRemainingTime();
       } else {
-        print('DEBUG: Stopping countdown timer - no time remaining data or widget not mounted');
         // Stop timer if no remaining time data or widget is disposed
         timer.cancel();
       }
@@ -2367,27 +2397,22 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   void _updateSponsorshipRemainingTime() {
-    print('DEBUG: _updateSponsorshipRemainingTime called');
     if (_sponsorshipSubscriptionData?.timeRemaining == null) {
-      print('DEBUG: No time remaining data, returning');
       return;
     }
     
     final remaining = _sponsorshipSubscriptionData!.timeRemaining!;
     final endDate = remaining.endDate;
     
-    print('DEBUG: Updating with endDate: $endDate');
     
     if (endDate != null) {
       final now = DateTime.now();
       final end = endDate; // endDate is already a DateTime
       final difference = end.difference(now);
       
-      print('DEBUG: Time difference: $difference');
       
       if (difference.isNegative) {
         // Sponsorship subscription has expired
-        print('DEBUG: Subscription expired, stopping timer');
         _stopSponsorshipCountdownTimer();
         return;
       }
@@ -2398,7 +2423,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       final minutes = difference.inMinutes % 60;
       final seconds = difference.inSeconds % 60;
       
-      print('DEBUG: Calculated time - days: $days, hours: $hours, minutes: $minutes, seconds: $seconds');
       
       // Create formatted string similar to the screenshot (1M:12D:1H format)
       String formatted = '';
@@ -2434,7 +2458,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       }
       timeDisplay += '${seconds.toString().padLeft(2, '0')}s';
       
-      print('DEBUG: Setting time display to: $timeDisplay');
       
       setState(() {
         _sponsorshipCurrentTimeDisplay = timeDisplay.trim();
@@ -2448,7 +2471,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       final usedDays = totalDuration - days;
       final percentageUsed = ((usedDays / totalDuration) * 100).clamp(0, 100);
       
-      print('DEBUG: Percentage used: $percentageUsed%');
       
       // Create new remaining time instance with updated values
       final updatedRemainingTime = SponsorshipSubscriptionTimeRemaining(
@@ -2474,18 +2496,14 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         );
       });
       
-      print('DEBUG: Updated sponsorship subscription data');
     }
   }
 
   void _setSponsorshipEndDate(DateTime? endDate) {
-    print('DEBUG: _setSponsorshipEndDate called with endDate: $endDate');
     _sponsorshipEndDate = endDate;
     if (endDate != null) {
-      print('DEBUG: Starting sponsorship countdown timer');
       _startSponsorshipCountdownTimer();
     } else {
-      print('DEBUG: Stopping sponsorship countdown timer');
       _stopSponsorshipCountdownTimer();
     }
   }

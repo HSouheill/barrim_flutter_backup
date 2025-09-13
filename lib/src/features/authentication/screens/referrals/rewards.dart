@@ -224,13 +224,10 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
         errorMessage = e.toString().replaceAll('Exception: ', '');
       });
 
-      // Show error to user
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('Failed to load points: $errorMessage'),
-      //     backgroundColor: Colors.red,
-      //   ),
-      // );
+      // Show authentication error dialog if needed
+      if (errorMessage.contains('Authentication required')) {
+        _showAuthenticationErrorDialog();
+      }
     }
   }
 
@@ -278,6 +275,29 @@ class _RewardsPageState extends State<RewardsPage> with SingleTickerProviderStat
         errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     }
+  }
+
+  void _showAuthenticationErrorDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('Authentication Required'),
+        content: Text('Please log in to access your rewards data.'),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => LoginPage()),
+              );
+            },
+            child: Text('Go to Login'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _fetchPurchasedVouchers() async {

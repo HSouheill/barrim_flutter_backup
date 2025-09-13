@@ -824,7 +824,6 @@ class _SignupCompany1State extends State<SignupCompany1> {
                                         };
 
                                         // Debug: print updated user data before moving to next page
-                                        print("DEBUG: Updated user data: $updatedUserData");
 
                                         // Navigate to the next screen with updated data
                                         Navigator.push(

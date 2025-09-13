@@ -66,6 +66,12 @@ class ApiService {
     return await _secureStorage.read(key: 'auth_token');
   }
 
+  // Check if user is authenticated
+  static Future<bool> isAuthenticated() async {
+    final token = await _getToken();
+    return token != null && token.isNotEmpty;
+  }
+
   // Store token
   static Future<void> saveToken(String token) async {
     await _secureStorage.write(key: 'auth_token', value: token);
@@ -1435,11 +1441,9 @@ class ApiService {
   // Get user data specifically for regular users (userType = "user")
   static Future<Map<String, dynamic>> getUserData() async {
     try {
-      // Get the auth token
-      final token = await _secureStorage.read(key: 'auth_token');
-
-      if (token == null) {
-        throw Exception('Not authenticated');
+      // Check authentication
+      if (!await isAuthenticated()) {
+        throw Exception('Authentication required');
       }
 
       // Make API request to the user data endpoint
@@ -1448,10 +1452,7 @@ class ApiService {
       final response = await _makeRequest(
         'GET',
         Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        headers: await _getHeaders(),
       );
 
       // Check response status
@@ -1530,6 +1531,11 @@ class ApiService {
   /// Get the user's referral data including code, points, and referral count
   static Future<Map<String, dynamic>> getReferralData() async {
     try {
+      // Check authentication
+      if (!await isAuthenticated()) {
+        throw Exception('Authentication required');
+      }
+
       final response = await _makeRequest(
         'GET',
         Uri.parse('$baseUrl/api/users/referral-data'),
@@ -1553,6 +1559,11 @@ class ApiService {
   static Future<Map<String, dynamic>> submitReferralCode(
       String referralCode) async {
     try {
+      // Check authentication
+      if (!await isAuthenticated()) {
+        throw Exception('Authentication required');
+      }
+
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/users/handle-referral'),
@@ -3153,6 +3164,11 @@ static Future<List<NotificationModel>> fetchNotifications() async {
   /// Get available vouchers for the current user
   static Future<Map<String, dynamic>> getAvailableVouchers() async {
     try {
+      // Check authentication
+      if (!await isAuthenticated()) {
+        throw Exception('Authentication required');
+      }
+
       final response = await _makeRequest(
         'GET',
         Uri.parse('$baseUrl/api/vouchers'),
@@ -3175,6 +3191,11 @@ static Future<List<NotificationModel>> fetchNotifications() async {
   /// Purchase a voucher with points
   static Future<Map<String, dynamic>> purchaseVoucher(String voucherId) async {
     try {
+      // Check authentication
+      if (!await isAuthenticated()) {
+        throw Exception('Authentication required');
+      }
+
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/vouchers/purchase'),

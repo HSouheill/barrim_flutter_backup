@@ -61,14 +61,47 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         final companyInfo = data['companyInfo'] ?? {};
         final contactInfo = companyInfo['contactInfo'] ?? {};
         final socialMedia = companyInfo['SocialMedia'] ?? {}; // Note capital S
+        
+        // Also try alternative field names that might be used
+        final socialMediaAlt = companyInfo['socialMedia'] ?? {};
+        final socialLinks = companyInfo['socialLinks'] ?? {};
+
+        // Debug logging for social media data
+        if (!kReleaseMode) {
+          print('CompanyDashboard: companyInfo structure: $companyInfo');
+          print('CompanyDashboard: contactInfo: $contactInfo');
+          print('CompanyDashboard: socialMedia: $socialMedia');
+          print('CompanyDashboard: socialMediaAlt: $socialMediaAlt');
+          print('CompanyDashboard: socialLinks: $socialLinks');
+          print('CompanyDashboard: socialMedia type: ${socialMedia.runtimeType}');
+          print('CompanyDashboard: socialMedia keys: ${socialMedia is Map ? socialMedia.keys.toList() : 'Not a Map'}');
+          print('CompanyDashboard: socialMediaAlt keys: ${socialMediaAlt is Map ? socialMediaAlt.keys.toList() : 'Not a Map'}');
+          print('CompanyDashboard: socialLinks keys: ${socialLinks is Map ? socialLinks.keys.toList() : 'Not a Map'}');
+        }
 
         // Update the widget's userData with the fetched contact details
         setState(() {
           widget.userData['phone'] = contactInfo['phone'] ?? widget.userData['phone'];
-          widget.userData['whatsapp'] = contactInfo['whatsap'] ?? widget.userData['whatsapp']; // Note 'whatsap' typo
+          widget.userData['whatsapp'] = contactInfo['whatsapp'] ?? widget.userData['whatsapp']; // Note 'whatsap' typo
           widget.userData['website'] = contactInfo['website'] ?? widget.userData['website'];
-          widget.userData['facebook'] = socialMedia['facebook'] ?? widget.userData['facebook'];
-          widget.userData['instagram'] = socialMedia['instagram'] ?? widget.userData['instagram'];
+          
+          // Try multiple field variations for social media data
+          widget.userData['facebook'] = socialMedia['facebook'] ?? 
+                                       socialMediaAlt['facebook'] ?? 
+                                       socialLinks['facebook'] ?? 
+                                       contactInfo['facebook'] ?? 
+                                       widget.userData['facebook'];
+          widget.userData['instagram'] = socialMedia['instagram'] ?? 
+                                        socialMediaAlt['instagram'] ?? 
+                                        socialLinks['instagram'] ?? 
+                                        contactInfo['instagram'] ?? 
+                                        widget.userData['instagram'];
+          
+          // Debug logging for final values
+          if (!kReleaseMode) {
+            print('CompanyDashboard: Final Facebook value: ${widget.userData['facebook']}');
+            print('CompanyDashboard: Final Instagram value: ${widget.userData['instagram']}');
+          }
           logoUrl = companyInfo['logo'] != null && companyInfo['logo'].isNotEmpty
               ? companyInfo['logo']
               : null;
@@ -95,14 +128,20 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         final prefs = await SharedPreferences.getInstance();
         final savedContactData = prefs.getString('company_contact_data');
         if (savedContactData != null) {
-          final contactData = json.decode(savedContactData);
-          setState(() {
-            widget.userData['phone'] = contactData['phone'] ?? widget.userData['phone'];
-            widget.userData['whatsapp'] = contactData['whatsapp'] ?? widget.userData['whatsapp'];
-            widget.userData['website'] = contactData['website'] ?? widget.userData['website'];
-            widget.userData['facebook'] = contactData['facebook'] ?? widget.userData['facebook'];
-            widget.userData['instagram'] = contactData['instagram'] ?? widget.userData['instagram'];
-          });
+        final contactData = json.decode(savedContactData);
+        setState(() {
+          widget.userData['phone'] = contactData['phone'] ?? widget.userData['phone'];
+          widget.userData['whatsapp'] = contactData['whatsapp'] ?? widget.userData['whatsapp'];
+          widget.userData['website'] = contactData['website'] ?? widget.userData['website'];
+          widget.userData['facebook'] = contactData['facebook'] ?? widget.userData['facebook'];
+          widget.userData['instagram'] = contactData['instagram'] ?? widget.userData['instagram'];
+          
+          // Debug logging for error fallback values
+          if (!kReleaseMode) {
+            print('CompanyDashboard: Error fallback - Facebook: ${widget.userData['facebook']}');
+            print('CompanyDashboard: Error fallback - Instagram: ${widget.userData['instagram']}');
+          }
+        });
         }
       }
 
@@ -126,8 +165,8 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
       });
 
       // 4. Save company data to shared preferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('company_data', json.encode(data));
+      final prefsForData = await SharedPreferences.getInstance();
+      await prefsForData.setString('company_data', json.encode(data));
 
     } catch (error) {
       if (!kReleaseMode) {
@@ -156,6 +195,12 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           widget.userData['website'] = contactData['website'] ?? widget.userData['website'];
           widget.userData['facebook'] = contactData['facebook'] ?? widget.userData['facebook'];
           widget.userData['instagram'] = contactData['instagram'] ?? widget.userData['instagram'];
+          
+          // Debug logging for cached values
+          if (!kReleaseMode) {
+            print('CompanyDashboard: Loaded from cache - Facebook: ${widget.userData['facebook']}');
+            print('CompanyDashboard: Loaded from cache - Instagram: ${widget.userData['instagram']}');
+          }
         });
       }
 
@@ -430,11 +475,14 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                                 children: [
                                   Icon(Icons.facebook, color: Colors.blue, size: 24),
                                   SizedBox(width: 8),
-                                  Text(
-                                    widget.userData['facebook']?.toString() ?? 'Not provided',
-                                    style: TextStyle(
-                                      color: Colors.black87,
-                                      fontSize: 14,
+                                  Expanded(
+                                    child: Text(
+                                      widget.userData['facebook']?.toString() ?? 'Not provided',
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontSize: 14,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],
@@ -444,11 +492,14 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                                 children: [
                                   Image.asset('assets/icons/instagram.png', width: 20, height: 20),
                                   SizedBox(width: 12),
-                                  Text(
-                                    widget.userData['instagram']?.toString() ?? 'Not provided',
-                                    style: TextStyle(
-                                      color: Colors.black87,
-                                      fontSize: 14,
+                                  Expanded(
+                                    child: Text(
+                                      widget.userData['instagram']?.toString() ?? 'Not provided',
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontSize: 14,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],

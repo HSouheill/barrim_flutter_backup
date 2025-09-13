@@ -11,6 +11,8 @@ class CompanyAppHeader extends StatelessWidget {
   final String? logoUrl;
   final Map<String, dynamic> userData;
   final VoidCallback? onLogoTap;
+  final bool showBackButton;
+  final VoidCallback? onBackTap;
 
   const CompanyAppHeader({
     Key? key, 
@@ -18,6 +20,8 @@ class CompanyAppHeader extends StatelessWidget {
     this.logoUrl,
     required this.userData,
     this.onLogoTap,
+    this.showBackButton = false,
+    this.onBackTap,
   }) : super(key: key);
 
   @override
@@ -44,8 +48,19 @@ class CompanyAppHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          GestureDetector(
-            onTap: onLogoTap ?? () async {
+          // Back button or logo
+          if (showBackButton)
+            IconButton(
+              onPressed: onBackTap ?? () => Navigator.of(context).pop(),
+              icon: Icon(
+                Icons.arrow_back_ios,
+                color: Colors.white,
+                size: 24,
+              ),
+            )
+          else
+            GestureDetector(
+              onTap: onLogoTap ?? () async {
               // Ensure userData has token before navigating
               Map<String, dynamic> updatedUserData = Map<String, dynamic>.from(userData);
               if (!updatedUserData.containsKey('token') || updatedUserData['token'] == null) {
@@ -68,7 +83,7 @@ class CompanyAppHeader extends StatelessWidget {
               );
             },
             child: Image.asset('assets/logo/barrim_logo.png', height: 60),
-          ),
+            ),
           Spacer(),
 
           InkWell(

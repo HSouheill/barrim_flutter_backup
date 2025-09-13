@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import '../../../../services/company_referral_service.dart';
 import '../../../../utils/token_manager.dart';
 import '../../headers/company_header.dart';
-import '../referrals/rewards.dart';
 import 'dart:typed_data';
 import '../../../../services/api_service.dart';
 import 'company_rewars.dart';
@@ -39,7 +38,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
   Future<void> _loadReferralData() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token?.isNotEmpty == true) {
+      if (token?.isEmpty == true) {
         setState(() {
           _isLoading = false;
           _errorMessage = 'Authentication required';
@@ -162,17 +161,19 @@ class _ReferralsPageState extends State<ReferralsPage> {
   Future<void> _loadUserProfile() async {
     try {
       final token = await _tokenManager.getToken();
-      if (token?.isNotEmpty == true) {
-        var data = await ApiService.getUserProfile(token!);
-        if (data != null && data['referralCode'] != null) {
-          setState(() {
-            _userReferralCode = data['referralCode'];
-            // Update referral link if we already have referral data
-            if (_referralData.isNotEmpty) {
-              _referralData['referralLink'] = 'https://barrim.com/referral?code=${_userReferralCode}';
-            }
-          });
-        }
+      if (token?.isEmpty == true) {
+        return;
+      }
+      
+      var data = await ApiService.getUserProfile(token!);
+      if (data['referralCode'] != null) {
+        setState(() {
+          _userReferralCode = data['referralCode'];
+          // Update referral link if we already have referral data
+          if (_referralData.isNotEmpty) {
+            _referralData['referralLink'] = 'https://barrim.com/referral?code=${_userReferralCode}';
+          }
+        });
       }
     } catch (error) {
       print('Error loading user profile: $error');
@@ -278,7 +279,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                               icon: const Icon(Icons.copy, size: 20),
                               onPressed: () {
                                 final code = displayReferralCode;
-                                if (code != null && code.isNotEmpty) {
+                                if (code.isNotEmpty) {
                                   Clipboard.setData(ClipboardData(text: code));
                                   // ScaffoldMessenger.of(context).showSnackBar(
                                   //   const SnackBar(content: Text('Code copied to clipboard')),
@@ -398,7 +399,6 @@ class _ReferralsPageState extends State<ReferralsPage> {
 
   List<Widget> _buildReferralsList() {
     print('Building referrals list with data: $_referralData');
-    final count = _referralData['referralsCount'] ?? 0;
 
     // Safely extract referrals list
     final referrals = _referralData['referrals'];
