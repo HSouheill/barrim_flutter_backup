@@ -158,25 +158,27 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
         result = await ApiService.addToFavorites(branchId, widget.token!);
       }
 
-      // if (result['success']) {
-      //   setState(() {
-      //     _isFavorite = !_isFavorite;
-      //   });
+      if (result['success']) {
+        setState(() {
+          _isFavorite = !_isFavorite;
+        });
 
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     SnackBar(
-      //       content: Text(result['message']),
-      //       duration: Duration(seconds: 2),
-      //     ),
-      //   );
-      // } else {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     SnackBar(
-      //       content: Text(result['message']),
-      //       duration: Duration(seconds: 3),
-      //     ),
-      //   );
-      // }
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(
+        //     content: Text(result['message'] ?? (_isFavorite ? 'Added to favorites' : 'Removed from favorites')),
+        //     duration: Duration(seconds: 2),
+        //     backgroundColor: Colors.green,
+        //   ),
+        // );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to update favorites'),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
       if (!kReleaseMode) {
         print('Error toggling favorite: $e');
@@ -185,6 +187,7 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
       //   SnackBar(
       //     content: Text('Failed to update favorites. Please try again.'),
       //     duration: Duration(seconds: 3),
+      //     backgroundColor: Colors.red,
       //   ),
       // );
     } finally {
@@ -898,7 +901,9 @@ Check it out on our app!
 
   void _launchInstagram() {
     final branch = _branches.isNotEmpty ? _branches[_selectedBranchIndex] : widget.place;
-    final instagramUrl = branch['socialMedia']?['instagram'] ?? 
+    // First check the place data for social media, then fallback to fetched data
+    final instagramUrl = widget.place['socialMedia']?['instagram'] ??
+                        branch['socialMedia']?['instagram'] ?? 
                         _companyData?['socialMedia']?['instagram'] ?? 
                         _wholesalerData?['socialMedia']?['instagram'];
     _launchSocialMedia(instagramUrl);
@@ -906,7 +911,9 @@ Check it out on our app!
 
   void _launchFacebook() {
     final branch = _branches.isNotEmpty ? _branches[_selectedBranchIndex] : widget.place;
-    final facebookUrl = branch['socialMedia']?['facebook'] ?? 
+    // First check the place data for social media, then fallback to fetched data
+    final facebookUrl = widget.place['socialMedia']?['facebook'] ??
+                       branch['socialMedia']?['facebook'] ?? 
                        _companyData?['socialMedia']?['facebook'] ?? 
                        _wholesalerData?['socialMedia']?['facebook'];
     _launchSocialMedia(facebookUrl);

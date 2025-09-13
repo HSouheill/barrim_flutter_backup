@@ -19,11 +19,15 @@ import '../models/wholesaler_model.dart' as wholesaler_model;
 class CollapsedSheet extends StatefulWidget {
   final ScrollController? controller;
   final VoidCallback onLocationCardTap;
+  final Function(Map<String, dynamic>)? onPlaceTap;
+  final VoidCallback? onCloseSheet;
 
   const CollapsedSheet({
     Key? key,
     required this.controller,
     required this.onLocationCardTap,
+    this.onPlaceTap,
+    this.onCloseSheet,
   }) : super(key: key);
 
   @override
@@ -1495,7 +1499,44 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
     }
 
     return GestureDetector(
-      onTap: widget.onLocationCardTap,
+      onTap: () {
+        if (widget.onPlaceTap != null) {
+          // Close the sheet first
+          if (widget.onCloseSheet != null) {
+            widget.onCloseSheet!();
+          }
+          
+          // Prepare place data for PlaceDetailsOverlay
+          final placeData = {
+            'name': company['type'] == 'company_branch' 
+                ? (company['name'] ?? 'Unknown Branch')
+                : (companyInfo?['name'] ?? 'Unknown Company'),
+            '_id': company['id'] ?? company['_id'] ?? company['companyId'],
+            'latitude': location?['lat']?.toDouble() ?? 0.0,
+            'longitude': location?['lng']?.toDouble() ?? 0.0,
+            'address': '${location?['street'] ?? ''}, ${location?['city'] ?? ''}',
+            'phone': company['phone'] ?? '',
+            'description': companyInfo?['description'] ?? '',
+            'image': displayLogoUrl ?? 'assets/images/company_placeholder.png',
+            'logoUrl': displayLogoUrl,
+            'companyName': companyInfo?['name'] ?? 'Unknown Company',
+            'companyId': company['companyId'] ?? company['_id'],
+            'images': company['images'] ?? [],
+            'type': company['type'] == 'company_branch' ? 'branch' : 'company',
+            'category': companyInfo?['category'] ?? company['category'] ?? 'Unknown Category',
+            'company': companyInfo,
+            'status': 'active',
+            // Include social media information from company data
+            'socialMedia': {
+              'instagram': companyInfo?['socialMedia']?['instagram'],
+              'facebook': companyInfo?['socialMedia']?['facebook'],
+            },
+          };
+          widget.onPlaceTap!(placeData);
+        } else {
+          widget.onLocationCardTap();
+        }
+      },
       child: Container(
         width: 200,
         decoration: BoxDecoration(
@@ -1684,7 +1725,49 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
     }
 
     return GestureDetector(
-      onTap: widget.onLocationCardTap,
+      onTap: () {
+        if (widget.onPlaceTap != null) {
+          // Close the sheet first
+          if (widget.onCloseSheet != null) {
+            widget.onCloseSheet!();
+          }
+          
+          // Prepare place data for PlaceDetailsOverlay
+          final placeData = {
+            'name': displayName ?? 'Unknown Wholesaler',
+            '_id': wholesaler['id'],
+            'latitude': wholesaler['address'] != null ? (wholesaler['address'] as wholesaler_model.Address).lat : 0.0,
+            'longitude': wholesaler['address'] != null ? (wholesaler['address'] as wholesaler_model.Address).lng : 0.0,
+            'address': wholesaler['address'] != null ? '${(wholesaler['address'] as wholesaler_model.Address).city}, ${(wholesaler['address'] as wholesaler_model.Address).street}' : '',
+            'phone': wholesaler['phone'] ?? '',
+            'description': wholesaler['category'] ?? '',
+            'image': displayLogoUrl ?? 'assets/images/company_placeholder.png',
+            'logoUrl': displayLogoUrl,
+            'companyName': wholesaler['businessName'] ?? 'Unknown Wholesaler',
+            'companyId': wholesaler['id'],
+            'images': wholesaler['branches'] != null && wholesaler['branches'].isNotEmpty 
+                ? wholesaler['branches'].first['images'] ?? []
+                : [],
+            'type': 'Wholesaler',
+            'category': wholesaler['category'] ?? 'Unknown Category',
+            'company': {
+              'businessName': wholesaler['businessName'],
+              'logoUrl': wholesaler['logoUrl'],
+              'id': wholesaler['id'],
+            },
+            'status': 'active',
+            'branches': wholesaler['branches'] ?? [],
+            // Include social media information from wholesaler data
+            'socialMedia': {
+              'instagram': wholesaler['socialMedia']?['instagram'],
+              'facebook': wholesaler['socialMedia']?['facebook'],
+            },
+          };
+          widget.onPlaceTap!(placeData);
+        } else {
+          widget.onLocationCardTap();
+        }
+      },
       child: Container(
         width: 200,
         decoration: BoxDecoration(
@@ -1969,7 +2052,45 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
     }
 
     return GestureDetector(
-      onTap: widget.onLocationCardTap,
+      onTap: () {
+        if (widget.onPlaceTap != null) {
+          // Close the sheet first
+          if (widget.onCloseSheet != null) {
+            widget.onCloseSheet!();
+          }
+          
+          // Prepare place data for PlaceDetailsOverlay
+          final placeData = {
+            'name': branch['name'] ?? 'Unknown Branch',
+            '_id': branch['id'],
+            'latitude': branch['location'] != null ? branch['location']['lat'].toDouble() : 0.0,
+            'longitude': branch['location'] != null ? branch['location']['lng'].toDouble() : 0.0,
+            'address': branch['location'] != null ? '${branch['location']['street'] ?? ''}, ${branch['location']['city'] ?? ''}' : '',
+            'phone': branch['phone'] ?? '',
+            'description': branch['description'] ?? '',
+            'image': branchLogoUrl ?? 'assets/images/company_placeholder.png',
+            'logoUrl': branchLogoUrl,
+            'companyName': branch['wholesalerName'] ?? 'Unknown Wholesaler',
+            'companyId': branch['wholesalerId'],
+            'images': branch['images'] ?? [],
+            'type': 'Wholesaler Branch',
+            'category': branch['category'] ?? 'Unknown Category',
+            'company': {
+              'businessName': branch['wholesalerName'],
+              'id': branch['wholesalerId'],
+            },
+            'status': 'active',
+            // Include social media information from branch's wholesaler data
+            'socialMedia': {
+              'instagram': branch['wholesalerSocialMedia']?['instagram'],
+              'facebook': branch['wholesalerSocialMedia']?['facebook'],
+            },
+          };
+          widget.onPlaceTap!(placeData);
+        } else {
+          widget.onLocationCardTap();
+        }
+      },
       child: Container(
         width: 200,
         decoration: BoxDecoration(

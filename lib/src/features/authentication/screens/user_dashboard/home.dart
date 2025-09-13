@@ -256,6 +256,11 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                 'company': company,
                 'type': 'branch',
                 'status': 'active',
+                // Include social media information from company data
+                'socialMedia': {
+                  'instagram': company['socialMedia']?['instagram'],
+                  'facebook': company['socialMedia']?['facebook'],
+                },
               };
             });
             print('_selectedPlace set to: ${_selectedPlace?['name']}');
@@ -469,6 +474,11 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                           'branches': processedBranches,
                           'type': 'company', // Add type to distinguish company from branch
                           'category': companyInfo?['category'] ?? 'Unknown Category',
+                          // Include social media information from company data
+                          'socialMedia': {
+                            'instagram': companyInfo?['socialMedia']?['instagram'],
+                            'facebook': companyInfo?['socialMedia']?['facebook'],
+                          },
                         };
                       });
                       print('_selectedPlace set to company: ${_selectedPlace?['name']}');
@@ -489,6 +499,11 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                         'branches': [],
                         'type': 'company', // Add type to distinguish company from branch
                         'category': companyInfo?['category'] ?? 'Unknown Category',
+                        // Include social media information from company data
+                        'socialMedia': {
+                          'instagram': companyInfo?['socialMedia']?['instagram'],
+                          'facebook': companyInfo?['socialMedia']?['facebook'],
+                        },
                       };
                     });
                     print('_selectedPlace set to company (fallback): ${_selectedPlace?['name']}');
@@ -543,6 +558,11 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                           'category': branch['category'] ?? 'Unknown Category',
                           'company': companyInfo,
                           'status': 'active',
+                          // Include social media information from company data
+                          'socialMedia': {
+                            'instagram': companyInfo?['socialMedia']?['instagram'],
+                            'facebook': companyInfo?['socialMedia']?['facebook'],
+                          },
                         };
                       });
                       print('_selectedPlace set to company branch: ${_selectedPlace?['name']}');
@@ -730,6 +750,11 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                   'type': 'company',
                   'category': companyInfo?['category'] ?? 'Unknown Category',
                   'status': 'active',
+                  // Include social media information from company data
+                  'socialMedia': {
+                    'instagram': companyInfo?['socialMedia']?['instagram'],
+                    'facebook': companyInfo?['socialMedia']?['facebook'],
+                  },
                 };
               });
             }
@@ -751,6 +776,11 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 'type': 'company',
                 'category': companyInfo?['category'] ?? 'Unknown Category',
                 'status': 'active',
+                // Include social media information from company data
+                'socialMedia': {
+                  'instagram': companyInfo?['socialMedia']?['instagram'],
+                  'facebook': companyInfo?['socialMedia']?['facebook'],
+                },
               };
             });
           }
@@ -2383,6 +2413,18 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 controller: null,
                 onLocationCardTap: () {
                   // Handle location card tap
+                },
+                onPlaceTap: (Map<String, dynamic> place) {
+                  // Open PlaceDetailsOverlay when a place is tapped
+                  setState(() {
+                    _selectedPlace = place;
+                  });
+                },
+                onCloseSheet: () {
+                  // Close the CollapsedSheet by expanding the map
+                  setState(() {
+                    _isMapExpanded = true;
+                  });
                 },
               ),
             // Semi-transparent overlay when sidebar is open

@@ -22,7 +22,6 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
   final TokenManager _tokenManager = TokenManager();
   String? logoUrl;
   List<CompanyVoucher> availableVouchers = [];
-  List<CompanyVoucher> purchasedVouchers = []; // Changed to CompanyVoucher to match the API response
   Set<String> purchasedVoucherIds = {}; // Track purchased voucher IDs
   bool isLoadingVouchers = false;
 
@@ -145,7 +144,6 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
             .toSet();
         
         setState(() {
-          this.purchasedVouchers = purchasedVouchers;
           purchasedVoucherIds = purchasedIds;
         });
         
@@ -295,32 +293,6 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
                               child: Center(child: CircularProgressIndicator()),
                             ),
 
-                          // Purchased Vouchers Section
-                          if (purchasedVouchers.isNotEmpty) ...[
-                            const SizedBox(height: 20),
-                            Row(
-                              children: [
-                                const Expanded(child: Divider()),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-                                  child: Text(
-                                    'Purchased Vouchers',
-                                    style: TextStyle(
-                                      color: Color(0xFF2079C2),
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const Expanded(child: Divider()),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            ...purchasedVouchers.map((companyVoucher) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildVoucherCard(companyVoucher),
-                            )),
-                          ],
 
                           const SizedBox(height: 20),
                         ],
@@ -342,6 +314,13 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
     final voucher = companyVoucher.voucher;
     final canPurchase = companyVoucher.canPurchase;
     final isPurchased = purchasedVoucherIds.contains(voucher.id);
+    
+    print('Building voucher card:');
+    print('  - Title: ${voucher.title}');
+    print('  - Image URL: ${voucher.imageUrl}');
+    print('  - Points: ${voucher.points}');
+    print('  - Discount Type: ${voucher.discountType}');
+    print('  - Discount Value: ${voucher.discountValue}');
     
     return Container(
       decoration: BoxDecoration(
@@ -378,69 +357,109 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
                   bottomLeft: Radius.circular(10),
                 ),
               ),
-              child: voucher.imageUrl != null && voucher.imageUrl!.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(10),
-                        bottomLeft: Radius.circular(10),
-                      ),
-                      child: Image.network(
-                        voucher.imageUrl!.startsWith('http') 
-                            ? voucher.imageUrl! 
-                            : '${ApiService.baseUrl}/${voucher.imageUrl!.replaceFirst('/', '')}',
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                voucher.discountType == 'percentage' 
-                                    ? '${voucher.discountValue.toInt()}%'
-                                    : '\$${voucher.discountValue.toInt()}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const Text(
-                                'Discount',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          voucher.discountType == 'percentage' 
-                              ? '${voucher.discountValue.toInt()}%'
-                              : '\$${voucher.discountValue.toInt()}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(10),
+                  bottomLeft: Radius.circular(10),
+                ),
+                child: Stack(
+                  children: [
+                    // Background image if available
+                    if (voucher.imageUrl != null && voucher.imageUrl!.isNotEmpty)
+                      Positioned.fill(
+                        child: Builder(
+                          builder: (context) {
+                            // Construct proper image URL with uploads path
+                            String imageUrl;
+                            if (voucher.imageUrl!.startsWith('http')) {
+                              imageUrl = voucher.imageUrl!;
+                            } else {
+                              // Ensure proper URL construction for uploads
+                              final path = voucher.imageUrl!.startsWith('/') 
+                                  ? voucher.imageUrl!.substring(1) 
+                                  : voucher.imageUrl!;
+                              imageUrl = 'https://barrim.online/uploads/$path';
+                            }
+                            
+                            print('Original image path: ${voucher.imageUrl}');
+                            print('Constructed image URL: $imageUrl');
+                            return Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  color: Color(0xFF2079C2),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      value: loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                          : null,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                print('Image load error: $error');
+                                print('Image URL that failed: $imageUrl');
+                                print('Stack trace: $stackTrace');
+                                return Container(
+                                  color: Color(0xFF2079C2),
+                                );
+                              },
+                            );
+                          },
                         ),
-                        const Text(
-                          'Discount',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
+                      ),
+                    // Semi-transparent overlay to ensure text readability
+                    if (voucher.imageUrl != null && voucher.imageUrl!.isNotEmpty)
+                      Container(
+                        color: Colors.black.withOpacity(0.3),
+                      ),
+                    // Discount text overlay
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            voucher.discountType == 'percentage' 
+                                ? '${voucher.discountValue.toInt()}%'
+                                : '\$${voucher.discountValue.toInt()}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(1, 1),
+                                  blurRadius: 2,
+                                  color: Colors.black54,
+                                ),
+                              ],
+                            ),
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                          const Text(
+                            'Discount',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(1, 1),
+                                  blurRadius: 2,
+                                  color: Colors.black54,
+                                ),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
+                  ],
+                ),
+              ),
             ),
             Expanded(
               child: Padding(
