@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../services/sp_referral_service.dart';
+import '../../../../services/sp_voucher_service.dart';
+import '../../../../models/voucher_models.dart';
 import '../../headers/service_provider_header.dart';
 import '../../../../services/serviceprovider_controller.dart';
 import 'package:provider/provider.dart';
+import 'purchased_vouchers_screen.dart';
 
 class ServiceProviderRewards extends StatefulWidget {
   const ServiceProviderRewards({Key? key}) : super(key: key);
@@ -13,16 +16,20 @@ class ServiceProviderRewards extends StatefulWidget {
 
 class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
   final ReferralService _referralService = ReferralService();
+  final ServiceProviderVoucherService _voucherService = ServiceProviderVoucherService();
   final ServiceProviderController _serviceProviderController = ServiceProviderController();
   int _points = 0;
   bool _isLoading = true;
   String _errorMessage = '';
+  List<ServiceProviderVoucher> _availableVouchers = [];
+  bool _isLoadingVouchers = true;
 
   @override
   void initState() {
     super.initState();
     _fetchServiceProviderData();
     _loadReferralData();
+    _loadAvailableVouchers();
   }
 
   Future<void> _fetchServiceProviderData() async {
@@ -54,6 +61,34 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
         _errorMessage = 'Error loading points: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadAvailableVouchers() async {
+    setState(() {
+      _isLoadingVouchers = true;
+    });
+
+    try {
+      final result = await _voucherService.getAvailableVouchers();
+
+      if (result.isSuccess && result.data != null) {
+        setState(() {
+          _availableVouchers = result.data!;
+          _isLoadingVouchers = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingVouchers = false;
+        });
+        // Don't show error for vouchers, just log it
+        print('Failed to load vouchers: ${result.errorMessage}');
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingVouchers = false;
+      });
+      print('Error loading vouchers: $e');
     }
   }
 
@@ -137,24 +172,87 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
 
                             const SizedBox(height: 16),
 
-                            // Reward cards
-                            _buildRewardCard(
-                              discountPercentage: '20%',
-                              pointsRequired: '30',
-                              description: 'Get 20% discount code to use for any activity!',
-                              color: Color(0xFFEF5350),
-                              currentPoints: _points,
+                            // My Vouchers Button
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const PurchasedVouchersScreen(),
+                                    ),
+                                  );
+                                },
+                                icon: Icon(Icons.receipt_long, color: Colors.white),
+                                label: Text(
+                                  'My Vouchers',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Color(0xFF4CAF50),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
                             ),
 
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 20),
 
-                            _buildRewardCard(
-                              discountPercentage: '30%',
-                              pointsRequired: '50',
-                              description: 'Get 30% discount code to use for any activity!',
-                              color: Color(0xFFEF5350),
-                              currentPoints: _points,
-                            ),
+                            // Available Vouchers Section
+                            if (_availableVouchers.isNotEmpty) ...[
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Available Vouchers',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Color(0xFF2079C2),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              
+                              // Voucher cards
+                              ...(_availableVouchers.map((voucher) => 
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _buildVoucherCard(voucher),
+                                ),
+                              ).toList()),
+                            ] else if (_isLoadingVouchers) ...[
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(20),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            ] else ...[
+                              // No vouchers available
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'No vouchers available at the moment',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
 
                             const SizedBox(height: 20),
                           ],
@@ -171,15 +269,13 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
     );
   }
 
-  // Reward card widget
-  Widget _buildRewardCard({
-    required String discountPercentage,
-    required String pointsRequired,
-    required String description,
-    required Color color,
-    required int currentPoints,
-  }) {
-    final canRedeem = currentPoints >= int.parse(pointsRequired);
+  // Voucher card widget
+  Widget _buildVoucherCard(ServiceProviderVoucher serviceProviderVoucher) {
+    final voucher = serviceProviderVoucher.voucher;
+    final canPurchase = serviceProviderVoucher.canPurchase;
+    final discountText = voucher.discountType == 'percentage' 
+        ? '${voucher.discountValue.toInt()}%'
+        : '\$${voucher.discountValue.toInt()}';
 
     return Container(
       decoration: BoxDecoration(
@@ -204,7 +300,7 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
               width: 80,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color,
+                color: Color(0xFFEF5350),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(10),
                   bottomLeft: Radius.circular(10),
@@ -214,18 +310,18 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    discountPercentage,
+                    discountText,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const Text(
-                    'Discount Code',
+                    'Discount',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 10,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -239,11 +335,25 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        description,
-                        style: const TextStyle(
-                          fontSize: 14,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            voucher.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            voucher.description,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     Column(
@@ -252,7 +362,7 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
                         Row(
                           children: [
                             Text(
-                              pointsRequired,
+                              '${voucher.points}',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Color(0xFF2079C2),
@@ -271,11 +381,11 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
                         ),
                         const SizedBox(height: 5),
                         ElevatedButton(
-                          onPressed: canRedeem ? () {
-                            _redeemReward(int.parse(pointsRequired));
+                          onPressed: canPurchase ? () {
+                            _purchaseVoucher(voucher.id, voucher.points);
                           } : null,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: canRedeem
+                            backgroundColor: canPurchase
                                 ? Color(0xFF2079C2)
                                 : Colors.grey.shade300,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
@@ -285,9 +395,9 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
                             ),
                           ),
                           child: Text(
-                            'Get',
+                            'Purchase',
                             style: TextStyle(
-                              color: canRedeem ? Colors.white : Colors.black54,
+                              color: canPurchase ? Colors.white : Colors.black54,
                               fontSize: 12,
                             ),
                           ),
@@ -304,11 +414,11 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
     );
   }
 
-  Future<void> _redeemReward(int pointsRequired) async {
+  Future<void> _purchaseVoucher(String voucherId, int pointsRequired) async {
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Redeem Reward?'),
+        title: Text('Purchase Voucher?'),
         content: Text('This will deduct $pointsRequired points from your balance.'),
         actions: [
           TextButton(
@@ -324,11 +434,95 @@ class _ServiceProviderRewardsState extends State<ServiceProviderRewards> {
     );
 
     if (confirm == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Reward redeemed successfully!')),
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
       );
-      // Refresh points after redemption
-      _loadReferralData();
+
+      try {
+        final result = await _voucherService.purchaseVoucher(voucherId);
+
+        // Close loading dialog
+        Navigator.of(context).pop();
+
+        if (result.isSuccess) {
+          // After purchase, mark voucher as used automatically
+          try {
+            final purchased = await _voucherService.getPurchasedVouchers();
+            if (purchased.isSuccess && purchased.data != null) {
+              final purchases = purchased.data!;
+              final match = purchases.firstWhere(
+                (p) => p.voucherId == voucherId && !p.isUsed,
+                orElse: () => purchases.first,
+              );
+              if (match.id.isNotEmpty) {
+                final useRes = await _voucherService.useVoucher(match.id);
+                if (useRes.isSuccess) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Voucher purchased and marked as used.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(useRes.errorMessage ?? 'Purchased, but failed to mark as used'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Purchased, but could not locate the purchase to mark used'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Purchased, but failed to retrieve purchases'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Purchased, but error marking used: $e'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+
+          // Refresh data after purchase/use
+          _loadReferralData();
+          _loadAvailableVouchers();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.errorMessage ?? 'Failed to purchase voucher'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        // Close loading dialog
+        Navigator.of(context).pop();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An error occurred: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

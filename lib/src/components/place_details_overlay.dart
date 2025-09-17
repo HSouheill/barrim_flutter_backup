@@ -43,6 +43,7 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
   Map<String, dynamic>? _branchDetails;
   Map<String, dynamic>? _companyData;
   Map<String, dynamic>? _wholesalerData;
+  Map<String, dynamic>? _resolvedSocial;
   int _currentImageIndex = 0;
 
   @override
@@ -64,9 +65,26 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
       duration: const Duration(milliseconds: 300),
     );
 
-    // Load branches data if there are none provided
+    // Load branches data if provided; prefer each branch's own social links
     if (widget.place['branches'] != null && widget.place['branches'].isNotEmpty) {
-      _branches = widget.place['branches'];
+      final placeSocial = widget.place['socialMedia'];
+      final companySocial = widget.place['company'] != null ? widget.place['company']['socialMedia'] : null;
+      _branches = (widget.place['branches'] as List).map((b) {
+        final branch = Map<String, dynamic>.from(b as Map);
+        // Prefer branch social; fallback to place then company
+        final branchSocial = branch['socialMedia'];
+        final hasValidBranchSocial = branchSocial != null && 
+            branchSocial is Map && 
+            branchSocial.isNotEmpty &&
+            _hasValidSocialUrls(branchSocial);
+            
+        branch['socialMedia'] = hasValidBranchSocial
+            ? branchSocial
+            : (placeSocial != null && (placeSocial as Map).isNotEmpty && _hasValidSocialUrls(placeSocial))
+                ? placeSocial
+                : (companySocial ?? {});
+        return branch;
+      }).toList();
     }
 
     // Otherwise fetch them from the API if we have a token
@@ -81,6 +99,78 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
     _fetchCompanyData();
     // Fetch wholesaler data
     _fetchWholesalerData();
+    // Resolve social links from best available source
+    _resolveSocialLinks();
+  }
+
+  Future<void> _resolveSocialLinks() async {
+    try {
+      // Check immediate candidates on the place
+      final Map<String, dynamic>? placeSocial = widget.place['socialMedia'];
+      final Map<String, dynamic>? companySocial = widget.place['company'] != null ? widget.place['company']['socialMedia'] : null;
+      final Map<String, dynamic>? branchSocial = _branches.isNotEmpty ? (_branches[_selectedBranchIndex]['socialMedia'] as Map<String, dynamic>?) : null;
+      final Map<String, dynamic>? companyInfoSocial = widget.place['companyInfo'] != null ? widget.place['companyInfo']['socialMedia'] : null;
+
+      Map<String, dynamic>? firstNonEmpty(Map<String, dynamic>? m) {
+        if (m == null) return null;
+        final ig = m['instagram']?.toString().trim();
+        final fb = m['facebook']?.toString().trim();
+        
+        // Check if we have valid URLs (not empty, not just "{}", and not empty strings)
+        final hasValidInstagram = ig != null && ig.isNotEmpty && ig != '{}' && ig != '""' && ig != 'null';
+        final hasValidFacebook = fb != null && fb.isNotEmpty && fb != '{}' && fb != '""' && fb != 'null';
+        
+        if (hasValidInstagram || hasValidFacebook) {
+          return {'instagram': hasValidInstagram ? ig : '', 'facebook': hasValidFacebook ? fb : ''};
+        }
+        return null;
+      }
+
+      final direct = firstNonEmpty(branchSocial) ?? firstNonEmpty(placeSocial) ?? firstNonEmpty(companySocial) ?? firstNonEmpty(companyInfoSocial);
+      if (direct != null) {
+        if (mounted) setState(() { _resolvedSocial = direct; });
+        return;
+      }
+
+      // Try to resolve via API using company id from place, if available
+      final String? companyId = (widget.place['company'] != null ? widget.place['company']['id'] : null)?.toString();
+      if (companyId == null || companyId.isEmpty) return;
+
+      final allBranches = await ApiService.getAllBranches();
+      final match = allBranches.firstWhere(
+        (b) => b['company'] != null && b['company']['id']?.toString() == companyId,
+        orElse: () => {},
+      );
+      if (match.isNotEmpty) {
+        final apiCompanySocial = match['company']?['socialMedia'];
+        final resolved = firstNonEmpty(apiCompanySocial);
+        if (resolved != null && mounted) {
+          setState(() { _resolvedSocial = resolved; });
+        }
+      }
+      
+      // If still not resolved and we have a branch id, try matching by branch id
+      if (_resolvedSocial == null) {
+        final String? branchId = (widget.place['_id'] ?? widget.place['id'])?.toString();
+        if (branchId != null && branchId.isNotEmpty) {
+          final byBranch = allBranches.firstWhere(
+            (b) => b['id']?.toString() == branchId,
+            orElse: () => {},
+          );
+          if (byBranch.isNotEmpty) {
+            final apiCompanySocial2 = byBranch['company']?['socialMedia'];
+            final resolved2 = firstNonEmpty(apiCompanySocial2);
+            if (resolved2 != null && mounted) {
+              setState(() { _resolvedSocial = resolved2; });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (!kReleaseMode) {
+        print('Error resolving social links: $e');
+      }
+    }
   }
 
   Future<void> _checkFavoriteStatus() async {
@@ -212,11 +302,12 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
       }
 
       // Filter branches for the current place (company)
-      final String placeId = widget.place['id'];
+      final String? placeId = (widget.place['id'] ?? widget.place['_id'] ?? widget.place['companyId'])?.toString();
       final List<Map<String, dynamic>> filteredBranches = allBranchesData
-          .where((branch) =>
-      branch['company'] != null &&
-          branch['company']['id'] == placeId)
+          .where((branch) {
+            final companyId = branch['company'] != null ? branch['company']['id']?.toString() : null;
+            return placeId != null && companyId == placeId;
+          })
           .toList();
       
       if (!kReleaseMode) {
@@ -262,8 +353,10 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
         String formattedAddress = '';
 
         if (location != null) {
-          latitude = location['lat'] is double ? location['lat'] : 0.0;
-          longitude = location['lng'] is double ? location['lng'] : 0.0;
+          final latVal = location['lat'];
+          final lngVal = location['lng'];
+          latitude = (latVal is num) ? latVal.toDouble() : 0.0;
+          longitude = (lngVal is num) ? lngVal.toDouble() : 0.0;
           formattedAddress = '${location['street'] ?? ''}, ${location['city'] ?? ''}, ${location['district'] ?? ''}';
           formattedAddress = formattedAddress.replaceAll(RegExp(r', $'), '');
         }
@@ -277,6 +370,8 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
           'latitude': latitude,
           'longitude': longitude,
           'costPerCustomer': branch['costPerCustomer'] ?? 0.0,
+          // Ensure every branch has the parent company's social links
+          'socialMedia': branch['socialMedia'] ?? branch['company']?['socialMedia'] ?? {},
         };
         
         if (!kReleaseMode) {
@@ -594,18 +689,18 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
   }
 
   void _showErrorSnackBar(String message) {
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       SnackBar(
-    //         content: Text(message),
-    //         duration: Duration(seconds: 3),
-    //         action: SnackBarAction(
-    //           label: 'OK',
-    //           onPressed: () {
-    //             ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    //           },
-    //         ),
-    //       ),
-    //     );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'OK',
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
   }
 
   void _showPhoneOptions(String? phoneNumber) {
@@ -880,14 +975,26 @@ Check it out on our app!
   }
 
   Future<void> _launchSocialMedia(String? url) async {
-    if (url == null || url.isEmpty) {
+    String? candidate = url?.toString().trim();
+    if (candidate == null || candidate.isEmpty) {
       _showErrorSnackBar('Social media link not available');
       return;
     }
 
+    // Normalize URLs without scheme
+    if (!candidate.startsWith('http://') && !candidate.startsWith('https://')) {
+      if (candidate.startsWith('@')) {
+        candidate = 'https://instagram.com/${candidate.substring(1)}';
+      } else if (candidate.contains('instagram.com') || candidate.contains('facebook.com')) {
+        candidate = 'https://$candidate';
+      } else {
+        candidate = 'https://$candidate';
+      }
+    }
+
     try {
-      if (await canLaunchUrlString(url)) {
-        await launchUrlString(url, mode: LaunchMode.externalApplication);
+      if (await canLaunchUrlString(candidate)) {
+        await launchUrlString(candidate, mode: LaunchMode.externalApplication);
       } else {
         _showErrorSnackBar('Could not launch social media link');
       }
@@ -899,23 +1006,74 @@ Check it out on our app!
     }
   }
 
-  void _launchInstagram() {
+  bool _hasValidSocialUrls(Map socialMedia) {
+    final ig = socialMedia['instagram']?.toString().trim();
+    final fb = socialMedia['facebook']?.toString().trim();
+    return (ig != null && ig.isNotEmpty && ig != '{}' && ig != '""' && ig != 'null') ||
+           (fb != null && fb.isNotEmpty && fb != '{}' && fb != '""' && fb != 'null');
+  }
+
+  bool _hasValidSocialMedia() {
+    return _firstNonEmptySocial('instagram') != null || _firstNonEmptySocial('facebook') != null;
+  }
+
+  String? _firstNonEmptySocial(String key) {
     final branch = _branches.isNotEmpty ? _branches[_selectedBranchIndex] : widget.place;
-    // First check the place data for social media, then fallback to fetched data
-    final instagramUrl = widget.place['socialMedia']?['instagram'] ??
-                        branch['socialMedia']?['instagram'] ?? 
-                        _companyData?['socialMedia']?['instagram'] ?? 
-                        _wholesalerData?['socialMedia']?['instagram'];
+    
+    print('_firstNonEmptySocial called for key: $key');
+    print('Current branch: ${branch['name']}');
+    print('Branch social media: ${branch['socialMedia']}');
+    print('Place social media: ${widget.place['socialMedia']}');
+    print('Place type: ${widget.place['type']}');
+    
+    // Check branch social media first, but only if it has actual content
+    final branchSocial = branch['socialMedia'];
+    if (branchSocial != null && branchSocial is Map && branchSocial.isNotEmpty) {
+      final branchValue = branchSocial[key]?.toString().trim();
+      print('Branch social media value for $key: "$branchValue"');
+      if (branchValue != null && branchValue.isNotEmpty && branchValue != '{}' && branchValue != 'null') {
+        print('Found valid branch social media for $key: $branchValue');
+        return branchValue;
+      }
+    }
+    
+    // Fallback to other sources
+    final List<dynamic> candidates = [
+      widget.place['socialMedia']?[key],
+      widget.place['company']?['socialMedia']?[key],
+      widget.place['companyInfo']?['socialMedia']?[key],
+      _resolvedSocial?[key],
+      _companyData?['socialMedia']?[key],
+      _wholesalerData?['socialMedia']?[key],
+    ];
+    for (final c in candidates) {
+      final v = c?.toString().trim();
+      if (v != null && v.isNotEmpty && v != '{}' && v != 'null') {
+        print('Found valid fallback social media for $key: $v');
+        return v;
+      }
+    }
+    print('No valid social media found for $key');
+    return null;
+  }
+
+  void _launchInstagram() {
+    final instagramUrl = _firstNonEmptySocial('instagram');
+    if (kDebugMode) {
+      print('Instagram URL found: $instagramUrl');
+      print('Current branch social media: ${_branches.isNotEmpty ? _branches[_selectedBranchIndex]['socialMedia'] : 'No branches'}');
+      print('Place social media: ${widget.place['socialMedia']}');
+    }
     _launchSocialMedia(instagramUrl);
   }
 
   void _launchFacebook() {
-    final branch = _branches.isNotEmpty ? _branches[_selectedBranchIndex] : widget.place;
-    // First check the place data for social media, then fallback to fetched data
-    final facebookUrl = widget.place['socialMedia']?['facebook'] ??
-                       branch['socialMedia']?['facebook'] ?? 
-                       _companyData?['socialMedia']?['facebook'] ?? 
-                       _wholesalerData?['socialMedia']?['facebook'];
+    final facebookUrl = _firstNonEmptySocial('facebook');
+    if (kDebugMode) {
+      print('Facebook URL found: $facebookUrl');
+      print('Current branch social media: ${_branches.isNotEmpty ? _branches[_selectedBranchIndex]['socialMedia'] : 'No branches'}');
+      print('Place social media: ${widget.place['socialMedia']}');
+    }
     _launchSocialMedia(facebookUrl);
   }
 
@@ -1033,43 +1191,48 @@ Check it out on our app!
                   _buildImageNavigationButtons(),
                   // Image indicator dots
                   _buildImageIndicator(),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Row(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.0),
-                          ),
-                          child: IconButton(
-                            icon: Image.asset(
-                              'assets/icons/instagram.png',
-                              width: 34,
-                              height: 34,
+                  // Social media icons - only show if there are valid social media links
+                  if (_hasValidSocialMedia())
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Row(
+                        children: [
+                          if (_firstNonEmptySocial('instagram') != null)
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.0),
+                              ),
+                              child: IconButton(
+                                icon: Image.asset(
+                                  'assets/icons/instagram.png',
+                                  width: 34,
+                                  height: 34,
+                                ),
+                                onPressed: _launchInstagram,
+                              ),
                             ),
-                            onPressed: _launchInstagram,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.0),
-                          ),
-                          child: IconButton(
-                            icon: Image.asset(
-                              'assets/icons/facebook.png',
-                              width: 34,
-                              height: 34,
+                          if (_firstNonEmptySocial('instagram') != null && _firstNonEmptySocial('facebook') != null)
+                            SizedBox(width: 4),
+                          if (_firstNonEmptySocial('facebook') != null)
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.0),
+                              ),
+                              child: IconButton(
+                                icon: Image.asset(
+                                  'assets/icons/facebook.png',
+                                  width: 34,
+                                  height: 34,
+                                ),
+                                onPressed: _launchFacebook,
+                              ),
                             ),
-                            onPressed: _launchFacebook,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
                   Positioned(
                     left: 16,
                     right: 16,
@@ -1154,21 +1317,23 @@ Check it out on our app!
                                 maxLines: 3,
                               ),
                               SizedBox(height: 4),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.attach_money, color: Colors.white, size: 20),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    '\$${_getPrice()}',
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue,
+                              // Only show price for non-wholesaler branches
+                              if (widget.place['type'] != 'Wholesaler' && widget.place['type'] != 'Wholesaler Branch')
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.attach_money, color: Colors.white, size: 20),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      '\$${_getPrice()}',
+                                      style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
                             ],
                           ),
                         ),

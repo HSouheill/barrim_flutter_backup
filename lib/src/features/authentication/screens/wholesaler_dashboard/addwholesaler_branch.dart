@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -34,6 +32,8 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _instagramController = TextEditingController();
+  final TextEditingController _facebookController = TextEditingController();
   bool _isLoading = false;
   String? selectedCategory;
   String? selectedSubCategory;
@@ -114,6 +114,8 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
     _locationController.dispose();
     _phoneController.dispose();
     _descriptionController.dispose();
+    _instagramController.dispose();
+    _facebookController.dispose();
     super.dispose();
   }
 
@@ -211,6 +213,24 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
     }
 
     _descriptionController.text = branchData['description']?.toString() ?? '';
+    
+    // Load social media data from nested socialMedia object
+    print('AddWholeSalerBranchPage: Full branch data keys: ${branchData.keys.toList()}');
+    print('AddWholeSalerBranchPage: Social media data in branch: ${branchData['socialMedia']}');
+    print('AddWholeSalerBranchPage: Direct instagram field: ${branchData['instagram']}');
+    print('AddWholeSalerBranchPage: Direct facebook field: ${branchData['facebook']}');
+    
+    if (branchData['socialMedia'] != null && branchData['socialMedia'] is Map<String, dynamic>) {
+      final socialMedia = branchData['socialMedia'] as Map<String, dynamic>;
+      _instagramController.text = socialMedia['instagram']?.toString() ?? '';
+      _facebookController.text = socialMedia['facebook']?.toString() ?? '';
+      print('AddWholeSalerBranchPage: Loaded from socialMedia object - Instagram: "${_instagramController.text}", Facebook: "${_facebookController.text}"');
+    } else {
+      // Fallback to direct fields for backward compatibility
+      _instagramController.text = branchData['instagram']?.toString() ?? '';
+      _facebookController.text = branchData['facebook']?.toString() ?? '';
+      print('AddWholeSalerBranchPage: Using fallback - Instagram: "${_instagramController.text}", Facebook: "${_facebookController.text}"');
+    }
 
     // Debug: Check images in branch data
     print('AddWholeSalerBranchPage: Images in branch data: ${branchData['images']}');
@@ -931,7 +951,7 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                               )).toList(),
                               onChanged: (value) {
                                 setState(() {
-                                  selectedCategory = value as String?;
+                                  selectedCategory = value;
                                   selectedSubCategory = null;
                                 });
                               },
@@ -961,7 +981,7 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                                   : [],
                               onChanged: (value) {
                                 setState(() {
-                                  selectedSubCategory = value as String?;
+                                  selectedSubCategory = value;
                                 });
                               },
                               hint: "Wholesaler Sub Category",
@@ -1036,6 +1056,27 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                     ),
                     maxLines: 3,
                   ),
+                  SizedBox(height: 16),
+
+                  // Social Media Links
+                  Text(
+                    "Social Media Links",
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+
+                  // Instagram field
+                  _buildFieldLabel("Instagram Link"),
+                  _buildTextField(_instagramController, "https://instagram.com/yourusername"),
+                  SizedBox(height: 16),
+
+                  // Facebook field
+                  _buildFieldLabel("Facebook Link"),
+                  _buildTextField(_facebookController, "https://facebook.com/yourpage"),
                   SizedBox(height: 32),
 
                   // Action buttons
@@ -1352,10 +1393,12 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
         branchId: branchId.toString(),
         name: _nameController.text,
         location: address,
-        phone: '${countryCode ?? "+961"} ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
+        phone: '$countryCode ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
         category: selectedCategory ?? "Uncategorized",
         subCategory: selectedSubCategory ?? "",
         description: _descriptionController.text.isNotEmpty ? _descriptionController.text : "No description",
+        instagram: _instagramController.text.isNotEmpty ? _instagramController.text : null,
+        facebook: _facebookController.text.isNotEmpty ? _facebookController.text : null,
         newImages: _selectedImages,
         newVideos: _selectedVideos,
       );
@@ -1495,10 +1538,12 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
       final branch = await WholesalerService().createBranch(
         name: _nameController.text,
         location: address,
-        phone: '${countryCode ?? "+961"} ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
+        phone: '$countryCode ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
         category: selectedCategory ?? 'Uncategorized',
         subCategory: selectedSubCategory ?? '',
         description: _descriptionController.text.isNotEmpty ? _descriptionController.text : 'No description provided',
+        instagram: _instagramController.text.isNotEmpty ? _instagramController.text : null,
+        facebook: _facebookController.text.isNotEmpty ? _facebookController.text : null,
         images: _selectedImages,
         videos: _selectedVideos,
       );
@@ -1507,13 +1552,15 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
 
       if (branch != null) {
         // Show file processing results feedback
-        _showFileProcessingResults(_selectedImages.length, branch.images?.length ?? 0, _selectedVideos.length, branch.videos?.length ?? 0);
+        _showFileProcessingResults(_selectedImages.length, branch.images.length, _selectedVideos.length, branch.videos.length);
         
         // Clear form
         _nameController.clear();
         _locationController.clear();
         _phoneController.clear();
         _descriptionController.clear();
+        _instagramController.clear();
+        _facebookController.clear();
         setState(() {
           _selectedImages = [];
           _selectedVideos = [];

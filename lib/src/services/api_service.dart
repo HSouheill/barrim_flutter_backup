@@ -872,27 +872,44 @@ class ApiService {
       var dataCopy = Map<String, dynamic>.from(branchData);
       dataCopy.remove('images'); // Don't send file paths in JSON
 
-      // Extract location components from the location string
-      String locationStr = dataCopy['location'] ?? '';
+      // Extract location components
+      String locationStr = (dataCopy['location'] ?? '').toString();
       List<String> addressParts = locationStr.split(', ');
 
-      // Create location data structure that matches the backend model
-      Map<String, dynamic> addressData = {
-        'country': addressParts.length > 2 ? addressParts.last : '',
-        'district': '', // Not available in the current UI
-        'city': addressParts.length > 1 ? addressParts[1] : '',
-        'street': addressParts.isNotEmpty ? addressParts[0] : '',
-        'postalCode': '', // Not available in the current UI
-        'lat': branchData['latitude'] ?? 0.0,
-        'lng': branchData['longitude'] ?? 0.0
-      };
+      // Derive address fields
+      final derivedStreet = addressParts.isNotEmpty ? addressParts[0] : '';
+      final derivedCity = addressParts.length > 1 ? addressParts[1] : '';
+      final derivedCountry = addressParts.length > 2 ? addressParts.last : '';
 
-      // Update the data structure to match what the backend expects
+      // Normalize latitude/longitude to double and expose as lat/lng top-level
+      double latValue = 0.0;
+      double lngValue = 0.0;
+      if (dataCopy['latitude'] != null) {
+        latValue = double.tryParse(dataCopy['latitude'].toString()) ?? 0.0;
+      }
+      if (dataCopy['longitude'] != null) {
+        lngValue = double.tryParse(dataCopy['longitude'].toString()) ?? 0.0;
+      }
+      dataCopy['lat'] = latValue;
+      dataCopy['lng'] = lngValue;
+
+      // Backward-compatible embedded location (optional for backend)
+      Map<String, dynamic> addressData = {
+        'country': (dataCopy['country'] ?? derivedCountry).toString(),
+        'district': (dataCopy['district'] ?? '').toString(),
+        'city': (dataCopy['city'] ?? derivedCity).toString(),
+        'street': (dataCopy['street'] ?? derivedStreet).toString(),
+        'postalCode': (dataCopy['postalCode'] ?? '').toString(),
+        'lat': latValue,
+        'lng': lngValue,
+      };
       dataCopy['location'] = addressData;
 
-      // Also include the lat and lng at the top level as the backend seems to expect both
-      dataCopy['lat'] = branchData['latitude'] ?? 0.0;
-      dataCopy['lng'] = branchData['longitude'] ?? 0.0;
+      // Critically: backend expects top-level address fields
+      dataCopy['country'] = addressData['country'];
+      dataCopy['governorate'] = (dataCopy['governorate'] ?? '').toString();
+      dataCopy['district'] = addressData['district'];
+      dataCopy['city'] = addressData['city'];
 
       // Remove the original latitude/longitude fields to avoid confusion
       dataCopy.remove('latitude');
@@ -1049,30 +1066,40 @@ class ApiService {
 
       // Convert latitude/longitude to lat/lng
       if (dataCopy.containsKey('latitude')) {
-        dataCopy['lat'] = dataCopy['latitude'];
+        dataCopy['lat'] = double.tryParse(dataCopy['latitude'].toString()) ?? 0.0;
         dataCopy.remove('latitude');
       }
       if (dataCopy.containsKey('longitude')) {
-        dataCopy['lng'] = dataCopy['longitude'];
+        dataCopy['lng'] = double.tryParse(dataCopy['longitude'].toString()) ?? 0.0;
         dataCopy.remove('longitude');
       }
 
-      // Add structured location data
+      // Add structured location data and top-level address fields when location is a String
       if (dataCopy.containsKey('location') && dataCopy['location'] is String) {
         String locationStr = dataCopy['location'];
         List<String> addressParts = locationStr.split(', ');
 
+        final derivedStreet = addressParts.isNotEmpty ? addressParts[0] : '';
+        final derivedCity = addressParts.length > 1 ? addressParts[1] : '';
+        final derivedCountry = addressParts.length > 2 ? addressParts.last : '';
+
         Map<String, dynamic> address = {
-          'street': addressParts.isNotEmpty ? addressParts[0] : '',
-          'city': addressParts.length > 1 ? addressParts[1] : '',
+          'street': derivedStreet,
+          'city': derivedCity,
           'district': '',
-          'country': addressParts.length > 2 ? addressParts.last : '',
+          'country': derivedCountry,
           'postalCode': '',
           'lat': dataCopy['lat'] ?? 0.0,
           'lng': dataCopy['lng'] ?? 0.0,
         };
 
         dataCopy['location'] = address;
+
+        // Ensure backend-visible top-level fields
+        dataCopy['country'] = (dataCopy['country'] ?? derivedCountry).toString();
+        dataCopy['governorate'] = (dataCopy['governorate'] ?? '').toString();
+        dataCopy['district'] = (dataCopy['district'] ?? '').toString();
+        dataCopy['city'] = (dataCopy['city'] ?? derivedCity).toString();
       }
 
       // Prepare fields

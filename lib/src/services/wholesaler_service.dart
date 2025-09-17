@@ -1,7 +1,6 @@
 // services/wholesaler_service.dart
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import 'package:http_parser/http_parser.dart';
@@ -145,6 +144,8 @@ class WholesalerService {
     required String category,
     String? subCategory,
     required String description,
+    String? instagram,
+    String? facebook,
     List<File> images = const [],
     List<File> videos = const [],
   }) async {
@@ -339,6 +340,8 @@ class WholesalerService {
         'category': category.isNotEmpty ? category : 'Uncategorized',
         'subCategory': subCategory ?? '',
         'description': description.isNotEmpty ? description : 'No description provided',
+        'instagram': instagram ?? '',
+        'facebook': facebook ?? '',
       };
 
       // Add branch data as a field - this matches the Go backend expectation
@@ -426,14 +429,14 @@ class WholesalerService {
             throw Exception('Invalid branch data received from server');
           }
         } else {
-          throw Exception(apiResponse.message ?? 'Failed to create branch');
+          throw Exception(apiResponse.message);
         }
       } else if (response.statusCode == 413) {
         throw Exception('Files are too large. Please use smaller images/videos (max 5MB for images, 50MB for videos).');
       } else if (response.statusCode == 400) {
         final responseData = json.decode(response.body);
         final apiResponse = ApiResponse.fromJson(responseData);
-        throw Exception(apiResponse.message ?? 'Bad request - check your input data');
+        throw Exception(apiResponse.message);
       } else if (response.statusCode == 401) {
         throw Exception('Unauthorized - please login again');
       } else if (response.statusCode == 404) {
@@ -535,6 +538,8 @@ class WholesalerService {
     required String category,
     String? subCategory,
     required String description,
+    String? instagram,
+    String? facebook,
     List<File> newImages = const [],
     List<File> newVideos = const [],
   }) async {
@@ -613,7 +618,15 @@ class WholesalerService {
         'category': category.isNotEmpty ? category : 'Uncategorized',
         'subCategory': subCategory ?? '',
         'description': description.isNotEmpty ? description : 'No description provided',
+        'instagram': instagram ?? '',
+        'facebook': facebook ?? '',
       };
+
+      // Debug logging for social media data
+      if (!kReleaseMode) {
+        print('WholesalerService.editBranch: Sending social media data - Instagram: "${instagram ?? ''}", Facebook: "${facebook ?? ''}"');
+        print('WholesalerService.editBranch: Full branch data: $branchData');
+      }
 
       // Add branch data as a field - this matches the Go backend expectation
       request.fields['data'] = json.encode(branchData);
@@ -706,7 +719,7 @@ class WholesalerService {
       } else if (response.statusCode == 400) {
         final responseData = json.decode(response.body);
         final apiResponse = ApiResponse.fromJson(responseData);
-        throw Exception(apiResponse.message ?? 'Bad request - check your input data');
+        throw Exception(apiResponse.message);
       } else if (response.statusCode == 401) {
         throw Exception('Unauthorized - please login again');
       } else if (response.statusCode == 404) {

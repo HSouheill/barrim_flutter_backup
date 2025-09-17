@@ -1,5 +1,4 @@
 // models/wholesaler_model.dart
-import 'dart:convert';
 
 class Wholesaler {
   final String id;
@@ -191,8 +190,8 @@ class SocialMedia {
 
   factory SocialMedia.fromJson(Map<String, dynamic> json) {
     return SocialMedia(
-      facebook: json['facebook'] ?? '',
-      instagram: json['instagram'] ?? '',
+      facebook: json['facebook']?.toString() ?? '',
+      instagram: json['instagram']?.toString() ?? '',
     );
   }
 
@@ -258,6 +257,7 @@ class Branch {
   final String description;
   final List<String> images;
   final List<String> videos;
+  final SocialMedia socialMedia;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String status;
@@ -273,6 +273,7 @@ class Branch {
     required this.description,
     this.images = const [],
     this.videos = const [],
+    required this.socialMedia,
     required this.createdAt,
     required this.updatedAt,
     this.status = 'active',
@@ -300,6 +301,7 @@ class Branch {
       description: json['description'] ?? '',
       images: json['images'] != null ? List<String>.from(json['images']) : [],
       videos: json['videos'] != null ? List<String>.from(json['videos']) : [],
+      socialMedia: _createSocialMediaFromJson(json['socialMedia']),
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
@@ -322,11 +324,24 @@ class Branch {
       'description': description,
       'images': images,
       'videos': videos,
+      'socialMedia': socialMedia.toJson(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'status': status,
       'sponsorship': sponsorship, // Add this line
     };
+  }
+
+  // Helper method to safely create SocialMedia from JSON
+  static SocialMedia _createSocialMediaFromJson(dynamic socialMediaData) {
+    try {
+      if (socialMediaData != null && socialMediaData is Map<String, dynamic>) {
+        return SocialMedia.fromJson(socialMediaData);
+      }
+    } catch (e) {
+      print('Error creating SocialMedia from JSON: $e');
+    }
+    return SocialMedia(facebook: '', instagram: '');
   }
 }
 

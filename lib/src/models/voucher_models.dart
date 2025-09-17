@@ -3,14 +3,13 @@ class Voucher {
   final String title;
   final String description;
   final int points;
-  final String discountType; // 'percentage' or 'fixed'
+  final String discountType;
   final double discountValue;
-  final String targetUserType; // 'company' or 'user'
   final bool isActive;
-  final DateTime? expiryDate;
-  final String? imageUrl;
+  final String targetUserType;
   final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? expiresAt;
+  final String? imageUrl;
 
   Voucher({
     required this.id,
@@ -19,30 +18,33 @@ class Voucher {
     required this.points,
     required this.discountType,
     required this.discountValue,
-    required this.targetUserType,
     required this.isActive,
-    this.expiryDate,
-    this.imageUrl,
+    required this.targetUserType,
     required this.createdAt,
-    required this.updatedAt,
+    this.expiresAt,
+    this.imageUrl,
   });
 
   factory Voucher.fromJson(Map<String, dynamic> json) {
     return Voucher(
       id: json['_id'] ?? json['id'] ?? '',
-      title: json['title'] ?? json['name'] ?? '', // Handle both 'title' and 'name'
+      // Backend uses `name` for service provider vouchers
+      title: json['title'] ?? json['name'] ?? '',
       description: json['description'] ?? '',
       points: json['points'] ?? 0,
-      discountType: json['discountType'] ?? 'percentage',
+      // Some SP vouchers might not include discount fields; default safely
+      discountType: json['discountType'] ?? '',
       discountValue: (json['discountValue'] ?? 0).toDouble(),
-      targetUserType: json['targetUserType'] ?? 'company',
       isActive: json['isActive'] ?? false,
-      expiryDate: json['expiryDate'] != null 
-          ? DateTime.parse(json['expiryDate']) 
+      targetUserType: json['targetUserType'] ?? '',
+      createdAt: json['createdAt'] != null 
+          ? DateTime.parse(json['createdAt']) 
+          : DateTime.now(),
+      expiresAt: json['expiresAt'] != null 
+          ? DateTime.parse(json['expiresAt']) 
           : null,
-      imageUrl: json['imageUrl'] ?? json['image'], // Handle both 'imageUrl' and 'image'
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+      // Backend returns `image` filename - check multiple possible field names
+      imageUrl: json['imageUrl'] ?? json['image'] ?? json['imagePath'] ?? json['image_url'],
     );
   }
 
@@ -54,37 +56,31 @@ class Voucher {
       'points': points,
       'discountType': discountType,
       'discountValue': discountValue,
-      'targetUserType': targetUserType,
       'isActive': isActive,
-      'expiryDate': expiryDate?.toIso8601String(),
-      'imageUrl': imageUrl,
+      'targetUserType': targetUserType,
       'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'expiresAt': expiresAt?.toIso8601String(),
+      'imageUrl': imageUrl,
     };
   }
 }
 
-class CompanyVoucher {
+class ServiceProviderVoucher {
   final Voucher voucher;
   final bool canPurchase;
-  final int companyPoints;
-  final CompanyVoucherPurchase? purchase; // For purchased vouchers
+  final int serviceProviderPoints;
 
-  CompanyVoucher({
+  ServiceProviderVoucher({
     required this.voucher,
     required this.canPurchase,
-    required this.companyPoints,
-    this.purchase,
+    required this.serviceProviderPoints,
   });
 
-  factory CompanyVoucher.fromJson(Map<String, dynamic> json) {
-    return CompanyVoucher(
+  factory ServiceProviderVoucher.fromJson(Map<String, dynamic> json) {
+    return ServiceProviderVoucher(
       voucher: Voucher.fromJson(json['voucher'] ?? {}),
       canPurchase: json['canPurchase'] ?? false,
-      companyPoints: json['companyPoints'] ?? 0,
-      purchase: json['purchase'] != null 
-          ? CompanyVoucherPurchase.fromJson(json['purchase'])
-          : null,
+      serviceProviderPoints: json['serviceProviderPoints'] ?? 0,
     );
   }
 
@@ -92,8 +88,55 @@ class CompanyVoucher {
     return {
       'voucher': voucher.toJson(),
       'canPurchase': canPurchase,
-      'companyPoints': companyPoints,
-      if (purchase != null) 'purchase': purchase!.toJson(),
+      'serviceProviderPoints': serviceProviderPoints,
+    };
+  }
+}
+
+class ServiceProviderVoucherPurchase {
+  final String id;
+  final String serviceProviderId;
+  final String voucherId;
+  final int pointsUsed;
+  final DateTime purchasedAt;
+  final bool isUsed;
+  final DateTime? usedAt;
+
+  ServiceProviderVoucherPurchase({
+    required this.id,
+    required this.serviceProviderId,
+    required this.voucherId,
+    required this.pointsUsed,
+    required this.purchasedAt,
+    required this.isUsed,
+    this.usedAt,
+  });
+
+  factory ServiceProviderVoucherPurchase.fromJson(Map<String, dynamic> json) {
+    return ServiceProviderVoucherPurchase(
+      id: json['_id'] ?? json['id'] ?? '',
+      serviceProviderId: json['serviceProviderId'] ?? '',
+      voucherId: json['voucherId'] ?? '',
+      pointsUsed: json['pointsUsed'] ?? 0,
+      purchasedAt: json['purchasedAt'] != null 
+          ? DateTime.parse(json['purchasedAt']) 
+          : DateTime.now(),
+      isUsed: json['isUsed'] ?? false,
+      usedAt: json['usedAt'] != null 
+          ? DateTime.parse(json['usedAt']) 
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'serviceProviderId': serviceProviderId,
+      'voucherId': voucherId,
+      'pointsUsed': pointsUsed,
+      'purchasedAt': purchasedAt.toIso8601String(),
+      'isUsed': isUsed,
+      'usedAt': usedAt?.toIso8601String(),
     };
   }
 }
@@ -112,18 +155,74 @@ class VoucherPurchaseRequest {
   }
 }
 
-class CompanyVoucherPurchase {
+class VoucherResult<T> {
+  final T? data;
+  final String? errorMessage;
+  final bool isSuccess;
+
+  VoucherResult.success(this.data)
+      : errorMessage = null,
+        isSuccess = true;
+
+  VoucherResult.error(this.errorMessage)
+      : data = null,
+        isSuccess = false;
+}
+
+class CompanyVoucher {
+  final Voucher voucher;
+  final bool canPurchase;
+
+  CompanyVoucher({required this.voucher, required this.canPurchase});
+
+  factory CompanyVoucher.fromJson(Map<String, dynamic> json) {
+    return CompanyVoucher(
+      voucher: Voucher.fromJson(json['voucher']),
+      canPurchase: json['canPurchase'] ?? false,
+    );
+  }
+}
+
+class WholesalerVoucher {
+  final Voucher voucher;
+  final bool canPurchase;
+  final int wholesalerPoints;
+
+  WholesalerVoucher({
+    required this.voucher,
+    required this.canPurchase,
+    required this.wholesalerPoints,
+  });
+
+  factory WholesalerVoucher.fromJson(Map<String, dynamic> json) {
+    return WholesalerVoucher(
+      voucher: Voucher.fromJson(json['voucher'] ?? {}),
+      canPurchase: json['canPurchase'] ?? false,
+      wholesalerPoints: json['wholesalerPoints'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'voucher': voucher.toJson(),
+      'canPurchase': canPurchase,
+      'wholesalerPoints': wholesalerPoints,
+    };
+  }
+}
+
+class WholesalerVoucherPurchase {
   final String id;
-  final String companyId;
+  final String wholesalerId;
   final String voucherId;
   final int pointsUsed;
   final DateTime purchasedAt;
   final bool isUsed;
   final DateTime? usedAt;
 
-  CompanyVoucherPurchase({
+  WholesalerVoucherPurchase({
     required this.id,
-    required this.companyId,
+    required this.wholesalerId,
     required this.voucherId,
     required this.pointsUsed,
     required this.purchasedAt,
@@ -131,13 +230,15 @@ class CompanyVoucherPurchase {
     this.usedAt,
   });
 
-  factory CompanyVoucherPurchase.fromJson(Map<String, dynamic> json) {
-    return CompanyVoucherPurchase(
+  factory WholesalerVoucherPurchase.fromJson(Map<String, dynamic> json) {
+    return WholesalerVoucherPurchase(
       id: json['_id'] ?? json['id'] ?? '',
-      companyId: json['companyId'] ?? '',
+      wholesalerId: json['wholesalerId'] ?? '',
       voucherId: json['voucherId'] ?? '',
       pointsUsed: json['pointsUsed'] ?? 0,
-      purchasedAt: DateTime.parse(json['purchasedAt'] ?? DateTime.now().toIso8601String()),
+      purchasedAt: json['purchasedAt'] != null 
+          ? DateTime.parse(json['purchasedAt']) 
+          : DateTime.now(),
       isUsed: json['isUsed'] ?? false,
       usedAt: json['usedAt'] != null 
           ? DateTime.parse(json['usedAt']) 
@@ -148,7 +249,7 @@ class CompanyVoucherPurchase {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'companyId': companyId,
+      'wholesalerId': wholesalerId,
       'voucherId': voucherId,
       'pointsUsed': pointsUsed,
       'purchasedAt': purchasedAt.toIso8601String(),

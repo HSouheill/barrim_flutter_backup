@@ -34,6 +34,8 @@ class _AddBranchPageState extends State<AddBranchPage> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _costPerCustomerController = TextEditingController();
+  final TextEditingController _instagramController = TextEditingController();
+  final TextEditingController _facebookController = TextEditingController();
   bool _isLoading = false;
   String? selectedCategory;
   String? selectedSubCategory;
@@ -114,6 +116,8 @@ class _AddBranchPageState extends State<AddBranchPage> {
     _phoneController.dispose();
     _descriptionController.dispose();
     _costPerCustomerController.dispose();
+    _instagramController.dispose();
+    _facebookController.dispose();
     super.dispose();
   }
 
@@ -186,6 +190,8 @@ class _AddBranchPageState extends State<AddBranchPage> {
     }
 
     _descriptionController.text = branchData['description']?.toString() ?? '';
+    _instagramController.text = branchData['instagram']?.toString() ?? '';
+    _facebookController.text = branchData['facebook']?.toString() ?? '';
 
     // Set location coordinates
     latitude = branchData['latitude'] is num ? branchData['latitude'] : null;
@@ -891,6 +897,38 @@ class _AddBranchPageState extends State<AddBranchPage> {
                     ),
                     maxLines: 3,
                   ),
+                  SizedBox(height: 16),
+
+                  // Social links
+                  _buildFieldLabel("Instagram"),
+                  TextField(
+                    controller: _instagramController,
+                    decoration: InputDecoration(
+                      hintText: "Instagram profile/link",
+                      border: InputBorder.none,
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.blue),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  _buildFieldLabel("Facebook"),
+                  TextField(
+                    controller: _facebookController,
+                    decoration: InputDecoration(
+                      hintText: "Facebook page/link",
+                      border: InputBorder.none,
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.blue),
+                      ),
+                    ),
+                  ),
                   SizedBox(height: 32),
 
                   // Action buttons
@@ -982,6 +1020,8 @@ class _AddBranchPageState extends State<AddBranchPage> {
       'phone': '$countryCode ${_phoneController.text.isNotEmpty ? _phoneController.text : "000000"}',
       'description': _descriptionController.text.isNotEmpty ? _descriptionController.text : "No description",
       'costPerCustomer': _costPerCustomerController.text.isNotEmpty ? double.parse(_costPerCustomerController.text) : null,
+      'instagram': _instagramController.text,
+      'facebook': _facebookController.text,
       // Include existing images that should be kept
       'existingImages': _existingImageUrls,
     };
@@ -1039,6 +1079,8 @@ class _AddBranchPageState extends State<AddBranchPage> {
       'phone': '$countryCode ${_phoneController.text}',
       'description': _descriptionController.text,
       'costPerCustomer': _costPerCustomerController.text.isNotEmpty ? double.parse(_costPerCustomerController.text) : null,
+      'instagram': _instagramController.text,
+      'facebook': _facebookController.text,
       // Structured address data that matches backend model
       'country': country,
       'district': '',
@@ -1062,6 +1104,8 @@ class _AddBranchPageState extends State<AddBranchPage> {
       _locationController.clear();
       _phoneController.clear();
       _descriptionController.clear();
+      _instagramController.clear();
+      _facebookController.clear();
       setState(() {
         _selectedImages = [];
         _existingImageUrls = [];

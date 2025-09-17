@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as google_maps;
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:location/location.dart';
@@ -256,11 +257,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                 'company': company,
                 'type': 'branch',
                 'status': 'active',
-                // Include social media information from company data
-                'socialMedia': {
-                  'instagram': company['socialMedia']?['instagram'],
-                  'facebook': company['socialMedia']?['facebook'],
-                },
+                // Include social media information - prefer branch, fallback to company
+                'socialMedia': _getValidSocialMedia(branch['socialMedia'], company['socialMedia']),
               };
             });
             print('_selectedPlace set to: ${_selectedPlace?['name']}');
@@ -475,10 +473,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                           'type': 'company', // Add type to distinguish company from branch
                           'category': companyInfo?['category'] ?? 'Unknown Category',
                           // Include social media information from company data
-                          'socialMedia': {
-                            'instagram': companyInfo?['socialMedia']?['instagram'],
-                            'facebook': companyInfo?['socialMedia']?['facebook'],
-                          },
+                          'socialMedia': _getValidSocialMedia(null, companyInfo?['socialMedia']),
                         };
                       });
                       print('_selectedPlace set to company: ${_selectedPlace?['name']}');
@@ -500,10 +495,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                         'type': 'company', // Add type to distinguish company from branch
                         'category': companyInfo?['category'] ?? 'Unknown Category',
                         // Include social media information from company data
-                        'socialMedia': {
-                          'instagram': companyInfo?['socialMedia']?['instagram'],
-                          'facebook': companyInfo?['socialMedia']?['facebook'],
-                        },
+                        'socialMedia': _getValidSocialMedia(null, companyInfo?['socialMedia']),
                       };
                     });
                     print('_selectedPlace set to company (fallback): ${_selectedPlace?['name']}');
@@ -558,11 +550,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                           'category': branch['category'] ?? 'Unknown Category',
                           'company': companyInfo,
                           'status': 'active',
-                          // Include social media information from company data
-                          'socialMedia': {
-                            'instagram': companyInfo?['socialMedia']?['instagram'],
-                            'facebook': companyInfo?['socialMedia']?['facebook'],
-                          },
+                          // Prefer branch social media; fallback to company
+                          'socialMedia': _getValidSocialMedia(branch['socialMedia'], companyInfo?['socialMedia']),
                         };
                       });
                       print('_selectedPlace set to company branch: ${_selectedPlace?['name']}');
@@ -751,10 +740,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                   'category': companyInfo?['category'] ?? 'Unknown Category',
                   'status': 'active',
                   // Include social media information from company data
-                  'socialMedia': {
-                    'instagram': companyInfo?['socialMedia']?['instagram'],
-                    'facebook': companyInfo?['socialMedia']?['facebook'],
-                  },
+                  'socialMedia': _getValidSocialMedia(null, companyInfo?['socialMedia']),
                 };
               });
             }
@@ -777,10 +763,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 'category': companyInfo?['category'] ?? 'Unknown Category',
                 'status': 'active',
                 // Include social media information from company data
-                'socialMedia': {
-                  'instagram': companyInfo?['socialMedia']?['instagram'],
-                  'facebook': companyInfo?['socialMedia']?['facebook'],
-                },
+                'socialMedia': _getValidSocialMedia(null, companyInfo?['socialMedia']),
               };
             });
           }
@@ -1353,6 +1336,10 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                   'price': 'Wholesaler Branch',
                   'type': 'Wholesaler Branch',
                   'category': branch.category,
+                  'socialMedia': {
+                    'instagram': branch.socialMedia.instagram,
+                    'facebook': branch.socialMedia.facebook,
+                  },
                 });
               }
             }
@@ -1404,7 +1391,10 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 'rating': 4,
                 'price': (20 + (results.length * 5)).toString(),
                 'type': 'Branch',
-                'category': branch['category'] ?? 'Unknown Category'
+                'category': branch['category'] ?? 'Unknown Category',
+                'socialMedia': branch['socialMedia'] ?? {},
+                'company': branch['company'] ?? {},
+                'status': branch['status'] ?? 'active',
               });
             }
           }
@@ -2558,28 +2548,33 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
               position: google_maps.LatLng(lat, lng),
               onTap: () {
                 print('Wholesaler marker tapped: ${wholesaler.businessName}');
+                print('Branch social media: ${branch.socialMedia.instagram}, ${branch.socialMedia.facebook}');
                 setState(() {
                   _selectedPlace = {
-                    'name': wholesaler.businessName,
-                    '_id': wholesaler.id,
+                    'name': branch.name, // Use branch name instead of wholesaler name
+                    '_id': branch.id, // Use branch ID instead of wholesaler ID
                     'latitude': lat,
                     'longitude': lng,
                     'address': address,
-                    'phone': wholesaler.phone,
-                    'description': wholesaler.category,
+                    'phone': branch.phone, // Use branch phone instead of wholesaler phone
+                    'description': branch.description, // Use branch description instead of wholesaler category
                     'image': wholesaler.logoUrl ?? 'assets/images/company_placeholder.png',
                     'logoUrl': wholesaler.logoUrl,
                     'companyName': wholesaler.businessName,
                     'companyId': wholesaler.id,
-                    'images': wholesaler.branches.isNotEmpty ? wholesaler.branches.first.images : [],
-                    'category': wholesaler.category,
+                    'images': branch.images, // Use branch images
+                    'category': branch.category, // Use branch category
                     'company': {
                       'businessName': wholesaler.businessName,
                       'logoUrl': wholesaler.logoUrl,
                       'id': wholesaler.id,
                     },
-                    'type': 'Wholesaler',
-                    'status': 'active',
+                    'type': 'Wholesaler Branch', // Use Wholesaler Branch type
+                    'status': branch.status, // Use branch status
+                    'socialMedia': {
+                      'instagram': branch.socialMedia.instagram,
+                      'facebook': branch.socialMedia.facebook,
+                    },
                     'branches': wholesaler.branches.map((branch) => {
                       'id': branch.id,
                       '_id': branch.id,
@@ -2597,11 +2592,11 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                       'images': branch.images,
                       'category': branch.category,
                       'status': branch.status,
+                      'socialMedia': {
+                        'instagram': branch.socialMedia.instagram,
+                        'facebook': branch.socialMedia.facebook,
+                      },
                     }).toList(),
-                    'socialMedia': {
-                      'instagram': wholesaler.socialMedia.instagram,
-                      'facebook': wholesaler.socialMedia.facebook,
-                    },
                     'contactInfo': {
                       'whatsapp': wholesaler.contactInfo.whatsApp,
                       'website': wholesaler.contactInfo.website,
@@ -2611,6 +2606,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                   };
                 });
                 print('Wholesaler place data set: ${_selectedPlace?['name']}');
+                print('Place social media: ${_selectedPlace?['socialMedia']}');
               },
               icon: customIcon,
               visible: true, // Ensure marker is always visible
@@ -2682,6 +2678,56 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
 
   // Helper to always get a valid user location
   latlong.LatLng get _userLocation => _currentLocation ?? _defaultLocation;
+
+  // Helper to get valid social media, preferring branch over company
+  Map<String, dynamic> _getValidSocialMedia(dynamic branchSocial, dynamic companySocial) {
+    print('_getValidSocialMedia called with:');
+    print('  branchSocial: $branchSocial');
+    print('  companySocial: $companySocial');
+    
+    // Check if branch has valid social media
+    if (branchSocial != null && branchSocial is Map && branchSocial.isNotEmpty) {
+      final branchIg = branchSocial['instagram']?.toString().trim();
+      final branchFb = branchSocial['facebook']?.toString().trim();
+      
+      final hasValidBranchIg = branchIg != null && branchIg.isNotEmpty && branchIg != '{}' && branchIg != '""' && branchIg != 'null';
+      final hasValidBranchFb = branchFb != null && branchFb.isNotEmpty && branchFb != '{}' && branchFb != '""' && branchFb != 'null';
+      
+      print('  Branch social media: instagram="$branchIg", facebook="$branchFb"');
+      print('  Has valid branch IG: $hasValidBranchIg, Has valid branch FB: $hasValidBranchFb');
+      
+      if (hasValidBranchIg || hasValidBranchFb) {
+        final result = {
+          'instagram': hasValidBranchIg ? branchIg : '',
+          'facebook': hasValidBranchFb ? branchFb : '',
+        };
+        print('  Using branch social media: $result');
+        return result;
+      }
+    }
+    
+    // Fallback to company social media
+    if (companySocial != null && companySocial is Map) {
+      final companyIg = companySocial['instagram']?.toString().trim();
+      final companyFb = companySocial['facebook']?.toString().trim();
+      
+      final hasValidCompanyIg = companyIg != null && companyIg.isNotEmpty && companyIg != '{}' && companyIg != '""' && companyIg != 'null';
+      final hasValidCompanyFb = companyFb != null && companyFb.isNotEmpty && companyFb != '{}' && companyFb != '""' && companyFb != 'null';
+      
+      print('  Company social media: instagram="$companyIg", facebook="$companyFb"');
+      print('  Has valid company IG: $hasValidCompanyIg, Has valid company FB: $hasValidCompanyFb');
+      
+      final result = {
+        'instagram': hasValidCompanyIg ? companyIg : '',
+        'facebook': hasValidCompanyFb ? companyFb : '',
+      };
+      print('  Using company social media: $result');
+      return result;
+    }
+    
+    print('  No valid social media found, returning empty');
+    return {'instagram': '', 'facebook': ''};
+  }
 
   // Method to restore all markers (company, wholesaler, and branch markers)
   void _restoreAllMarkers() {

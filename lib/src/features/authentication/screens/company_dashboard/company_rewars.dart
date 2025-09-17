@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../services/company_referral_service.dart';
 import '../../../../services/company_voucher_service.dart';
-import '../../../../models/voucher_models.dart';
+import '../../../../models/voucher_models.dart'; // Ensure this file contains the definition of CompanyVoucher
 import '../../../../utils/token_manager.dart';
 import '../../headers/company_header.dart';
 import '../../../../services/api_service.dart';
@@ -21,7 +21,7 @@ class _CompanyRewardsPageState extends State<CompanyRewardsPage> {
   String errorMessage = '';
   final TokenManager _tokenManager = TokenManager();
   String? logoUrl;
-  List<CompanyVoucher> availableVouchers = [];
+  List<CompanyVoucher> availableVouchers = []; // Ensure CompanyVoucher is defined or imported correctly
   Set<String> purchasedVoucherIds = {}; // Track purchased voucher IDs
   bool isLoadingVouchers = false;
 

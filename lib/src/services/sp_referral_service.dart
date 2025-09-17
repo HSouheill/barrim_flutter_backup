@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Model class for referred users
 class ReferredUser {
@@ -125,8 +125,22 @@ class ReferralService {
       final token = prefs.getString('auth_token');
 
       if (token == null || token.isEmpty) {
-        _logDebug('Auth token is null or empty');
-        return null;
+        // Fallback to secure storage (primary token storage elsewhere in app)
+        try {
+          const secureStorage = FlutterSecureStorage(
+            aOptions: AndroidOptions(encryptedSharedPreferences: true),
+            iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+          );
+          final secureToken = await secureStorage.read(key: 'auth_token');
+          if (secureToken == null || secureToken.isEmpty) {
+            _logDebug('Auth token is null or empty');
+            return null;
+          }
+          return secureToken;
+        } catch (e) {
+          _logDebug('Error reading token from secure storage: $e');
+          return null;
+        }
       }
 
       return token;
