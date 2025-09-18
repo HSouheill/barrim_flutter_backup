@@ -8,7 +8,7 @@ class AnimatedLocationMarker extends StatefulWidget {
 
   const AnimatedLocationMarker({
     Key? key,
-    this.size = 40.0, // Reduced from 60.0 to 40.0
+    this.size = 40.0, 
     this.color = Colors.blue,
     this.isLive = true,
   }) : super(key: key);
