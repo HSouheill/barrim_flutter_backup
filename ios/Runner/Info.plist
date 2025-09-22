@@ -29,6 +29,7 @@
 				<string>Editor</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
+					<!-- Replace with your GCP OAuth client ID URL scheme -->
 					<string>com.googleusercontent.apps.307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86</string>
 				</array>
 			</dict>

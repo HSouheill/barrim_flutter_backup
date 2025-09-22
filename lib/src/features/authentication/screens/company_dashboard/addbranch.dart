@@ -144,7 +144,8 @@ class _AddBranchPageState extends State<AddBranchPage> {
       
       if (mounted) {
         setState(() {
-          categories = categoriesData.keys.toList();
+          // Ensure categories list contains only unique values
+          categories = categoriesData.keys.toSet().toList();
           subCategories = categoriesData;
           _isLoadingCategories = false;
         });
@@ -201,16 +202,20 @@ class _AddBranchPageState extends State<AddBranchPage> {
     selectedCategory = branchData['category']?.toString();
     selectedSubCategory = branchData['subCategory']?.toString();
 
-    // Ensure the loaded category is in the categories list
+    // Ensure the loaded category is in the categories list (avoid duplicates)
     if (selectedCategory != null && selectedCategory!.isNotEmpty && !categories.contains(selectedCategory)) {
       categories.add(selectedCategory!);
+      // Ensure categories list remains unique
+      categories = categories.toSet().toList();
     }
-    // Ensure the loaded subcategory is in the subCategories map
+    // Ensure the loaded subcategory is in the subCategories map (avoid duplicates)
     if (selectedCategory != null && selectedSubCategory != null && selectedSubCategory!.isNotEmpty) {
       if (!subCategories.containsKey(selectedCategory)) {
         subCategories[selectedCategory!] = [selectedSubCategory!];
       } else if (!subCategories[selectedCategory!]!.contains(selectedSubCategory)) {
         subCategories[selectedCategory!]!.add(selectedSubCategory!);
+        // Ensure subcategories list remains unique
+        subCategories[selectedCategory!] = subCategories[selectedCategory!]!.toSet().toList();
       }
     }
 
@@ -760,7 +765,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                             else
                               _buildDropdown(
                                 value: selectedCategory,
-                                items: categories.map((cat) => DropdownMenuItem(
+                                items: categories.toSet().map((cat) => DropdownMenuItem(
                                   value: cat,
                                   child: Text(cat),
                                 )).toList(),
@@ -792,7 +797,7 @@ class _AddBranchPageState extends State<AddBranchPage> {
                             else
                               _buildDropdown(
                                 value: selectedSubCategory,
-                                items: subCategories[selectedCategory]!.map((subCat) => DropdownMenuItem(
+                                items: subCategories[selectedCategory]!.toSet().map((subCat) => DropdownMenuItem(
                                   value: subCat,
                                   child: Text(subCat),
                                 )).toList(),
@@ -1036,14 +1041,22 @@ class _AddBranchPageState extends State<AddBranchPage> {
       // Call API service to update branch with compressed images
       await ApiService.updateBranch(widget.token, branchId, updatedBranchData, compressedImages, []);
 
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Branch updated successfully!")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Branch updated successfully!"),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
       Navigator.pop(context, updatedBranchData);
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Failed to update branch: ${e.toString()}")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to update branch: ${e.toString()}"),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
     } finally {
       setState(() {
         _isLoading = false;
@@ -1115,27 +1128,25 @@ class _AddBranchPageState extends State<AddBranchPage> {
         selectedSubCategory = null;
       });
 
-      // Show custom popup
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => _BranchRequestSentDialog(),
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Branch added successfully!"),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
       );
-      await Future.delayed(const Duration(seconds: 4));
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop(); // Close the dialog
-      }
-
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Branch added successfully!")),
-      // );
 
       // Return the branch data with a flag to refresh
       Navigator.pop(context, {'refresh': true, ...branchData});
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text("Failed to add branch: ${e.toString()}")),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to add branch: ${e.toString()}"),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
     } finally {
       setState(() {
         _isLoading = false;
@@ -1606,53 +1617,5 @@ class _LocationMapDialogState extends State<LocationMapDialog> {
   void dispose() {
     mapController.dispose();
     super.dispose();
-  }
-}
-
-class _BranchRequestSentDialog extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check_circle, color: Color(0xFF2079C2), size: 60),
-            const SizedBox(height: 16),
-            Text(
-              'Branch request sent to the admin',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2079C2),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Your branch request has been submitted and is pending admin approval.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.black87,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

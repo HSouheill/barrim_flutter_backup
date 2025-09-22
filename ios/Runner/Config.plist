@@ -6,8 +6,5 @@
     <key>GoogleMapsAPIKey</key>
     <string>$(GOOGLE_MAPS_API_KEY)</string>
     
-    <!-- Firebase Project ID -->
-    <key>FirebaseProjectID</key>
-    <string>barrim-3b45a</string>
 </dict>
 </plist>

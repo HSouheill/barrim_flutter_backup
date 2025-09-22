@@ -419,7 +419,7 @@ class _SignupWholesaler2State extends State<SignupWholesaler2> {
         ),
         contentPadding: const EdgeInsets.only(bottom: 2),
       ),
-      items: _subCategoriesMap.keys
+      items: _subCategoriesMap.keys.toSet()
           .map<DropdownMenuItem<String>>((String value) {
         return DropdownMenuItem<String>(
           value: value,

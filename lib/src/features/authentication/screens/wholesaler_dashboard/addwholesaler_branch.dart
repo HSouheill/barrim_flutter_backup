@@ -945,7 +945,7 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                               value: selectedCategory != null && categories.contains(selectedCategory) 
                                   ? selectedCategory 
                                   : null,
-                              items: categories.map((cat) => DropdownMenuItem(
+                              items: categories.toSet().map((cat) => DropdownMenuItem(
                                 value: cat,
                                 child: Text(cat),
                               )).toList(),
@@ -974,7 +974,7 @@ class _AddWholeSalerBranchPageState extends State<AddWholeSalerBranchPage> {
                                   ? selectedSubCategory 
                                   : null,
                               items: (selectedCategory != null && subCategories.containsKey(selectedCategory))
-                                  ? subCategories[selectedCategory]!.map((subCat) => DropdownMenuItem(
+                                  ? subCategories[selectedCategory]!.toSet().map((subCat) => DropdownMenuItem(
                                 value: subCat,
                                 child: Text(subCat),
                               )).toList()

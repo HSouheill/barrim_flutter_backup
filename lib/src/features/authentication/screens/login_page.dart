@@ -6,6 +6,7 @@ import 'package:barrim/src/features/authentication/screens/wholesaler_dashboard/
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
+import 'package:barrim/src/features/authentication/screens/signup_user/signup_user1.dart';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:barrim/src/services/apple_auth_service.dart';
 import './forgot_password/forgot_password.dart';
@@ -14,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:barrim/src/features/authentication/screens/company_dashboard/company_dashboard.dart';
 import 'package:barrim/src/services/user_provider.dart'; // Import UserProvider
 import 'package:barrim/src/features/authentication/screens/apple_signin.dart';
+import '../../../services/gcp_google_auth_service.dart';
 import './countrycode_dropdown.dart';
 
 class LoginPage extends StatefulWidget {
@@ -131,10 +133,26 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleGoogleSignIn() async {
     try {
-      final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
+      final provider = Provider.of<GCPGoogleSignInProvider>(context, listen: false);
       final result = await provider.googleLogin();
 
       if (result != null) {
+        // Check if user needs to signup
+        if (result['needsSignup'] == true) {
+          print("User needs to complete signup, navigating to signup form");
+          
+          // Navigate to signup with pre-filled Google data
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SignupUserPage1(
+                googleUserData: result['userData'],
+              ),
+            ),
+          );
+          return;
+        }
+
         print("Google sign-in successful, navigating to dashboard");
 
         // Update UserProvider
@@ -145,39 +163,16 @@ class _LoginPageState extends State<LoginPage> {
         final userData = result['user'] ?? {};
         final userType = userData['userType'] ?? 'user';
 
-        // Show success message
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(
-        //     content: Text('Google sign-in successful!'),
-        //     backgroundColor: Colors.green,
-        //   ),
-        // );
-
         // Add a small delay to ensure Google Maps services are ready
-        // This prevents the crash that occurs when navigating immediately after Google Sign-In
         await Future.delayed(const Duration(milliseconds: 500));
 
         // Navigate based on user type
         _navigateAfterLogin(userType, result);
       } else if (provider.error != null) {
         print("Google sign-in error: ${provider.error}");
-
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text('Google sign-in failed: ${provider.error}'),
-        //     backgroundColor: Colors.red,
-        //   ),
-        // );
       }
     } catch (e) {
       print("Unexpected error during Google sign-in: $e");
-
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('An unexpected error occurred: $e'),
-      //     backgroundColor: Colors.red,
-      //   ),
-      // );
     }
   }
 

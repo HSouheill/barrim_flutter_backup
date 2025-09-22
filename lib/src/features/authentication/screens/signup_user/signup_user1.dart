@@ -6,7 +6,7 @@ import '../signup_user/signup_user2.dart';
 import '../responsive_utils.dart';
 import '../../../../services/api_service.dart';
 import 'package:provider/provider.dart';
-import '../../../../services/google_auth_service.dart';
+import '../../../../services/gcp_google_auth_service.dart';
 import '../apple_signin.dart';
 import '../../../../services/user_provider.dart';
 import '../../../../services/apple_auth_service.dart';
@@ -15,9 +15,12 @@ import '../company_dashboard/company_dashboard.dart';
 import '../serviceProvider_dashboard/serviceprovider_dashboard.dart';
 import '../white_headr.dart';
 import '../wholesaler_dashboard/wholesaler_dashboard.dart';
+import 'dart:convert';
 
 class SignupUserPage1 extends StatefulWidget {
-  const SignupUserPage1({super.key});
+  final Map<String, dynamic>? googleUserData;
+  
+  const SignupUserPage1({super.key, this.googleUserData});
 
   @override
   State<SignupUserPage1> createState() => _SignupUserPage1State();
@@ -52,6 +55,16 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
     super.initState();
     // Add listener to email controller for real-time validation
     _emailController.addListener(_onEmailChanged);
+    
+    // Pre-fill form with Google user data if available
+    if (widget.googleUserData != null) {
+      _fullNameController.text = widget.googleUserData!['fullName'] ?? '';
+      _emailController.text = widget.googleUserData!['email'] ?? '';
+      // Trigger email validation if email is pre-filled
+      if (_emailController.text.isNotEmpty) {
+        _onEmailChanged();
+      }
+    }
   }
 
   void _onEmailChanged() {
@@ -112,13 +125,24 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
   /// This method uses the GoogleSignInProvider which communicates with
   /// the backend endpoint: /api/auth/google-auth-without-firebase
   Future<void> _handleGoogleSignIn() async {
+    // If we're already in a Google signup flow, don't allow another Google sign-in
+    if (widget.googleUserData != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You are already signing up with Google. Please complete the form below.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
     setState(() {
       _isGoogleLoading = true;
     });
     
     try {
       print('Starting Google sign-in process...');
-      final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
+      final provider = Provider.of<GCPGoogleSignInProvider>(context, listen: false);
       final result = await provider.googleLogin();
       
       setState(() {
@@ -126,6 +150,22 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
       });
       
       if (result != null) {
+        // Check if user needs to signup
+        if (result['needsSignup'] == true) {
+          print("User needs to complete signup, navigating to signup form");
+          
+          // Navigate to signup with pre-filled Google data
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SignupUserPage1(
+                googleUserData: result['userData'],
+              ),
+            ),
+          );
+          return;
+        }
+
         print('Google sign-in successful, processing user data...');
         
         // Update UserProvider with user data and token
@@ -643,15 +683,23 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                               child: ElevatedButton(
                                 onPressed: () {
                                   if (_formKey.currentState!.validate()) {
+                                    // Prepare user data including Google data if available
+                                    final userData = {
+                                      'fullName': _fullNameController.text,
+                                      'email': _emailController.text,
+                                      'password': _passwordController.text,
+                                    };
+                                    
+                                    // Add Google user data if available
+                                    if (widget.googleUserData != null) {
+                                      userData['googleUserData'] = jsonEncode(widget.googleUserData);
+                                    }
+                                    
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => SignupUserPage2(
-                                          userData: {
-                                            'fullName': _fullNameController.text,
-                                            'email': _emailController.text,
-                                            'password': _passwordController.text,
-                                          },
+                                          userData: userData,
                                         ),
                                       ),
                                     );
@@ -743,64 +791,91 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
 
                           SizedBox(height: constraints.maxHeight * 0.02),
 
-                          // Social Login Buttons
-                          // Google Sign-In uses the integrated googleAuthEndpoint: /api/auth/google-auth-without-firebase
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _isGoogleLoading
-                                  ? Container(
-                                      width: constraints.maxWidth * 0.12,
-                                      height: constraints.maxWidth * 0.12,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child: SizedBox(
-                                          width: constraints.maxWidth * 0.06,
-                                          height: constraints.maxWidth * 0.06,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF05055A)),
+                          // Social Login Buttons (only show if not in Google signup flow)
+                          if (widget.googleUserData == null) ...[
+                            // Google Sign-In uses the integrated googleAuthEndpoint: /api/auth/google-auth-without-firebase
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _isGoogleLoading
+                                    ? Container(
+                                        width: constraints.maxWidth * 0.12,
+                                        height: constraints.maxWidth * 0.12,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: constraints.maxWidth * 0.06,
+                                            height: constraints.maxWidth * 0.06,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF05055A)),
+                                            ),
                                           ),
                                         ),
+                                      )
+                                    : _buildSocialLoginButton(
+                                        context,
+                                        'assets/icons/google.png',
+                                        constraints.maxWidth * 0.12,
+                                        onPressed: _handleGoogleSignIn,
                                       ),
-                                    )
-                                  : _buildSocialLoginButton(
-                                      context,
-                                      'assets/icons/google.png',
-                                      constraints.maxWidth * 0.12,
-                                      onPressed: _handleGoogleSignIn,
-                                    ),
-                              SizedBox(width: constraints.maxWidth * 0.05),
-                              _isAppleLoading
-                                  ? Container(
-                                      width: constraints.maxWidth * 0.12,
-                                      height: constraints.maxWidth * 0.12,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child: SizedBox(
-                                          width: constraints.maxWidth * 0.06,
-                                          height: constraints.maxWidth * 0.06,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF05055A)),
+                                SizedBox(width: constraints.maxWidth * 0.05),
+                                _isAppleLoading
+                                    ? Container(
+                                        width: constraints.maxWidth * 0.12,
+                                        height: constraints.maxWidth * 0.12,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: constraints.maxWidth * 0.06,
+                                            height: constraints.maxWidth * 0.06,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF05055A)),
+                                            ),
                                           ),
                                         ),
+                                      )
+                                    : _buildSocialLoginButton(
+                                        context,
+                                        'assets/icons/apple.png',
+                                        constraints.maxWidth * 0.12,
+                                        onPressed: _handleAppleSignIn,
                                       ),
-                                    )
-                                  : _buildSocialLoginButton(
-                                      context,
-                                      'assets/icons/apple.png',
-                                      constraints.maxWidth * 0.12,
-                                      onPressed: _handleAppleSignIn,
+                              ],
+                            ),
+                          ] else ...[
+                            // Show a message that user is signing up with Google
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Signing up with Google',
+                                    style: GoogleFonts.nunito(
+                                      color: Colors.green,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
                                     ),
-                            ],
-                          ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

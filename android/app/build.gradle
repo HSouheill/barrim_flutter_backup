@@ -6,7 +6,7 @@ plugins {
     id 'kotlin-android'
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id 'dev.flutter.flutter-gradle-plugin'
-    id 'com.google.gms.google-services' // Add the Google services plugin
+    // Removed Firebase Google services plugin - using GCP OAuth instead
 }
 
 def keystoreProperties = new Properties()
@@ -16,15 +16,14 @@ if (keystorePropertiesFile.exists()) {
 }
 
 dependencies {
-    // Import the Firebase BoM (Bill of Materials) for consistent versioning
-    implementation platform('com.google.firebase:firebase-bom:33.10.0')
-
-    // Firebase authentication and Google Sign-In SDK
-    implementation 'com.google.firebase:firebase-auth'
-    implementation 'com.google.firebase:firebase-firestore' // Optional, for Firestore if needed
-    // Google Sign-In SDK
-    implementation 'com.google.android.gms:play-services-auth:20.3.0'
-    implementation 'com.google.firebase:firebase-messaging'
+    // GCP OAuth 2.0 dependencies
+    implementation 'com.google.android.gms:play-services-auth:21.0.0'
+    
+    // Removed Firebase dependencies - using GCP OAuth instead
+    // implementation platform('com.google.firebase:firebase-bom:33.10.0')
+    // implementation 'com.google.firebase:firebase-auth'
+    // implementation 'com.google.firebase:firebase-firestore'
+    // implementation 'com.google.firebase:firebase-messaging'
 
     // AndroidX Core for edge-to-edge support
     implementation 'androidx.core:core-ktx:1.12.0'
@@ -60,8 +59,8 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdkVersion flutter.minSdkVersion
         targetSdk 36
-        versionCode 6
-        versionName '1.0.9'
+        versionCode 8
+        versionName '1.0.10'
         multiDexEnabled true
         
         // Security: Use environment variables for sensitive data

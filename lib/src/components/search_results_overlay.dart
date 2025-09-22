@@ -189,6 +189,36 @@ class SearchResultsOverlay extends StatelessWidget {
            categoryLower == 'bnb';
   }
 
+  // Helper method to safely format distance values
+  String _formatDistance(dynamic distance) {
+    try {
+      // Handle null or non-numeric values
+      if (distance == null) return '';
+      
+      // Convert to double if it's not already
+      double dist = distance is double ? distance : double.tryParse(distance.toString()) ?? 0.0;
+      
+      // Check for infinity or NaN values
+      if (dist.isInfinite || dist.isNaN) {
+        return '(Distance unavailable)';
+      }
+      
+      // Format the distance based on its value
+      if (dist < 1) {
+        // Convert to minutes for distances less than 1 km
+        int minutes = (dist * 60).round();
+        return '($minutes min away)';
+      } else {
+        // Round to nearest hour for longer distances
+        int hours = dist.round();
+        return '($hours hr away)';
+      }
+    } catch (e) {
+      print('Error formatting distance: $e');
+      return '(Distance unavailable)';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -219,9 +249,7 @@ class SearchResultsOverlay extends StatelessWidget {
               itemBuilder: (context, index) {
                 final place = searchResults[index];
                 final distance = place['distance'] != null
-                    ? place['distance'] < 1
-                    ? '(${(place['distance'] * 60).round()} min away)'
-                    : '(${place['distance'].round()} hr away)'
+                    ? _formatDistance(place['distance'])
                     : '';
                 final price = place['price'] ?? '';
                 final category = place['category'] ?? 'Unknown';

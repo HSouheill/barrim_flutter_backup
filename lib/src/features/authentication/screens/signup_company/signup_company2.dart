@@ -460,7 +460,7 @@ class _SignupCompany2State extends State<SignupCompany2> with WidgetsBindingObse
         enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white)),
         focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white)),
       ),
-      items: industryTypes
+      items: industryTypes.toSet()
           .map((value) => DropdownMenuItem(
         value: value,
         child: Text(value, style: GoogleFonts.nunito(

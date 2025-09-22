@@ -7,6 +7,13 @@ import '../custom_header.dart';
 import '../../../../services/api_service.dart';
 import '../verification_code.dart';
 import '../white_headr.dart';
+import '../../../../services/gcp_google_auth_service.dart';
+import '../../../../services/user_provider.dart';
+import 'package:provider/provider.dart';
+import '../user_dashboard/home.dart';
+import '../company_dashboard/company_dashboard.dart';
+import '../serviceProvider_dashboard/serviceprovider_dashboard.dart';
+import '../wholesaler_dashboard/wholesaler_dashboard.dart';
 
 class SignupUserPage5 extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -30,6 +37,95 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
   String? district;
   String? city;
   String? fullAddress;
+
+  Future<void> _completeGoogleSignup(BuildContext context) async {
+    try {
+      // Get the Google user data
+      final googleUserData = widget.userData['googleUserData'] as Map<String, dynamic>;
+      
+      // Now authenticate with Google to get the proper tokens
+      final provider = Provider.of<GCPGoogleSignInProvider>(context, listen: false);
+      final result = await provider.googleLogin();
+      
+      if (result != null && result['needsSignup'] != true) {
+        // Google authentication successful
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        userProvider.setUser(result['user']);
+        userProvider.setToken(result['token']);
+        
+        final userData = result['user'] ?? {};
+        final userType = userData['userType'] ?? 'user';
+        
+        // Navigate to appropriate dashboard
+        _navigateAfterSignup(userType, result);
+      } else {
+        // Fallback: navigate to OTP verification
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtpVerificationScreen(
+              phoneNumber: widget.userData['phone'],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print("Error completing Google signup: $e");
+      // Fallback: navigate to OTP verification
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationScreen(
+            phoneNumber: widget.userData['phone'],
+          ),
+        ),
+      );
+    }
+  }
+
+  void _navigateAfterSignup(String userType, Map<String, dynamic> userData) {
+    switch (userType) {
+      case 'user':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => UserDashboard(userData: userData),
+          ),
+        );
+        break;
+      case 'company':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CompanyDashboard(userData: userData),
+          ),
+        );
+        break;
+      case 'serviceProvider':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ServiceproviderDashboard(userData: userData),
+          ),
+        );
+        break;
+      case 'wholesaler':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => WholesalerDashboard(userData: userData),
+          ),
+        );
+        break;
+      default:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => UserDashboard(userData: userData),
+          ),
+        );
+    }
+  }
 
   void _submitSignup(BuildContext context) async {
     if (selectedLocation == null) {
@@ -110,15 +206,21 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
             ),
           );
         } else if (response['status'] == 201 || response['status'] == 200) {
-          // Standard success case
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OtpVerificationScreen(
-                phoneNumber: widget.userData['phone'],
+          // Check if this is a Google signup flow
+          if (widget.userData.containsKey('googleUserData')) {
+            print("Google signup completed, proceeding with Google authentication");
+            await _completeGoogleSignup(context);
+          } else {
+            // Standard success case
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OtpVerificationScreen(
+                  phoneNumber: widget.userData['phone'],
+                ),
               ),
-            ),
-          );
+            );
+          }
         } else {
           // Actual error case
           ScaffoldMessenger.of(context).showSnackBar(

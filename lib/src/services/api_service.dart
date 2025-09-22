@@ -2496,7 +2496,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
     }
   }
 
-    Future<Map<String, dynamic>> smsverifyOtp({
+  static Future<Map<String, dynamic>> smsverifyOtp({
     required String phone,
     required String otp,
   }) async {
@@ -2504,7 +2504,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
       // Normalize phone number to E.164 format
       String normalizedPhone = phone.trim();
 
-      // Remove all non-digit characters
+      // Remove all non-digit characters except +
       normalizedPhone = normalizedPhone.replaceAll(RegExp(r'[^\d+]'), '');
 
       // Ensure it starts with country code
@@ -2518,36 +2518,81 @@ static Future<Map<String, dynamic>> signupWholesaler(
         }
       }
 
-
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/auth/sms-verify-otp'),
-       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-                'phone': normalizedPhone,
-                'otp': otp,
-              }),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'phone': normalizedPhone,
+          'otp': otp,
+        }),
       );
-
-
 
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        if (responseData['data']?['token'] != null) {
-          await _secureStorage.write(key: 'auth_token', value: responseData['data']['token']);
+        // Check if the response has the expected structure
+        if (responseData['status'] == 200 && responseData['data'] != null) {
+          final data = responseData['data'];
+          
+          // Save token if present
+          if (data['token'] != null) {
+            await _secureStorage.write(key: 'auth_token', value: data['token']);
+          }
+          
+          // Save refresh token if present
+          if (data['refreshToken'] != null) {
+            await _secureStorage.write(key: 'refresh_token', value: data['refreshToken']);
+          }
+
+          // Store user data based on user type
+          if (data['user'] != null) {
+            final user = data['user'];
+            final userType = user['userType'] ?? 'user';
+            
+            // Store user type
+            await _secureStorage.write(key: 'user_type', value: userType);
+            
+            // Store user data based on type
+            switch (userType) {
+              case 'company':
+                if (data['company'] != null) {
+                  await _secureStorage.write(key: 'company_data', value: jsonEncode(data['company']));
+                }
+                break;
+              case 'wholesaler':
+                if (data['wholesaler'] != null) {
+                  await _secureStorage.write(key: 'wholesaler_data', value: jsonEncode(data['wholesaler']));
+                }
+                break;
+              case 'serviceProvider':
+                if (data['serviceProvider'] != null) {
+                  await _secureStorage.write(key: 'service_provider_data', value: jsonEncode(data['serviceProvider']));
+                }
+                break;
+              case 'user':
+                await _secureStorage.write(key: 'user_data', value: jsonEncode(user));
+                break;
+            }
+          }
+
+          return {
+            'success': true,
+            'message': responseData['message'] ?? 'OTP verified successfully',
+            'data': data,
+          };
+        } else {
+          return {
+            'success': false,
+            'message': responseData['message'] ?? 'OTP verification failed',
+            'status': responseData['status'] ?? response.statusCode,
+          };
         }
-        return {
-          'success': true,
-          'message': responseData['message'] ?? 'OTP verified successfully',
-          'data': responseData['data'],
-        };
       } else {
         return {
           'success': false,
           'message': responseData['message'] ?? 'OTP verification failed',
           'status': response.statusCode,
-          'error': responseData['error'] ?? 'Unknown error occurred',
         };
       }
     } catch (error) {
@@ -2559,18 +2604,33 @@ static Future<Map<String, dynamic>> signupWholesaler(
     }
   }
 
-  Future<Map<String, dynamic>> resendOtp({
+  static Future<Map<String, dynamic>> resendOtp({
     required String phone,
   }) async {
     try {
-      // Prepare request body
+      // Normalize phone number to E.164 format
+      String normalizedPhone = phone.trim();
+
+      // Remove all non-digit characters except +
+      normalizedPhone = normalizedPhone.replaceAll(RegExp(r'[^\d+]'), '');
+
+      // Ensure it starts with country code
+      if (!normalizedPhone.startsWith('+')) {
+        if (normalizedPhone.startsWith('0')) {
+          normalizedPhone = '+961${normalizedPhone.substring(1)}';
+        } else if (normalizedPhone.startsWith('961')) {
+          normalizedPhone = '+$normalizedPhone';
+        } else {
+          normalizedPhone = '+961$normalizedPhone';
+        }
+      }
 
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/auth/resend-otp'),
-       headers: {'Content-Type': 'application/json'},
-       body: jsonEncode({
-          'phone': phone,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'phone': normalizedPhone,
         }),
       );
 
@@ -2579,7 +2639,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
       if (response.statusCode == 200) {
         return {
           'success': true,
-          'message': responseData['message'],
+          'message': responseData['message'] ?? 'OTP resent successfully',
           'data': responseData['data'],
         };
       } else {

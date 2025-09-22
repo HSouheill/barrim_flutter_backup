@@ -710,7 +710,7 @@ class _FilterPageState extends State<FilterPage> {
                     fontSize: ResponsiveUtils.getInputTextFontSize(context),
                   ),
                 ),
-                items: options.map((option) {
+                items: options.toSet().map((option) {
                   return DropdownMenuItem(
                     value: option,
                     child: Text(
@@ -941,7 +941,7 @@ class _FilterPageState extends State<FilterPage> {
                   fontSize: ResponsiveUtils.getInputTextFontSize(context),
                 ),
               ),
-              items: options.map((option) {
+              items: options.toSet().map((option) {
                 return DropdownMenuItem(
                   value: option,
                   child: Text(

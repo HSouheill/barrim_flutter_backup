@@ -178,6 +178,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
         print('First branch status: ${branches[0]['status']}');
         print('First branch location: ${branches[0]['location']}');
         print('First branch company: ${branches[0]['company']}');
+        print('DEBUG: First branch socialMedia: ${branches[0]['socialMedia']}');
+        print('DEBUG: First branch company socialMedia: ${branches[0]['company']?['socialMedia']}');
       }
 
       // Filter out branches whose status is not 'active'
@@ -185,6 +187,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
         // Check branch status - only show active branches
         final branchStatus = branch['status'];
         print('Branch: ${branch['name']}, Status: $branchStatus');
+        print('DEBUG: Branch socialMedia in filter: ${branch['socialMedia']}');
+        print('DEBUG: Branch company socialMedia in filter: ${branch['company']?['socialMedia']}');
         if (branchStatus != 'active') return false;
         return true;
       }).toList();
@@ -216,6 +220,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
         final category = branch['category']?.toString() ?? company?['category']?.toString() ?? '';
 
         print('Processing branch: ${branch['name']}, Location: $location, Company: $company');
+        print('DEBUG: Branch socialMedia: ${branch['socialMedia']}');
+        print('DEBUG: Company socialMedia: ${company['socialMedia']}');
 
         // Validate location data
         if (location == null ||
@@ -225,7 +231,17 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
           return null;
         }
         
-        print('Creating marker for branch: ${branch['name']} at lat: ${location['lat']}, lng: ${location['lng']}');
+        // Check if coordinates are valid (not 0,0)
+        final lat = location['lat'].toDouble();
+        final lng = location['lng'].toDouble();
+        
+        if (lat == 0.0 && lng == 0.0) {
+          print('Branch ${branch['name']} has invalid coordinates (0,0), skipping marker creation but keeping for social media');
+          // Don't create a marker, but we'll still process this branch for social media
+          return null;
+        }
+        
+        print('Creating marker for branch: ${branch['name']} at lat: $lat, lng: $lng');
 
         print('Branch category: "$category"');
         // Create custom marker based on category with dynamic color and logo
@@ -233,18 +249,15 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
         return google_maps.Marker(
           markerId: google_maps.MarkerId('branch_${branch['id']}'),
-          position: google_maps.LatLng(
-            location['lat'].toDouble(),
-            location['lng'].toDouble(),
-          ),
+          position: google_maps.LatLng(lat, lng),
           onTap: () {
             print('Branch marker tapped: ${branch['name']}');
             setState(() {
               _selectedPlace = {
                 'name': branch['name'] ?? 'Unnamed Branch',
                 '_id': branch['id'],
-                'latitude': location['lat'].toDouble(),
-                'longitude': location['lng'].toDouble(),
+                'latitude': lat,
+                'longitude': lng,
                 'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
                 'phone': branch['phone'] ?? '',
                 'description': branch['description'] ?? '',
@@ -271,13 +284,90 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
       print('Created ${branchMarkers.length} branch markers');
 
+      // Process branches with invalid coordinates for social media display
+      final branchesWithInvalidCoords = filteredBranches.where((branch) {
+        final location = branch['location'];
+        if (location == null || location['lat'] == null || location['lng'] == null) return false;
+        final lat = location['lat'].toDouble();
+        final lng = location['lng'].toDouble();
+        return lat == 0.0 && lng == 0.0;
+      }).toList();
+
+      print('Found ${branchesWithInvalidCoords.length} branches with invalid coordinates but valid social media');
+
+      // Create special markers for branches with invalid coordinates but valid social media
+      // These will be placed at a default location (Beirut center) but marked as "social media only"
+      final socialMediaOnlyMarkers = await Future.wait(branchesWithInvalidCoords.map((branch) async {
+        final company = branch['company'];
+        final logoUrl = company?['logoUrl'];
+        final category = branch['category']?.toString() ?? company?['category']?.toString() ?? '';
+        final location = branch['location'];
+        
+        // Debug: Print the raw branch and company data
+        print('DEBUG: Raw branch data for ${branch['name']}:');
+        print('  Branch socialMedia: ${branch['socialMedia']}');
+        print('  Company socialMedia: ${company['socialMedia']}');
+        print('  Company data: $company');
+        
+        // Check if this branch has valid social media
+        final hasValidSocial = _getValidSocialMedia(branch['socialMedia'], company['socialMedia']).isNotEmpty;
+        if (!hasValidSocial) {
+          print('Branch ${branch['name']} has no valid social media, skipping');
+          return null;
+        }
+        
+        print('Creating social media only marker for branch: ${branch['name']}');
+        
+        // Create custom marker based on category
+        final customIcon = await _createCategoryMarkerIcon(category);
+        
+        return google_maps.Marker(
+          markerId: google_maps.MarkerId('social_media_${branch['id']}'),
+          position: google_maps.LatLng(33.8938, 35.5018), // Beirut center as default
+          onTap: () {
+            print('Social media only marker tapped: ${branch['name']}');
+            setState(() {
+              _selectedPlace = {
+                'name': branch['name'] ?? 'Unnamed Branch',
+                '_id': branch['id'],
+                'latitude': 33.8938, // Default Beirut coordinates
+                'longitude': 35.5018,
+                'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                'phone': branch['phone'] ?? '',
+                'description': branch['description'] ?? '',
+                'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                'logoUrl': logoUrl,
+                'companyName': company['businessName'] ?? 'Unknown Company',
+                'companyId': company['id'],
+                'images': branch['images'] ?? [],
+                'category': category,
+                'company': company,
+                'type': 'branch',
+                'status': 'active',
+                'socialMediaOnly': true, // Mark as social media only
+                // Include social media information - prefer branch, fallback to company
+                'socialMedia': _getValidSocialMedia(branch['socialMedia'], company['socialMedia']),
+              };
+            });
+            print('_selectedPlace set to social media only branch: ${_selectedPlace?['name']}');
+            print('_selectedPlace socialMedia: ${_selectedPlace?['socialMedia']}');
+          },
+          icon: customIcon,
+          visible: false, // Hide these markers from the map
+        );
+      })).then((markers) => markers.where((marker) => marker != null).cast<google_maps.Marker>().toList());
+
+      print('Created ${socialMediaOnlyMarkers.length} social media only markers');
+
       // Remove test marker - it was causing duplicate markers at same location
       // The branch marker already handles the onTap functionality
 
       setState(() {
         // Add branch markers to existing company markers
         _wayPointMarkers.addAll(branchMarkers);
-        print('Total markers on map: ${_wayPointMarkers.length} (${branchMarkers.length} branch markers)');
+        // Add social media only markers (these are hidden but accessible via search)
+        _wayPointMarkers.addAll(socialMediaOnlyMarkers);
+        print('Total markers on map: ${_wayPointMarkers.length} (${branchMarkers.length} branch markers, ${socialMediaOnlyMarkers.length} social media only)');
         print('Home: Marker types: ${_wayPointMarkers.map((m) => m.runtimeType).toList()}');
         print('Home: Marker IDs: ${_wayPointMarkers.map((m) => m is google_maps.Marker ? m.markerId.value : 'unknown').toList()}');
       });
@@ -1364,22 +1454,38 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 category.contains(searchQuery) ||
                 companyName.contains(searchQuery)) {
 
-              // Calculate distance if current location is available
+              // Calculate distance if current location is available and coordinates are valid
               double? distance;
-              if (branch['location'] != null) {
-                distance = _calculateDistance(
-                  _userLocation.latitude,
-                  _userLocation.longitude,
-                  branch['location']['lat'].toDouble(),
-                  branch['location']['lng'].toDouble(),
-                );
+              double? latitude = branch['location']?['lat']?.toDouble();
+              double? longitude = branch['location']?['lng']?.toDouble();
+              
+              if (branch['location'] != null && latitude != null && longitude != null) {
+                if (latitude != 0.0 && longitude != 0.0) {
+                  distance = _calculateDistance(
+                    _userLocation.latitude,
+                    _userLocation.longitude,
+                    latitude,
+                    longitude,
+                  );
+                } else {
+                  // For branches with invalid coordinates, set a high distance to sort them last
+                  distance = 999999.0; // Use a large finite number instead of infinity
+                }
+              } else {
+                distance = 999999.0; // Use a large finite number instead of infinity
+              }
+
+              // Use default coordinates for branches with invalid coordinates
+              if (latitude == null || longitude == null || (latitude == 0.0 && longitude == 0.0)) {
+                latitude = 33.8938; // Default Beirut coordinates
+                longitude = 35.5018;
               }
 
               results.add({
                 'name': branch['name'] ?? 'Unnamed Branch',
                 'id': branch['id'],
-                'latitude': branch['location']?['lat']?.toDouble(),
-                'longitude': branch['location']?['lng']?.toDouble(),
+                'latitude': latitude,
+                'longitude': longitude,
                 'address': '${branch['location']?['street'] ?? ''}, ${branch['location']?['city'] ?? ''}',
                 'phone': branch['phone'] ?? '',
                 'description': branch['description'] ?? '',
@@ -1392,9 +1498,10 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 'price': (20 + (results.length * 5)).toString(),
                 'type': 'Branch',
                 'category': branch['category'] ?? 'Unknown Category',
-                'socialMedia': branch['socialMedia'] ?? {},
+                'socialMedia': _getValidSocialMedia(branch['socialMedia'], branch['company']?['socialMedia']),
                 'company': branch['company'] ?? {},
                 'status': branch['status'] ?? 'active',
+                'socialMediaOnly': (latitude == 33.8938 && longitude == 35.5018), // Mark as social media only if using default coordinates
               });
             }
           }
@@ -1402,8 +1509,8 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
 
         // Sort results by distance if current location is available
         results.sort((a, b) {
-          final distanceA = a['distance'] as double? ?? double.infinity;
-          final distanceB = b['distance'] as double? ?? double.infinity;
+          final distanceA = a['distance'] as double? ?? 999999.0; // Use large finite number instead of infinity
+          final distanceB = b['distance'] as double? ?? 999999.0; // Use large finite number instead of infinity
           return distanceA.compareTo(distanceB);
         });
 
@@ -2684,6 +2791,23 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     print('_getValidSocialMedia called with:');
     print('  branchSocial: $branchSocial');
     print('  companySocial: $companySocial');
+    print('  branchSocial type: ${branchSocial.runtimeType}');
+    print('  companySocial type: ${companySocial.runtimeType}');
+    
+    // Debug: Check if the data is actually null or if it's being processed incorrectly
+    if (branchSocial == null) {
+      print('  WARNING: branchSocial is null');
+    } else if (branchSocial is Map) {
+      print('  branchSocial is a Map with keys: ${branchSocial.keys.toList()}');
+      print('  branchSocial values: ${branchSocial.values.toList()}');
+    }
+    
+    if (companySocial == null) {
+      print('  WARNING: companySocial is null');
+    } else if (companySocial is Map) {
+      print('  companySocial is a Map with keys: ${companySocial.keys.toList()}');
+      print('  companySocial values: ${companySocial.values.toList()}');
+    }
     
     // Check if branch has valid social media
     if (branchSocial != null && branchSocial is Map && branchSocial.isNotEmpty) {
@@ -3069,14 +3193,41 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
 
   // Calculate distance between two points using Haversine formula
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const R = 6371.0; // Earth's radius in kilometers
-    final dLat = _toRadians(lat2 - lat1);
-    final dLon = _toRadians(lon2 - lon1);
-    final a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(_toRadians(lat1)) * Math.cos(_toRadians(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    final c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+    try {
+      // Validate input coordinates
+      if (lat1.isNaN || lon1.isNaN || lat2.isNaN || lon2.isNaN ||
+          lat1.isInfinite || lon1.isInfinite || lat2.isInfinite || lon2.isInfinite) {
+        print('Invalid coordinates: lat1=$lat1, lon1=$lon1, lat2=$lat2, lon2=$lon2');
+        return 999999.0; // Return large finite number for invalid coordinates
+      }
+      
+      // Check if coordinates are within valid ranges
+      if (lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90 ||
+          lon1 < -180 || lon1 > 180 || lon2 < -180 || lon2 > 180) {
+        print('Coordinates out of range: lat1=$lat1, lon1=$lon1, lat2=$lat2, lon2=$lon2');
+        return 999999.0; // Return large finite number for out-of-range coordinates
+      }
+      
+      const R = 6371.0; // Earth's radius in kilometers
+      final dLat = _toRadians(lat2 - lat1);
+      final dLon = _toRadians(lon2 - lon1);
+      final a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(_toRadians(lat1)) * Math.cos(_toRadians(lat2)) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      final c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      final result = R * c;
+      
+      // Validate the result
+      if (result.isNaN || result.isInfinite) {
+        print('Invalid distance calculation result: $result');
+        return 999999.0; // Return large finite number for invalid results
+      }
+      
+      return result;
+    } catch (e) {
+      print('Error calculating distance: $e');
+      return 999999.0; // Return large finite number on error
+    }
   }
 
   // Convert degrees to radians

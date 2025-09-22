@@ -3,10 +3,8 @@ import 'package:barrim/src/features/authentication/screens/white_headr.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:barrim/src/features/authentication/screens/login_page.dart';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:barrim/src/features/authentication/screens/welcome_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String phoneNumber;
@@ -73,20 +71,19 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     final otp = _otpControllers.map((controller) => controller.text).join();
 
     if (otp.length != 6) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(
-      //     content: Text('Please enter the complete OTP'),
-      //     backgroundColor: Colors.red,
-      //   ),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter the complete OTP'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final apiService = ApiService();
-      final response = await apiService.smsverifyOtp(
+      final response = await ApiService.smsverifyOtp(
         phone: widget.phoneNumber,
         otp: otp,
       );
@@ -102,22 +99,22 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         );
       } else {
         // Show error message for incorrect OTP
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text(response['message'] ?? 'Invalid verification code'),
-        //     backgroundColor: Colors.red,
-        //   ),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Invalid verification code'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (error) {
       if (!mounted) return;
       
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('Error verifying OTP: ${error.toString()}'),
-      //     backgroundColor: Colors.red,
-      //   ),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error verifying OTP: ${error.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -133,39 +130,37 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
 
     try {
-      // Create ApiService instance and call resend OTP
-      final apiService = ApiService();
-      final response = await apiService.resendOtp(
+      final response = await ApiService.resendOtp(
         phone: widget.phoneNumber,
       );
 
       if (mounted) {
         if (response['success'] == true) {
           // Show success message
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //   const SnackBar(
-          //     content: Text('OTP resent successfully'),
-          //     backgroundColor: Colors.green,
-          //   ),
-          // );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('OTP resent successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
         } else {
           // Show error message
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //   SnackBar(
-          //     content: Text(response['message'] ?? 'Failed to resend OTP'),
-          //     backgroundColor: Colors.red,
-          //   ),
-          // );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Failed to resend OTP'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     } catch (e) {
       if (mounted) {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text('Failed to resend OTP: ${e.toString()}'),
-        //     backgroundColor: Colors.red,
-        //   ),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to resend OTP: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) {

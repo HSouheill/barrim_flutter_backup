@@ -1,12 +1,8 @@
 import UIKit
 import Flutter
-import FirebaseCore
 import GoogleMaps
 import flutter_local_notifications
-
-#if canImport(FirebaseCore)
-import FirebaseCore
-#endif
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -34,7 +30,6 @@ import FirebaseCore
     FlutterLocalNotificationsPlugin.setPluginRegistrantCallback { (registry) in
        GeneratedPluginRegistrant.register(with: registry)
       }
-    FirebaseApp.configure()
     GeneratedPluginRegistrant.register(with: self)
    if  #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate

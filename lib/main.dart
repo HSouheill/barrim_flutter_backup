@@ -1,4 +1,4 @@
-import 'package:barrim/src/services/google_auth_service.dart';
+import 'package:barrim/src/services/gcp_google_auth_service.dart';
 import 'package:barrim/src/services/notification_service.dart';
 import 'package:barrim/src/services/notification_provider.dart';
 import 'package:barrim/src/services/user_provider.dart';
@@ -14,8 +14,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
 import '../src/utils/edge_to_edge_helper.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+// Removed Firebase imports - using GCP OAuth instead
+// import 'package:firebase_core/firebase_core.dart';
+// import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,31 +36,8 @@ Future<void> main() async {
       print("Continuing with default environment configuration...");
     }
 
-    // Initialize Firebase with timeout and duplicate check
-    try {
-      // Check if Firebase is already initialized
-      if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            print("Warning: Firebase initialization timeout");
-            throw Exception("Firebase initialization timeout");
-          },
-        );
-        print("Firebase initialized successfully");
-      } else {
-        print("Firebase already initialized");
-      }
-    } catch (e) {
-      if (e.toString().contains('duplicate-app')) {
-        print("Firebase already initialized, continuing...");
-      } else {
-        print("Firebase initialization error: $e");
-        throw e;
-      }
-    }
+    // Firebase initialization removed - using GCP OAuth instead
+    print("Using GCP OAuth for Google Sign-In - no Firebase initialization needed");
 
     // Initialize notification service with timeout
     final notificationService = NotificationService();
@@ -241,7 +219,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider(
-    create: (context) => GoogleSignInProvider(),
+    create: (context) => GCPGoogleSignInProvider(),
     child: MaterialApp(
       title: 'Barrim',
       home: const MyHomePage(),
