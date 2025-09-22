@@ -1636,7 +1636,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.8,
+        childAspectRatio: 0.65, // Increased from 0.8 to provide more height
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -1723,7 +1723,7 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
             ),
             // Content
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
                   Row(
@@ -1733,10 +1733,12 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                         child: Text(
                           title,
                           style: const TextStyle(
-                            fontSize: 20,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (isCurrentPlan)
@@ -1757,29 +1759,37 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                         ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
-                  // Benefits list
-                  ...benefits.map((benefit) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('• ', style: TextStyle(color: Colors.white, fontSize: 16)),
-                        Expanded(
-                          child: Text(
-                            benefit,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
+                  // Benefits list - limit to first 3 benefits and make scrollable
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: benefits.take(3).map((benefit) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('• ', style: TextStyle(color: Colors.white, fontSize: 14)),
+                              Expanded(
+                                child: Text(
+                                  benefit,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                        )).toList(),
+                      ),
                     ),
-                  )).toList(),
+                  ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
 
                   // Join button
                   Container(
@@ -1791,9 +1801,9 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: backgroundColor,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                         disabledBackgroundColor: Colors.grey[300],
                         disabledForegroundColor: Colors.grey[600],

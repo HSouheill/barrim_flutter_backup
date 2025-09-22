@@ -89,6 +89,17 @@ class CompanySubscriptionService {
   // Get authentication headers with security headers
   static Future<Map<String, String>> _getHeaders() async {
     final token = await _tokenStorage.getToken();
+    
+    // Validate token format
+    if (token == null || token.isEmpty) {
+      throw Exception('Authentication token is missing or empty');
+    }
+    
+    // Basic JWT format validation (should have 3 parts separated by dots)
+    if (!token.contains('.') || token.split('.').length != 3) {
+      throw Exception('Invalid token format. Expected JWT format: header.payload.signature');
+    }
+    
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
@@ -101,6 +112,17 @@ class CompanySubscriptionService {
   // Get multipart headers for file uploads with security headers
   static Future<Map<String, String>> _getMultipartHeaders() async {
     final token = await _tokenStorage.getToken();
+    
+    // Validate token format
+    if (token == null || token.isEmpty) {
+      throw Exception('Authentication token is missing or empty');
+    }
+    
+    // Basic JWT format validation (should have 3 parts separated by dots)
+    if (!token.contains('.') || token.split('.').length != 3) {
+      throw Exception('Invalid token format. Expected JWT format: header.payload.signature');
+    }
+    
     return {
       'Authorization': 'Bearer $token',
       'User-Agent': 'Barrim-Mobile-App/1.0',

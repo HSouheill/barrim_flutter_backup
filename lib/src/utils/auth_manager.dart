@@ -1,5 +1,4 @@
 // utils/auth_manager.dart
-import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
@@ -7,7 +6,14 @@ class AuthManager {
   static const String _tokenKey = 'auth_token';
   static const String _userIdKey = 'user_id';
   static const String _userTypeKey = 'user_type';
-  static final _storage = FlutterSecureStorage();
+  static final _storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
 
   // Save authentication data
   static Future<void> saveAuthData(String token) async {

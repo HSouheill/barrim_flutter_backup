@@ -5,7 +5,14 @@ class TokenStorage {
   factory TokenStorage() => _instance;
   TokenStorage._internal();
 
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
   final String _tokenKey = 'auth_token';
   final String _userTypeKey = 'user_type';
   final String _userIdKey = 'user_id';
