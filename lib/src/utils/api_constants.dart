@@ -13,4 +13,5 @@ class ApiConstants {
   static const String companyProfileEndpoint = '/api/companies/profile';
   static const String companyLogoEndpoint = '/api/companies/logo';
   static const String branchesEndpoint = '/api/companies/branches';
+  static const String serviceProviderCategoriesEndpoint = '/api/service-provider-categories';
 }

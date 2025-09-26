@@ -7,7 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:barrim/src/services/api_service.dart';
-import 'package:barrim/src/utils/api_constants.dart';
+// import 'package:barrim/src/utils/api_constants.dart';
 import 'package:barrim/src/config/gcp_config.dart';
 
 class GCPGoogleSignInProvider extends ChangeNotifier {
@@ -15,11 +15,13 @@ class GCPGoogleSignInProvider extends ChangeNotifier {
   final googleSignIn = GoogleSignIn(
     scopes: GCPConfig.scopes,
     // Configure client ID for different platforms
-    clientId: Platform.isAndroid 
-        ? GCPConfig.androidClientId
-        : Platform.isIOS
-            ? GCPConfig.iosClientId
-            : null, // Web will use the default
+    // clientId: Platform.isAndroid 
+    //     ? GCPConfig.androidClientId
+    //     : Platform.isIOS
+    //         ? GCPConfig.iosClientId
+    //         : null, // Web will use the default
+    serverClientId: GCPConfig.webClientId,
+    clientId: Platform.isIOS ? GCPConfig.iosClientId : null,
   );
   
   GoogleSignInAccount? _user;

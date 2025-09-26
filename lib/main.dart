@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
+import 'package:barrim/src/features/authentication/screens/splash_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../src/models/auth_provider.dart';
@@ -222,7 +223,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     create: (context) => GCPGoogleSignInProvider(),
     child: MaterialApp(
       title: 'Barrim',
-      home: const MyHomePage(),
+      home: const SplashScreen(),
       theme: ThemeData.light().copyWith(
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
@@ -328,6 +329,9 @@ class _MyHomePageState extends State<MyHomePage> {
           if (kDebugMode) {
             print('WebSocket initialized successfully');
           }
+          
+          // Navigation is now handled by splash screen
+          print('Session initialized successfully');
         } else if (!sessionValid) {
           if (kDebugMode) {
             print('Session expired or refresh failed during initialization');
@@ -344,6 +348,7 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

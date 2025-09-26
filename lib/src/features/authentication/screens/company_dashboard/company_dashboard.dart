@@ -9,6 +9,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import '../../../../services/api_service.dart';
+import '../../../../services/user_provider.dart';
+import '../../../../services/route_tracking_service.dart';
 import '../../headers/company_header.dart';
 import './addbranch.dart';
 import 'branches.dart';
@@ -16,6 +18,7 @@ import 'company_referral.dart';
 import '../login_page.dart';
 import 'package:flutter/foundation.dart';
 import 'branch_subscription_branches.dart';
+import 'package:provider/provider.dart';
 
 class CompanyDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -35,6 +38,14 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   @override
   void initState() {
     super.initState();
+    
+    // Track this route using the route tracking service
+    RouteTrackingService.trackDashboardRoute(
+      context,
+      'company',
+      pageData: widget.userData,
+    );
+    
     _loadCompanyData();
   }
 

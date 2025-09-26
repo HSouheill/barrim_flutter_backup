@@ -78,7 +78,8 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
       // Format phone number if needed
       String phone = widget.userData['phone'].toString();
       if (!phone.startsWith('+')) {
-        phone = '+961${phone.startsWith('0') ? phone.substring(1) : phone}';
+        // For Lebanese numbers, preserve the leading zero
+        phone = '+961$phone';
       }
 
       // Prepare phones array - include main phone and any additional phones

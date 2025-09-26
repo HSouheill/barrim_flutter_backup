@@ -4,13 +4,13 @@ import 'package:barrim/src/features/authentication/screens/serviceProvider_dashb
 import 'package:barrim/src/features/authentication/screens/user_dashboard/home.dart';
 import 'package:barrim/src/features/authentication/screens/wholesaler_dashboard/wholesaler_dashboard.dart';
 import 'package:flutter/material.dart';
+import 'package:barrim/main.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
 import 'package:barrim/src/features/authentication/screens/signup_user/signup_user1.dart';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:barrim/src/services/apple_auth_service.dart';
 import './forgot_password/forgot_password.dart';
-import 'package:barrim/src/services/google_auth_service.dart';
 import 'package:provider/provider.dart';
 import 'package:barrim/src/features/authentication/screens/company_dashboard/company_dashboard.dart';
 import 'package:barrim/src/services/user_provider.dart'; // Import UserProvider
@@ -245,16 +245,59 @@ class _LoginPageState extends State<LoginPage> {
       final credentials = await userProvider.loadCredentials();
       
       if (credentials.isNotEmpty) {
-        setState(() {
-          _emailOrPhoneController.text = credentials['emailOrPhone'] ?? '';
-          _passwordController.text = credentials['password'] ?? '';
-          _rememberMe = credentials['rememberMe'] == 'true';
-        });
+        String savedIdentifier = credentials['emailOrPhone'] ?? '';
         
-        // Trigger phone number detection if needed
-        _onEmailOrPhoneChanged();
+        // Check if it's a phone number with country code (starts with +)
+        if (savedIdentifier.startsWith('+')) {
+          // Extract country code and phone number
+          // Find the first occurrence where we have enough digits for a phone number
+          String phoneNumber = '';
+          String countryCode = '';
+          
+          // Try to match common country code patterns
+          RegExp countryCodePattern = RegExp(r'^(\+\d{1,4})(\d{8,15})$');
+          Match? match = countryCodePattern.firstMatch(savedIdentifier);
+          
+          if (match != null) {
+            countryCode = match.group(1)!; // e.g., +961
+            phoneNumber = match.group(2)!;  // e.g., 70123456
+          } else {
+            // Fallback: try to extract country code manually
+            // Look for patterns like +961, +1, +44, etc.
+            RegExp fallbackPattern = RegExp(r'^(\+\d{1,4})');
+            Match? fallbackMatch = fallbackPattern.firstMatch(savedIdentifier);
+            
+            if (fallbackMatch != null) {
+              countryCode = fallbackMatch.group(1)!;
+              phoneNumber = savedIdentifier.substring(countryCode.length);
+            } else {
+              // If no country code pattern matches, treat as regular phone number
+              phoneNumber = savedIdentifier;
+              countryCode = '+961'; // Default country code
+            }
+          }
+          
+          setState(() {
+            _emailOrPhoneController.text = phoneNumber;
+            _countryCode = countryCode;
+            _passwordController.text = credentials['password'] ?? '';
+            _rememberMe = credentials['rememberMe'] == 'true';
+            _isPhoneNumber = true; // Force phone number mode
+          });
+        } else {
+          // It's an email or regular phone number without country code
+          setState(() {
+            _emailOrPhoneController.text = savedIdentifier;
+            _passwordController.text = credentials['password'] ?? '';
+            _rememberMe = credentials['rememberMe'] == 'true';
+          });
+          
+          // Trigger phone number detection
+          _onEmailOrPhoneChanged();
+        }
         
         print('Saved credentials loaded successfully');
+        print('Country code: $_countryCode, Phone number: ${_emailOrPhoneController.text}');
       }
     } catch (e) {
       print('Error loading saved credentials: $e');
@@ -335,7 +378,14 @@ class _LoginPageState extends State<LoginPage> {
                                 color: Colors.black,
                                 size: isSmallScreen ? 30 : 40,
                               ),
-                              onPressed: () => Navigator.of(context).pop(),
+                              onPressed: () {
+                                // Always navigate to the main home page
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (context) => const MyHomePage(),
+                                  ),
+                                );
+                              },
                             ),
                           ),
 

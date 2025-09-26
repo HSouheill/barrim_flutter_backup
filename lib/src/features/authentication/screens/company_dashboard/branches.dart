@@ -3,20 +3,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../services/api_service.dart';
+import '../../../../services/user_provider.dart';
+import '../../../../services/route_tracking_service.dart';
 import '../../headers/company_header.dart';
 import 'company_review.dart';
+import 'package:provider/provider.dart';
 
 class BranchesPage extends StatefulWidget {
   final String token;
   final List<dynamic> initialBranches;
-    final Map<String, dynamic> userData; // <-- Add this line
+    final Map<String, dynamic> userData; 
 
 
   const BranchesPage({
     Key? key,
     required this.token,
     required this.initialBranches,
-      required this.userData, // <-- Add this line
+      required this.userData, 
 
   }) : super(key: key);
 
@@ -33,6 +36,13 @@ class _BranchesPageState extends State<BranchesPage> {
 @override
 void initState() {
   super.initState();
+  
+  // Track this route using the route tracking service
+  RouteTrackingService.trackBranchesRoute(
+    context,
+    pageData: widget.userData,
+  );
+  
   print('BranchesPage token: ${widget.token}');
   branches = widget.initialBranches;
   _loadCompanyData();

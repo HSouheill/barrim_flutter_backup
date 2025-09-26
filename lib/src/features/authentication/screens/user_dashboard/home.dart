@@ -32,7 +32,10 @@ import '../settings/settings.dart';
 import '../login_page.dart';
 import '../category/categories.dart';
 import '../../../../services/google_maps_service.dart';
+import '../../../../services/user_provider.dart';
+import '../../../../services/route_tracking_service.dart';
 import 'notification.dart';
+import 'package:provider/provider.dart';
 
 class UserDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -1026,6 +1029,13 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // Track this route using the route tracking service
+    RouteTrackingService.trackDashboardRoute(
+      context,
+      'user',
+      pageData: widget.userData,
+    );
     
     // Prioritize getting user location immediately upon login
     _getUserLocationOnLogin();

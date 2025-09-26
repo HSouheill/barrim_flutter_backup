@@ -230,17 +230,27 @@ class SessionManager {
         final data = json.decode(response.body);
         final responseData = data['data'] ?? {};
         final isValid = responseData['valid'] == true;
+        if (!kReleaseMode) {
+          print('Token validation successful: $isValid');
+        }
         return isValid;
       } else if (response.statusCode == 401) {
         if (!kReleaseMode) {
-          print('Token validation failed: Unauthorized');
+          print('Token validation failed: Unauthorized (401)');
         }
         return false;
-      } else {
+      } else if (response.statusCode >= 500) {
+        // Server errors (5xx) - assume token is still valid, server issue
         if (!kReleaseMode) {
-          print('Token validation failed: HTTP ${response.statusCode}');
+          print('Server error during token validation (${response.statusCode}) - assuming token is valid');
         }
-        return false;
+        return true;
+      } else {
+        // Other client errors (4xx except 401) - assume token is still valid
+        if (!kReleaseMode) {
+          print('Client error during token validation (${response.statusCode}) - assuming token is valid');
+        }
+        return true;
       }
     } catch (e) {
       if (!kReleaseMode) {

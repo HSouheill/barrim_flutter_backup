@@ -64,8 +64,10 @@ android {
         multiDexEnabled true
         
         // Security: Use environment variables for sensitive data
-        buildConfigField "String", "GOOGLE_MAPS_API_KEY", "\"${System.getenv('GOOGLE_MAPS_API_KEY') ?: 'YOUR_API_KEY_HERE'}\""
+        buildConfigField "String", "GOOGLE_MAPS_API_KEY", "\"${System.getenv('GOOGLE_MAPS_API_KEY') ?: 'AIzaSyD8LfG_dswX7RwHlfSCf-Qc0qFpEVm-XrM'}\""
         buildConfigField "boolean", "IS_PRODUCTION", "${System.getenv('IS_PRODUCTION') ?: 'false'}"
+
+        resValue "string", "google_maps_api_key", "${System.getenv('GOOGLE_MAPS_API_KEY') ?: 'AIzaSyD8LfG_dswX7RwHlfSCf-Qc0qFpEVm-XrM'}"
     }
 
     signingConfigs {
@@ -83,6 +85,9 @@ android {
         release {
             // Use release signing config if available, otherwise fall back to debug
             signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }

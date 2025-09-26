@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../services/api_service.dart';
@@ -8,7 +7,6 @@ import '../referrals/rewards.dart';
 import '../settings/settings.dart'; // Add SettingsPage import
 import 'branch_details.dart';
 import 'category_filter.dart'; // Add this import for FilterOptions
-import '../../headers/dashboard_headers.dart';
 import '../../headers/sidebar.dart';
 
 class CategoryPlaces extends StatefulWidget {
@@ -31,7 +29,7 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
   // Add filter options
   FilterOptions _filterOptions = FilterOptions(
     priceSort: 'none',
-    priceRange: const RangeValues(0, 1000),
+    priceRange: const RangeValues(0, 10000), // Increased from 1000 to 10000 to include more branches
     ratingSort: 'none',
     openNow: false,
     closest: false,
@@ -58,9 +56,9 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
   Future<void> _fetchUserData() async {
     try {
       final userData = await ApiService.getUserData();
-      if (userData != null && userData['profilePic'] != null) {
+      if (userData['profilePic'] != null) {
         setState(() {
-          _profileImagePath = ApiService.getImageUrl(userData['profilePic']);
+          _profileImagePath = ApiService.getImageUrl(userData['profilePic'] as String);
           if (!kReleaseMode) {
             print('Profile Image Path: $_profileImagePath');
           }
@@ -294,105 +292,6 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
     });
   }
 
-  Widget _buildImages(Map<String, dynamic> branch) {
-    // Check if images exist and are not empty
-    List<dynamic>? images;
-
-    if (branch.containsKey('images')) {
-      // Handle different possible formats of images data
-      if (branch['images'] is List) {
-        images = branch['images'] as List;
-      } else if (branch['images'] is String) {
-        // Handle case where images might be a comma-separated string
-        String imageStr = branch['images'] as String;
-        if (imageStr.isNotEmpty) {
-          images = imageStr.split(',');
-        }
-      }
-    }
-
-    // Return empty container if no images
-    if (images == null || images.isEmpty) {
-      return SizedBox(
-        height: 120,
-        child: Center(
-          child: Text('No images available', style: TextStyle(color: Colors.grey)),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 120,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: images.length,
-        itemBuilder: (context, index) {
-          String imageUrl = images![index].toString();
-
-          // Ensure URL is fully formed
-          if (!imageUrl.startsWith('http') && !imageUrl.startsWith('https')) {
-            // Append base URL if it's a relative path
-            String baseUrl = ApiService.baseUrl;
-            imageUrl = imageUrl.startsWith('/')
-                ? '$baseUrl$imageUrl'
-                : '$baseUrl/$imageUrl';
-          }
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: Image.network(
-                imageUrl,
-                width: 160,
-                height: 120,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    width: 160,
-                    height: 120,
-                    color: Colors.grey[200],
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                            loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  if (!kReleaseMode) {
-                    print('Image error: $error');
-                  }
-                  return Container(
-                    width: 160,
-                    height: 120,
-                    color: Colors.grey[300],
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.image_not_supported, color: Colors.grey[600]),
-                        SizedBox(height: 4),
-                        Text(
-                          'Image failed to load',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   // Custom header with filter button
   Widget _buildCustomHeader() {
     return Container(
@@ -416,9 +315,19 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
       ),
       child: Column(
         children: [
-          // Top row with logo, profile, notifications, menu, and filter
+          // Top row with back button, logo, profile, notifications, menu, and filter
           Row(
             children: [
+              // Back button
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              SizedBox(width: 8),
               Image.asset('assets/logo/barrim_logo.png', height: 60),
               Spacer(),
               
@@ -518,23 +427,23 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
           ),
           
           // Filter summary
-          if (_hasActiveFilters())
-            Container(
-              margin: EdgeInsets.only(top: 12),
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _getFilterSummary(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
+          // if (_hasActiveFilters())
+          //   Container(
+          //     margin: EdgeInsets.only(top: 12),
+          //     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          //     decoration: BoxDecoration(
+          //       color: Colors.white.withOpacity(0.2),
+          //       borderRadius: BorderRadius.circular(20),
+          //     ),
+          //     child: Text(
+          //       _getFilterSummary(),
+          //       style: TextStyle(
+          //         color: Colors.white,
+          //         fontSize: 12,
+          //       ),
+          //       textAlign: TextAlign.center,
+          //     ),
+          //   ),
         ],
       ),
     );
@@ -596,40 +505,35 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
       return Center(child: Text('No branches found for this category or related categories'));
     }
 
-    // Get featured branches
-    final featuredBranches = _getFeaturedBranches();
-    
-    // Get remaining branches (excluding featured ones)
-    final remainingBranches = _filteredBranches.where((branch) => 
-      !featuredBranches.any((featured) => featured['_id'] == branch['_id'])
-    ).toList();
+    // Sort all branches by rating (highest first) to show best ones first
+    final sortedBranches = List<Map<String, dynamic>>.from(_filteredBranches);
+    sortedBranches.sort((a, b) {
+      double ratingA = _extractRating(a);
+      double ratingB = _extractRating(b);
+      return ratingB.compareTo(ratingA);
+    });
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Featured Section - Take the top rated branches
-          if (featuredBranches.isNotEmpty)
-            CategorySection(
-              title: 'Featured',
-              branches: featuredBranches.map((branch) => BranchCard(
-                branch: branch,
-                onTap: () => _navigateToBranchDetails(branch),
-              )).toList(),
-            ),
-
           // Category filter chips
           _buildCategoryFilters(),
 
-
+          // Show all branches in a single list, sorted by rating
           ListView.builder(
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
-            itemCount: remainingBranches.length,
+            itemCount: sortedBranches.length,
             itemBuilder: (context, index) {
+              final branch = sortedBranches[index];
+              final rating = _extractRating(branch);
+              final isTopRated = rating > 0 && index < 3; // Mark top 3 as featured
+              
               return BranchCard(
-                branch: remainingBranches[index],
-                onTap: () => _navigateToBranchDetails(remainingBranches[index]),
+                branch: branch,
+                onTap: () => _navigateToBranchDetails(branch),
+                isFeatured: isTopRated,
               );
             },
           ),
@@ -687,31 +591,6 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
     );
   }
 
-  // Method to get featured branches (top 3 by rating)
-  List<Map<String, dynamic>> _getFeaturedBranches() {
-    // Create a copy of filtered branches list to avoid modifying the original
-    List<Map<String, dynamic>> sortedBranches = List.from(_filteredBranches);
-
-    // Sort by rating (highest first) if rating exists
-    sortedBranches.sort((a, b) {
-      double ratingA = 0.0;
-      double ratingB = 0.0;
-
-      // Try to extract rating value, default to 0 if not found
-      if (a.containsKey('rating') && a['rating'] is num) {
-        ratingA = (a['rating'] as num).toDouble();
-      }
-
-      if (b.containsKey('rating') && b['rating'] is num) {
-        ratingB = (b['rating'] as num).toDouble();
-      }
-
-      return ratingB.compareTo(ratingA);
-    });
-
-    // Return top 3 or fewer if there aren't enough branches
-    return sortedBranches.take(3).toList();
-  }
 
   // Navigate to branch details page (placeholder for now)
   void _navigateToBranchDetails(Map<String, dynamic> branch) {
@@ -853,11 +732,13 @@ class CategorySection extends StatelessWidget {
 class BranchCard extends StatelessWidget {
   final Map<String, dynamic> branch;
   final VoidCallback onTap;
+  final bool isFeatured;
 
   const BranchCard({
     super.key,
     required this.branch,
     required this.onTap,
+    this.isFeatured = false,
   });
 
   Widget _buildImages(Map<String, dynamic> branch) {
@@ -968,7 +849,7 @@ class BranchCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      elevation: 2,
+      elevation: isFeatured ? 4 : 2, // Higher elevation for featured branches
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -976,10 +857,26 @@ class BranchCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Branch name and rating
+              // Featured badge and branch name
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  if (isFeatured)
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.amber,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '⭐ FEATURED',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  if (isFeatured) SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       branch['name'] ?? 'Unnamed Branch',

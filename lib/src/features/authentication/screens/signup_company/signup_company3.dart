@@ -379,7 +379,7 @@ class _SignupCompany3State extends State<SignupCompany3> {
       },
     );
 
-    final phone = widget.userData['phone'] ?? '';
+    final phone = widget.userData['fullPhone'] ?? widget.userData['phone'] ?? '';
     try {
       // Location data is now included directly in updatedUserData below
 

@@ -784,8 +784,13 @@ class _SignupCompany1State extends State<SignupCompany1> {
                                   child: ElevatedButton(
                                     onPressed: () {
                                       if (_formKey.currentState!.validate()) {
-                                        // Clean the phone number by removing any non-digit characters
+                                        // Clean the phone number by removing any non-digit characters, but preserve leading zeros for Lebanese numbers
                                         String cleanPhone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
+                                        
+                                        // For Lebanese numbers (+961), ensure we preserve leading zeros
+                                        if (_countryCode == '+961' && _phoneController.text.startsWith('0') && !cleanPhone.startsWith('0')) {
+                                          cleanPhone = '0' + cleanPhone;
+                                        }
 
                                         // Combine country code and phone number
                                         String fullPhoneNumber = _countryCode + cleanPhone;
@@ -801,6 +806,12 @@ class _SignupCompany1State extends State<SignupCompany1> {
                                         for (int i = 0; i < _additionalPhoneControllers.length; i++) {
                                           String cleanAdditionalPhone = _additionalPhoneControllers[i].text
                                               .replaceAll(RegExp(r'[^0-9]'), '');
+                                          
+                                          // For Lebanese numbers (+961), ensure we preserve leading zeros
+                                          if (_additionalCountryCodes[i] == '+961' && _additionalPhoneControllers[i].text.startsWith('0') && !cleanAdditionalPhone.startsWith('0')) {
+                                            cleanAdditionalPhone = '0' + cleanAdditionalPhone;
+                                          }
+                                          
                                           if (cleanAdditionalPhone.isNotEmpty) {
                                             additionalPhones.add({
                                               'countryCode': _additionalCountryCodes[i],

@@ -16,6 +16,9 @@ class UserProvider extends ChangeNotifier {
   String? _token;
   String? _rememberMeToken; // Add remember me token field
   bool _isInitialized = false;
+  DateTime? _lastValidationTime; // Track last validation time
+  String? _lastVisitedPage; // Track last visited page
+  Map<String, dynamic>? _lastPageData; // Track data for last visited page
   
   // Secure storage for credentials
   static const _secureStorage = FlutterSecureStorage(
@@ -35,6 +38,8 @@ class UserProvider extends ChangeNotifier {
   String? get rememberMeToken => _rememberMeToken; // Getter for remember me token
   bool get isLoggedIn => _user != null && _token != null;
   bool get isInitialized => _isInitialized;
+  String? get lastVisitedPage => _lastVisitedPage;
+  Map<String, dynamic>? get lastPageData => _lastPageData;
 
   // Constructor to initialize session on app startup
   UserProvider() {
@@ -77,6 +82,9 @@ class UserProvider extends ChangeNotifier {
       } catch (e) {
         print('Error loading remember me token: $e');
       }
+
+      // Load last visited page
+      await _loadLastVisitedPage();
     } catch (e) {
       print('Error initializing session: $e');
       await _clearStoredData();
@@ -90,6 +98,17 @@ class UserProvider extends ChangeNotifier {
   // Validate session in background without blocking the UI
   void _validateSessionInBackground() async {
     try {
+      // Throttle validation to prevent excessive calls
+      final now = DateTime.now();
+      if (_lastValidationTime != null) {
+        final timeSinceLastValidation = now.difference(_lastValidationTime!);
+        if (timeSinceLastValidation.inMinutes < 2) {
+          print('Skipping validation - too soon since last validation (${timeSinceLastValidation.inSeconds}s ago)');
+          return;
+        }
+      }
+      _lastValidationTime = now;
+      
       // First do local validation (fast)
       final isLocallyValid = await SessionManager.isSessionValid(validateWithServer: false);
       
@@ -100,9 +119,26 @@ class UserProvider extends ChangeNotifier {
         return;
       }
       
-      // Then do server validation with timeout (non-blocking)
+      // Try to refresh the session first before validating
+      print('Attempting to refresh session before validation...');
+      final refreshResult = await SessionManager.refreshSession();
+      
+      if (refreshResult.success) {
+        print('Session refreshed successfully');
+        // Update local data with new token
+        if (refreshResult.newToken != null) {
+          _token = refreshResult.newToken;
+          _saveToken(refreshResult.newToken!);
+        }
+        await SessionManager.updateLastActivity();
+        notifyListeners();
+        return;
+      }
+      
+      // If refresh failed, try server validation with more lenient error handling
+      print('Session refresh failed, attempting server validation...');
       final isValid = await SessionManager.isSessionValid(validateWithServer: true).timeout(
-        const Duration(seconds: 5),
+        const Duration(seconds: 10),
         onTimeout: () {
           print('Server validation timeout - keeping session for now');
           return true; // Assume valid to avoid blocking
@@ -110,7 +146,20 @@ class UserProvider extends ChangeNotifier {
       );
       
       if (!isValid) {
-        print('Server validation failed - clearing session');
+        // Only clear session if we're certain it's invalid
+        // Check if it's a network error vs actual authentication failure
+        print('Server validation failed - checking if it\'s a network issue...');
+        
+        // Try one more quick validation to distinguish network vs auth errors
+        final quickCheck = await SessionManager.isSessionValid(validateWithServer: false);
+        if (quickCheck) {
+          print('Local validation still passes - keeping session despite server validation failure');
+          // Update last activity to keep session alive
+          await SessionManager.updateLastActivity();
+          return;
+        }
+        
+        print('Both local and server validation failed - clearing session');
         await _clearStoredData();
         notifyListeners();
       } else {
@@ -121,6 +170,12 @@ class UserProvider extends ChangeNotifier {
     } catch (e) {
       print('Error validating session in background: $e');
       // Don't clear session on validation error to avoid false negatives
+      // Only clear if it's a critical error that affects local storage
+      if (e.toString().contains('storage') || e.toString().contains('corrupted')) {
+        print('Critical storage error - clearing session');
+        await _clearStoredData();
+        notifyListeners();
+      }
     }
   }
 
@@ -131,13 +186,17 @@ class UserProvider extends ChangeNotifier {
     _user = null;
     _userData = null;
     _rememberMeToken = null; // Clear remember me token
+    _lastVisitedPage = null; // Clear last visited page
+    _lastPageData = null; // Clear last page data
     
-    // Clear remember me token from storage
+    // Clear remember me token and last page from storage
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('remember_me_token');
+      await prefs.remove('last_visited_page');
+      await prefs.remove('last_page_data');
     } catch (e) {
-      print('Error clearing remember me token: $e');
+      print('Error clearing stored data: $e');
     }
   }
 
@@ -161,6 +220,114 @@ class UserProvider extends ChangeNotifier {
     _rememberMeToken = token;
     _saveRememberMeToken(token);
     notifyListeners();
+  }
+
+  // Save last visited page with full route information
+  void saveLastVisitedPage(String pageName, {
+    Map<String, dynamic>? pageData,
+    String? routePath,
+    Map<String, dynamic>? routeArguments,
+  }) {
+    _lastVisitedPage = pageName;
+    _lastPageData = {
+      'pageName': pageName,
+      'pageData': pageData ?? {},
+      'routePath': routePath ?? pageName,
+      'routeArguments': routeArguments ?? {},
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+    _saveLastPageToStorage();
+    print('Saved last visited page: $pageName (route: ${routePath ?? pageName})');
+  }
+
+  // Clear last visited page
+  void clearLastVisitedPage() {
+    _lastVisitedPage = null;
+    _lastPageData = null;
+    _clearLastPageFromStorage();
+    print('Cleared last visited page');
+  }
+
+  // Save last page to storage
+  Future<void> _saveLastPageToStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_lastVisitedPage != null) {
+        await prefs.setString('last_visited_page', _lastVisitedPage!);
+        if (_lastPageData != null) {
+          await prefs.setString('last_page_data', json.encode(_lastPageData!));
+        } else {
+          await prefs.remove('last_page_data');
+        }
+      } else {
+        await prefs.remove('last_visited_page');
+        await prefs.remove('last_page_data');
+      }
+    } catch (e) {
+      print('Error saving last visited page: $e');
+    }
+  }
+
+  // Clear last page from storage
+  Future<void> _clearLastPageFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('last_visited_page');
+      await prefs.remove('last_page_data');
+    } catch (e) {
+      print('Error clearing last visited page: $e');
+    }
+  }
+
+  // Load last visited page from storage
+  Future<void> _loadLastVisitedPage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedPage = prefs.getString('last_visited_page');
+      final savedPageData = prefs.getString('last_page_data');
+      
+      if (savedPage != null) {
+        _lastVisitedPage = savedPage;
+        if (savedPageData != null) {
+          try {
+            _lastPageData = json.decode(savedPageData);
+          } catch (e) {
+            print('Error parsing last page data: $e');
+            _lastPageData = null;
+          }
+        }
+        print('Loaded last visited page: $savedPage');
+      }
+    } catch (e) {
+      print('Error loading last visited page: $e');
+    }
+  }
+
+  // Get current route information for restoration
+  Map<String, dynamic>? getCurrentRouteInfo() {
+    if (_lastPageData == null) return null;
+    
+    return {
+      'pageName': _lastPageData!['pageName'],
+      'routePath': _lastPageData!['routePath'],
+      'pageData': _lastPageData!['pageData'],
+      'routeArguments': _lastPageData!['routeArguments'],
+      'timestamp': _lastPageData!['timestamp'],
+    };
+  }
+
+  // Check if the saved route is still valid (not too old)
+  bool isSavedRouteValid({Duration maxAge = const Duration(hours: 24)}) {
+    if (_lastPageData == null) return false;
+    
+    final timestamp = _lastPageData!['timestamp'] as int?;
+    if (timestamp == null) return false;
+    
+    final savedTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final now = DateTime.now();
+    final age = now.difference(savedTime);
+    
+    return age <= maxAge;
   }
 
   // Save token to storage

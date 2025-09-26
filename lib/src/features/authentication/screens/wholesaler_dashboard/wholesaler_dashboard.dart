@@ -5,10 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../../../services/api_service.dart';
 import '../../../../services/wholesaler_service.dart';
+import '../../../../services/user_provider.dart';
+import '../../../../services/route_tracking_service.dart';
 import '../../headers/wholesaler_header.dart';
 import 'addwholesaler_branch.dart';
 import '../login_page.dart';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 
 class WholesalerDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -31,6 +34,14 @@ class _WholesalerDashboardState extends State<WholesalerDashboard> {
   @override
   void initState() {
     super.initState();
+    
+    // Track this route using the route tracking service
+    RouteTrackingService.trackDashboardRoute(
+      context,
+      'wholesaler',
+      pageData: widget.userData,
+    );
+    
     _initializeData();
   }
 

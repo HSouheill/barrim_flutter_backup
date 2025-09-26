@@ -6,6 +6,7 @@ import '../custom_header.dart';
 import '../white_headr.dart';
 import '../responsive_utils.dart';
 import 'signup_serviceprovider4.dart';
+import '../../../../services/service_provider_category_service.dart';
 
 class SignupServiceprovider3 extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -24,38 +25,70 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
   String? _selectedServiceType;
   File? _selectedImage;
   bool _isDropdownOpen = false;
-  List<Map<String, dynamic>> _serviceTypes = [
-    {'name': 'Home Repairs', 'icon': Icons.home_repair_service},
-    {'name': 'Plumber', 'icon': Icons.plumbing},
-    {'name': 'Electrician', 'icon': Icons.electrical_services},
-    {'name': 'Carpenter', 'icon': Icons.handyman},
-    {'name': 'Appliances', 'icon': Icons.devices},
-    {'name': 'AC repair', 'icon': Icons.ac_unit},
-    {'name': 'Driver', 'icon': Icons.drive_eta},
-    {'name': 'Guide', 'icon': Icons.tour},
-    {'name': 'Cleaning', 'icon': Icons.cleaning_services},
-    {'name': 'Painting', 'icon': Icons.format_paint},
-    {'name': 'Gardening', 'icon': Icons.yard},
-    {'name': 'Moving Services', 'icon': Icons.local_shipping},
-    {'name': 'Computer Repair', 'icon': Icons.computer},
-    {'name': 'Photography', 'icon': Icons.camera_alt},
-    {'name': 'Beauty & Spa', 'icon': Icons.spa},
-    {'name': 'Tutoring', 'icon': Icons.school},
-    {'name': 'Personal Training', 'icon': Icons.fitness_center},
-    {'name': 'Pet Services', 'icon': Icons.pets},
-    {'name': 'Interior Design', 'icon': Icons.design_services},
-    {'name': 'Event Planning', 'icon': Icons.event},
-    {'name': 'Catering', 'icon': Icons.restaurant},
-    {'name': 'Tailoring', 'icon': Icons.content_cut},
-    {'name': 'Locksmith', 'icon': Icons.vpn_key},
-    {'name': 'Other', 'icon': Icons.more_horiz},
-  ];
-
-  List<Map<String, dynamic>> _filteredServiceTypes = [];
+  bool _isLoadingCategories = true;
+  String? _errorMessage;
+  
+  List<ServiceProviderCategory> _serviceTypes = [];
+  List<ServiceProviderCategory> _filteredServiceTypes = [];
 
   @override
   void initState() {
     super.initState();
+    _loadServiceProviderCategories();
+  }
+
+  Future<void> _loadServiceProviderCategories() async {
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+        _errorMessage = null;
+      });
+
+      final categories = await ServiceProviderCategoryService.getAllServiceProviderCategories();
+      
+      setState(() {
+        _serviceTypes = categories;
+        _filteredServiceTypes = List.from(categories);
+        _isLoadingCategories = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingCategories = false;
+        _errorMessage = e.toString();
+        // Fallback to hardcoded categories if API fails
+        _loadFallbackCategories();
+      });
+    }
+  }
+
+  void _loadFallbackCategories() {
+    // Fallback categories in case API fails
+    _serviceTypes = [
+      ServiceProviderCategory(id: '1', name: 'Home Repairs', icon: 'home_repair_service'),
+      ServiceProviderCategory(id: '2', name: 'Plumber', icon: 'plumbing'),
+      ServiceProviderCategory(id: '3', name: 'Electrician', icon: 'electrical_services'),
+      ServiceProviderCategory(id: '4', name: 'Carpenter', icon: 'handyman'),
+      ServiceProviderCategory(id: '5', name: 'Appliances', icon: 'devices'),
+      ServiceProviderCategory(id: '6', name: 'AC repair', icon: 'ac_unit'),
+      ServiceProviderCategory(id: '7', name: 'Driver', icon: 'drive_eta'),
+      ServiceProviderCategory(id: '8', name: 'Guide', icon: 'tour'),
+      ServiceProviderCategory(id: '9', name: 'Cleaning', icon: 'cleaning_services'),
+      ServiceProviderCategory(id: '10', name: 'Painting', icon: 'format_paint'),
+      ServiceProviderCategory(id: '11', name: 'Gardening', icon: 'yard'),
+      ServiceProviderCategory(id: '12', name: 'Moving Services', icon: 'local_shipping'),
+      ServiceProviderCategory(id: '13', name: 'Computer Repair', icon: 'computer'),
+      ServiceProviderCategory(id: '14', name: 'Photography', icon: 'camera_alt'),
+      ServiceProviderCategory(id: '15', name: 'Beauty & Spa', icon: 'spa'),
+      ServiceProviderCategory(id: '16', name: 'Tutoring', icon: 'school'),
+      ServiceProviderCategory(id: '17', name: 'Personal Training', icon: 'fitness_center'),
+      ServiceProviderCategory(id: '18', name: 'Pet Services', icon: 'pets'),
+      ServiceProviderCategory(id: '19', name: 'Interior Design', icon: 'design_services'),
+      ServiceProviderCategory(id: '20', name: 'Event Planning', icon: 'event'),
+      ServiceProviderCategory(id: '21', name: 'Catering', icon: 'restaurant'),
+      ServiceProviderCategory(id: '22', name: 'Tailoring', icon: 'content_cut'),
+      ServiceProviderCategory(id: '23', name: 'Locksmith', icon: 'vpn_key'),
+      ServiceProviderCategory(id: '24', name: 'Other', icon: 'more_horiz'),
+    ];
     _filteredServiceTypes = List.from(_serviceTypes);
   }
 
@@ -65,7 +98,7 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
         _filteredServiceTypes = List.from(_serviceTypes);
       } else {
         _filteredServiceTypes = _serviceTypes
-            .where((service) => service['name'].toLowerCase().contains(query.toLowerCase()))
+            .where((service) => service.name.toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });
@@ -78,6 +111,62 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
       setState(() {
         _selectedImage = File(image.path);
       });
+    }
+  }
+
+  IconData _getIconFromString(String iconString) {
+    // Map icon strings to Flutter icons
+    switch (iconString.toLowerCase()) {
+      case 'home_repair_service':
+        return Icons.home_repair_service;
+      case 'plumbing':
+        return Icons.plumbing;
+      case 'electrical_services':
+        return Icons.electrical_services;
+      case 'handyman':
+        return Icons.handyman;
+      case 'devices':
+        return Icons.devices;
+      case 'ac_unit':
+        return Icons.ac_unit;
+      case 'drive_eta':
+        return Icons.drive_eta;
+      case 'tour':
+        return Icons.tour;
+      case 'cleaning_services':
+        return Icons.cleaning_services;
+      case 'format_paint':
+        return Icons.format_paint;
+      case 'yard':
+        return Icons.yard;
+      case 'local_shipping':
+        return Icons.local_shipping;
+      case 'computer':
+        return Icons.computer;
+      case 'camera_alt':
+        return Icons.camera_alt;
+      case 'spa':
+        return Icons.spa;
+      case 'school':
+        return Icons.school;
+      case 'fitness_center':
+        return Icons.fitness_center;
+      case 'pets':
+        return Icons.pets;
+      case 'design_services':
+        return Icons.design_services;
+      case 'event':
+        return Icons.event;
+      case 'restaurant':
+        return Icons.restaurant;
+      case 'content_cut':
+        return Icons.content_cut;
+      case 'vpn_key':
+        return Icons.vpn_key;
+      case 'more_horiz':
+        return Icons.more_horiz;
+      default:
+        return Icons.category;
     }
   }
 
@@ -200,7 +289,7 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
           ),
         ),
         InkWell(
-          onTap: () {
+          onTap: _isLoadingCategories ? null : () {
             setState(() {
               _isDropdownOpen = !_isDropdownOpen;
               if (!_isDropdownOpen) {
@@ -219,22 +308,46 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  _selectedServiceType ?? 'Select Service Type',
-                  style: GoogleFonts.nunito(
+                Expanded(
+                  child: _isLoadingCategories
+                      ? Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Loading categories...',
+                              style: GoogleFonts.nunito(
+                                color: Colors.white70,
+                                fontSize: textFontSize,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          _selectedServiceType ?? 'Select Service Type',
+                          style: GoogleFonts.nunito(
+                            color: Colors.white,
+                            fontSize: textFontSize,
+                          ),
+                        ),
+                ),
+                if (!_isLoadingCategories)
+                  Icon(
+                    _isDropdownOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                     color: Colors.white,
-                    fontSize: textFontSize,
                   ),
-                ),
-                Icon(
-                  _isDropdownOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                  color: Colors.white,
-                ),
               ],
             ),
           ),
         ),
-        if (_isDropdownOpen)
+        if (_isDropdownOpen && !_isLoadingCategories)
           Container(
             margin: EdgeInsets.only(top: 4),
             decoration: BoxDecoration(
@@ -268,42 +381,98 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
                     ),
                   ),
                 ),
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Error loading categories: ${_errorMessage}',
+                          style: GoogleFonts.nunito(
+                            color: Colors.red,
+                            fontSize: 12,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            _loadServiceProviderCategories();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          ),
+                          child: Text(
+                            'Retry',
+                            style: GoogleFonts.nunito(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 Container(
                   constraints: BoxConstraints(
                     maxHeight: 300, // Increased height to show more items
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _filteredServiceTypes.length,
-                    itemBuilder: (context, index) {
-                      final service = _filteredServiceTypes[index];
-                      return ListTile(
-                        leading: service['icon'] != null
-                            ? Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[100],
-                            borderRadius: BorderRadius.circular(8),
+                  child: _filteredServiceTypes.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'No categories found',
+                            style: GoogleFonts.nunito(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
                           ),
-                          child: Icon(service['icon'], color: Colors.blue, size: 20),
                         )
-                            : null,
-                        title: Text(
-                          service['name'],
-                          style: GoogleFonts.nunito(
-                            color: const Color(0xFF05054F),
-                            fontWeight: FontWeight.w500,
-                          ),
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _filteredServiceTypes.length,
+                          itemBuilder: (context, index) {
+                            final service = _filteredServiceTypes[index];
+                            return ListTile(
+                              leading: service.icon != null
+                                  ? Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[100],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  _getIconFromString(service.icon!),
+                                  color: Colors.blue,
+                                  size: 20,
+                                ),
+                              )
+                                  : Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[100],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.category,
+                                  color: Colors.blue,
+                                  size: 20,
+                                ),
+                              ),
+                              title: Text(
+                                service.name,
+                                style: GoogleFonts.nunito(
+                                  color: const Color(0xFF05054F),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              onTap: () {
+                                setState(() {
+                                  _selectedServiceType = service.name;
+                                  _isDropdownOpen = false;
+                                });
+                              },
+                            );
+                          },
                         ),
-                        onTap: () {
-                          setState(() {
-                            _selectedServiceType = service['name'];
-                            _isDropdownOpen = false;
-                          });
-                        },
-                      );
-                    },
-                  ),
                 ),
               ],
             ),

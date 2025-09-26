@@ -7,11 +7,14 @@ import 'package:barrim/src/features/authentication/screens/serviceProvider_dashb
 import 'package:barrim/src/features/authentication/screens/serviceProvider_dashboard/serviceprovider_subscriptions/serviceprovider_subscription.dart';
 import 'package:flutter/material.dart';
 import '../../../../services/api_service.dart';
+import '../../../../services/user_provider.dart';
+import '../../../../services/route_tracking_service.dart';
 import '../../../../models/service_provider.dart';
 import '../../headers/service_provider_header.dart';
 import '../company_dashboard/subscription/company_subscription.dart';
 import 'my_booking.dart';
 import '../login_page.dart';
+import 'package:provider/provider.dart';
 
 class ServiceproviderDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -30,6 +33,14 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
   @override
   void initState() {
     super.initState();
+    
+    // Track this route using the route tracking service
+    RouteTrackingService.trackDashboardRoute(
+      context,
+      'serviceProvider',
+      pageData: widget.userData,
+    );
+    
     _loadServiceProviderData();
   }
 
