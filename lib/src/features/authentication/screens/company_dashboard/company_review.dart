@@ -44,10 +44,12 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
   @override
   void initState() {
     super.initState();
-    _fetchReviews();
     _scrollController.addListener(_scrollListener);
-    _checkUserType();
-    _loadCompanyData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchReviews();
+      _checkUserType();
+      _loadCompanyData();
+    });
   }
 
   Future<void> _checkUserType() async {
@@ -99,11 +101,14 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
         errorMessage = '';
       });
 
+      print('Fetching reviews for branch: ${widget.branchId}, page: $page');
       final response = await ApiService.getBranchComments(
         widget.branchId,
         page: page,
         limit: limit,
       );
+
+      print('API response: $response');
 
       if (response['status'] == 'success' || response['status'] == 200) {
         final data = response['data'] as Map<String, dynamic>;
@@ -113,6 +118,11 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
               .map((item) => BranchReview.fromJson(item))
               .toList();
 
+          print('Parsed ${newReviews.length} reviews');
+          for (var review in newReviews) {
+            print('Review ${review.id}: ${review.replies.length} replies');
+          }
+
           setState(() {
             reviews = newReviews;
             isLoading = false;
@@ -121,6 +131,7 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
           });
         } else {
           // Handle empty comments list
+          print('No comments found in response');
           setState(() {
             reviews = [];
             isLoading = false;
@@ -129,6 +140,7 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
           });
         }
       } else {
+        print('API error: ${response['message']}');
         setState(() {
           isLoading = false;
           errorMessage = response['message'] ?? 'Failed to load reviews';
@@ -136,6 +148,7 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
         });
       }
     } catch (e) {
+      print('Error fetching reviews: $e');
       setState(() {
         isLoading = false;
         errorMessage = 'Error loading reviews: $e';
@@ -192,24 +205,30 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
   }
 
   Future<void> _refreshReviews() async {
-    page = 1;
+    print('Refreshing reviews...');
+    setState(() {
+      page = 1;
+      reviews.clear();
+      hasMore = true;
+    });
     await _fetchReviews();
+    print('Reviews refreshed. Total reviews: ${reviews.length}');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      
       body: Column(
         children: [
-         CompanyAppHeader(
-          logoUrl: widget.logoUrl,
-          userData: widget.userData,
-        ),
-          SizedBox(height: 10),
-          RefreshIndicator(
-            onRefresh: _refreshReviews,
-            child: _buildReviewsList(),
+          CompanyAppHeader(
+            logoUrl: widget.logoUrl,
+            userData: widget.userData,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refreshReviews,
+              child: _buildReviewsList(),
+            ),
           ),
         ],
       ),
@@ -232,43 +251,54 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
     }
 
     if (errorMessage.isNotEmpty && retryVisible) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              errorMessage,
-              style: const TextStyle(color: Colors.red),
-              textAlign: TextAlign.center,
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  errorMessage,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _fetchReviews,
+                  child: const Text('Retry'),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _fetchReviews,
-              child: const Text('Retry'),
-            ),
-          ],
+          ),
         ),
       );
     }
 
-
     if (reviews.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'No reviews yet. Be the first to review!',
-              style: TextStyle(fontSize: 16),
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'No reviews yet. Be the first to review!',
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 16),
+                if (errorMessage.isNotEmpty && !retryVisible)
+                  Text(
+                    errorMessage,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+              ],
             ),
-            const SizedBox(height: 16),
-            if (errorMessage.isNotEmpty && !retryVisible)
-              Text(
-                errorMessage,
-                style: const TextStyle(color: Colors.red),
-                textAlign: TextAlign.center,
-              ),
-          ],
+          ),
         ),
       );
     }
@@ -276,6 +306,7 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: reviews.length + (hasMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == reviews.length) {
@@ -295,16 +326,17 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
 
   Widget _buildReviewCard(BranchReview review) {
     return Container(
-      margin: EdgeInsets.only(bottom: ResponsiveUtils.getCardPadding(context)),
-      padding: EdgeInsets.all(ResponsiveUtils.getCardPadding(context)),
+      key: ValueKey(review.id),
+      margin: EdgeInsets.only(bottom: ResponsiveUtils.getCardPadding(context) * 0.4),
+      padding: EdgeInsets.all(ResponsiveUtils.getCardPadding(context) * 0.6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 1,
-            blurRadius: 3,
+            color: Colors.grey.withOpacity(0.15),
+            spreadRadius: 0.5,
+            blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
@@ -317,7 +349,7 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
             children: [
               // User avatar
               CircleAvatar(
-                radius: ResponsiveUtils.getIconSize(context) * 0.5,
+                radius: ResponsiveUtils.getIconSize(context) * 0.6,
                 backgroundImage: review.userImage.isNotEmpty
                     ? null
                     : const AssetImage('assets/default_avatar.png')
@@ -327,33 +359,47 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
                     ? ClipOval(
                         child: SecureNetworkImage(
                           imageUrl: review.userImage,
-                          width: ResponsiveUtils.getIconSize(context),
-                          height: ResponsiveUtils.getIconSize(context),
+                          width: ResponsiveUtils.getIconSize(context) * 1.2,
+                          height: ResponsiveUtils.getIconSize(context) * 1.2,
                           fit: BoxFit.cover,
-                          placeholder: Icon(Icons.person, color: Colors.grey, size: ResponsiveUtils.getIconSize(context) * 0.6),
-                          errorWidget: (context, url, error) => Icon(Icons.person, color: Colors.grey, size: ResponsiveUtils.getIconSize(context) * 0.6),
+                          placeholder: Icon(Icons.person, color: Colors.grey, size: ResponsiveUtils.getIconSize(context) * 0.7),
+                          errorWidget: (context, url, error) => Icon(Icons.person, color: Colors.grey, size: ResponsiveUtils.getIconSize(context) * 0.7),
                         ),
                       )
-                    : Icon(Icons.person, color: Colors.grey, size: ResponsiveUtils.getIconSize(context) * 0.6),
+                    : Icon(Icons.person, color: Colors.grey, size: ResponsiveUtils.getIconSize(context) * 0.7),
               ),
-              SizedBox(width: ResponsiveUtils.getGridSpacing(context)),
+              SizedBox(width: ResponsiveUtils.getGridSpacing(context) * 0.6),
               // User name and date
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      review.userName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: ResponsiveUtils.getSubtitleFontSize(context),
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          review.userName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.7,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        SizedBox(width: ResponsiveUtils.getGridSpacing(context) * 0.2),
+                        // Add verification checkmark if needed
+                        if (review.rating >= 5)
+                          Icon(
+                            Icons.verified,
+                            size: ResponsiveUtils.getIconSize(context) * 0.3,
+                            color: Colors.blue[600],
+                          ),
+                      ],
                     ),
+                    SizedBox(height: ResponsiveUtils.getGridSpacing(context) * 0.1),
                     Text(
-                      DateFormat('MM/dd/yyyy').format(review.date),
+                      DateFormat('MM/dd').format(review.date),
                       style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: ResponsiveUtils.getInputTextFontSize(context),
+                        color: Colors.grey[500],
+                        fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.7,
                       ),
                     ),
                   ],
@@ -367,44 +413,36 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
                     (i) => Icon(
                       i < review.rating ? Icons.star : Icons.star_border,
                       color: Colors.amber,
-                      size: ResponsiveUtils.getIconSize(context) * 0.5,
+                      size: ResponsiveUtils.getIconSize(context) * 0.6,
                     ),
                   ),
                 ),
             ],
           ),
-          SizedBox(height: ResponsiveUtils.getGridSpacing(context)),
+          SizedBox(height: ResponsiveUtils.getGridSpacing(context) * 0.4),
           // Review text
           Text(
             review.comment,
             style: TextStyle(
-              fontSize: ResponsiveUtils.getInputTextFontSize(context),
+              fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.85,
+              color: Colors.grey[700],
+              height: 1.4,
             ),
           ),
-          SizedBox(height: ResponsiveUtils.getGridSpacing(context)),
+          SizedBox(height: ResponsiveUtils.getGridSpacing(context) * 0.4),
 
           // Display existing replies
           if (review.replies.isNotEmpty) ...[
-            const Divider(),
-            Padding(
-              padding: EdgeInsets.only(bottom: ResponsiveUtils.getCardPadding(context) * 0.5),
-              child: Text(
-                'Replies from Business',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: ResponsiveUtils.getSubtitleFontSize(context),
-                ),
-              ),
-            ),
+            SizedBox(height: ResponsiveUtils.getGridSpacing(context) * 0.3),
             ...review.replies.map((reply) => _buildReplyItem(reply)),
           ],
 
           // Reply button
           Padding(
-            padding: EdgeInsets.only(top: ResponsiveUtils.getCardPadding(context) * 0.5),
+            padding: EdgeInsets.only(top: ResponsiveUtils.getCardPadding(context) * 0.3),
             child: Align(
               alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: () {
                   _showReplyDialog(review.id);
                 },
@@ -412,15 +450,19 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
                   backgroundColor: const Color(0xFF2079C2),
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(
-                    horizontal: ResponsiveUtils.getCardPadding(context),
-                    vertical: ResponsiveUtils.getActionButtonHeight(context) * 0.25,
+                    horizontal: ResponsiveUtils.getCardPadding(context) * 0.8,
+                    vertical: ResponsiveUtils.getActionButtonHeight(context) * 0.2,
                   ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 2,
                 ),
-                icon: Icon(Icons.reply, size: ResponsiveUtils.getIconSize(context) * 0.4),
-                label: Text(
-                  'Reply as Business',
+                child: Text(
+                  'Reply',
                   style: TextStyle(
-                    fontSize: ResponsiveUtils.getActionButtonFontSize(context),
+                    fontSize: ResponsiveUtils.getActionButtonFontSize(context) * 0.8,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -433,46 +475,61 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
 
   Widget _buildReplyItem(CommentReply reply) {
     return Container(
-      padding: EdgeInsets.all(ResponsiveUtils.getCardPadding(context) * 0.75),
+      key: ValueKey(reply.id),
+      padding: EdgeInsets.all(ResponsiveUtils.getCardPadding(context) * 0.4),
       margin: EdgeInsets.only(
-        bottom: ResponsiveUtils.getCardPadding(context) * 0.5,
-        left: ResponsiveUtils.getCardPadding(context) * 1.5,
+        bottom: ResponsiveUtils.getCardPadding(context) * 0.2,
+        left: ResponsiveUtils.getCardPadding(context) * 0.8,
       ),
       decoration: BoxDecoration(
         color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.08),
+            spreadRadius: 0.3,
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.business, size: ResponsiveUtils.getIconSize(context) * 0.4, color: Colors.grey),
-              SizedBox(width: ResponsiveUtils.getGridSpacing(context) * 0.5),
+              Icon(
+                Icons.business_center,
+                size: ResponsiveUtils.getIconSize(context) * 0.25,
+                color: Colors.grey[600],
+              ),
+              SizedBox(width: ResponsiveUtils.getGridSpacing(context) * 0.3),
               Text(
                 'Business Response',
                 style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: ResponsiveUtils.getInputTextFontSize(context),
+                  fontWeight: FontWeight.w600,
+                  fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.75,
                   color: Colors.grey[700],
                 ),
               ),
               const Spacer(),
               Text(
-                DateFormat('MM/dd/yyyy').format(reply.date),
+                DateFormat('MM/dd').format(reply.date),
                 style: TextStyle(
-                  fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
-                  color: Colors.grey[600],
+                  fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.65,
+                  color: Colors.grey[500],
                 ),
               ),
             ],
           ),
-          SizedBox(height: ResponsiveUtils.getGridSpacing(context) * 0.5),
+          SizedBox(height: ResponsiveUtils.getGridSpacing(context) * 0.3),
           Text(
             reply.reply,
             style: TextStyle(
-              fontSize: ResponsiveUtils.getInputTextFontSize(context),
+              fontSize: ResponsiveUtils.getInputTextFontSize(context) * 0.8,
+              color: Colors.grey[700],
+              height: 1.4,
             ),
           ),
         ],
@@ -644,20 +701,37 @@ class _CompanyReviewsPageState extends State<CompanyReviewsPage> {
               // );
 
               try {
-                await ApiService.replyToBranchComment(
+                print('Posting reply to comment: $commentId');
+                print('Reply text: ${replyController.text.trim()}');
+                
+                final response = await ApiService.replyToBranchComment(
                   commentId,
                   replyController.text.trim(),
+                  token: widget.userData['token'],
                 );
+                
+                print('Reply API response: $response');
 
                 _refreshReviews();
 
-                // ScaffoldMessenger.of(context).showSnackBar(
-                //   const SnackBar(content: Text('Reply posted successfully')),
-                // );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Reply posted successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
               } catch (e) {
-                // ScaffoldMessenger.of(context).showSnackBar(
-                //   SnackBar(content: Text('Failed to post reply: $e')),
-                // );
+                print('Error posting reply: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to post reply: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             style: ElevatedButton.styleFrom(

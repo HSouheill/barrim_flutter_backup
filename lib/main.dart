@@ -15,6 +15,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
 import '../src/utils/edge_to_edge_helper.dart';
+import '../src/utils/centralized_token_manager.dart';
 // Removed Firebase imports - using GCP OAuth instead
 // import 'package:firebase_core/firebase_core.dart';
 // import 'firebase_options.dart';
@@ -39,6 +40,10 @@ Future<void> main() async {
 
     // Firebase initialization removed - using GCP OAuth instead
     print("Using GCP OAuth for Google Sign-In - no Firebase initialization needed");
+
+    // Initialize centralized token manager
+    await CentralizedTokenManager.initialize();
+    print("Centralized token manager initialized");
 
     // Initialize notification service with timeout
     final notificationService = NotificationService();

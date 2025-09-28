@@ -81,7 +81,7 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
   }
 
   bool _isValidEmailFormat(String email) {
-    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]+$').hasMatch(email);
   }
 
   Future<void> _validateEmail(String email) async {

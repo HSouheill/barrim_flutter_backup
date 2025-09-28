@@ -1,5 +1,5 @@
 // models/branch_review.dart
-import 'package:intl/intl.dart';
+import 'review.dart';
 
 class BranchReview {
   final String id;
@@ -10,6 +10,10 @@ class BranchReview {
   final int rating;
   final DateTime date;
   final List<CommentReply> replies;
+  final String? mediaUrl;
+  final String? mediaType;
+  final String? thumbnailUrl;
+  final ReviewReply? reply;
 
   BranchReview({
     required this.id,
@@ -20,6 +24,10 @@ class BranchReview {
     required this.rating,
     required this.date,
     required this.replies,
+    this.mediaUrl,
+    this.mediaType,
+    this.thumbnailUrl,
+    this.reply,
   });
 
   factory BranchReview.fromJson(Map<String, dynamic> json) {
@@ -34,16 +42,20 @@ class BranchReview {
     }
 
     return BranchReview(
-      id: json['id'] ?? '',
+      id: json['_id']?['\$oid'] ?? json['id'] ?? '',
       userId: json['userId'] ?? '',
-      userName: json['userName'] ?? 'Anonymous',
-      userImage: json['userAvatar'] ?? '',
+      userName: json['username'] ?? json['userName'] ?? 'Anonymous',
+      userImage: json['userProfilePic'] ?? json['userAvatar'] ?? '',
       comment: json['comment'] ?? '',
       rating: json['rating'] ?? 0,
       date: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
       replies: parsedReplies,
+      mediaUrl: json['mediaUrl'],
+      mediaType: json['mediaType'],
+      thumbnailUrl: json['thumbnailUrl'],
+      reply: json['reply'] != null ? ReviewReply.fromJson(json['reply']) : null,
     );
   }
 }
@@ -63,8 +75,8 @@ class CommentReply {
 
   factory CommentReply.fromJson(Map<String, dynamic> json) {
     return CommentReply(
-      id: json['id'] ?? '',
-      companyId: json['companyId'] ?? '',
+      id: json['_id']?['\$oid'] ?? json['id'] ?? '',
+      companyId: json['companyID'] ?? json['companyId'] ?? '',
       reply: json['reply'] ?? '',
       date: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])

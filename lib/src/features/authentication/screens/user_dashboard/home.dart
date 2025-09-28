@@ -36,6 +36,7 @@ import '../../../../services/user_provider.dart';
 import '../../../../services/route_tracking_service.dart';
 import 'notification.dart';
 import 'package:provider/provider.dart';
+import '../../../../utils/category_integration_test.dart';
 
 class UserDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -88,6 +89,10 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
   // Add category data for custom markers
   Map<String, Map<String, dynamic>> _categoryData = {};
+  
+  // Add categories from API
+  Map<String, List<String>> _allCategories = {};
+  List<String> _displayCategories = [];
 
   // Search controller
   final TextEditingController _searchController = TextEditingController();
@@ -160,6 +165,42 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       print('Category keys: ${categories.keys.toList()}');
     } catch (e) {
       print('Error fetching category data: $e');
+    }
+  }
+
+  // Add method to fetch categories from API
+  Future<void> _fetchCategories() async {
+    try {
+      print('Fetching categories from API...');
+      final categories = await ApiService.getAllCategories();
+      print('Raw categories from API: $categories');
+      
+      setState(() {
+        _allCategories = categories;
+        // Select first 4 categories for display
+        _displayCategories = categories.keys.take(4).toList();
+      });
+      
+      print('Successfully fetched ${categories.length} categories');
+      print('Display categories: $_displayCategories');
+      
+      // Print each category with its subcategories
+      categories.forEach((categoryName, subcategories) {
+        print('Category: "$categoryName" -> Subcategories: $subcategories');
+      });
+    } catch (e) {
+      print('Error fetching categories: $e');
+      // Set default categories if API fails
+      setState(() {
+        _allCategories = {
+          'Stores': ['Retail', 'Shopping', 'Market'],
+          'Lodging': ['Hotel', 'Hostel', 'Resort'],
+          'Food & Beverage': ['Restaurant', 'Cafe', 'Bar'],
+          'Sports': ['Gym', 'Stadium', 'Sports Center'],
+          'Vehicles': ['Car Dealer', 'Auto Repair', 'Gas Station'],
+        };
+        _displayCategories = ['Stores', 'Lodging', 'Food & Beverage', 'Sports'];
+      });
     }
   }
 
@@ -387,7 +428,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
     }
   }
 
-// Add this function to filter branches by category
+  // Add this function to filter branches by category
   void _filterBranchesByCategory(String categoryType) {
     try {
       // Removed categoryMapping and mapping logic
@@ -459,7 +500,118 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
     }
   }
 
+  // Method to filter branches by category from API
+  void _filterCompaniesByApiCategory(String categoryName) {
+    try {
+      print('Filtering branches by API category: $categoryName');
+      
+      // Get subcategories for this category
+      final subcategories = _allCategories[categoryName] ?? [];
+      print('Subcategories for $categoryName: $subcategories');
+      
+      // Filter branches based on category and subcategories
+      final filteredBranches = _allBranches.where((branch) {
+        final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
+        final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
+        final companyIndustryType = branch['company']?['industryType']?.toString().toLowerCase() ?? '';
+        
+        // Check if branch or company category matches the selected category
+        final branchCategoryMatch = branchCategory.contains(categoryName.toLowerCase());
+        final companyCategoryMatch = companyCategory.contains(categoryName.toLowerCase()) ||
+                                    companyIndustryType.contains(categoryName.toLowerCase());
+        
+        // Check subcategories
+        final subcategoryMatch = subcategories.any((subcategory) =>
+          branchCategory.contains(subcategory.toLowerCase()) ||
+          companyCategory.contains(subcategory.toLowerCase()) ||
+          companyIndustryType.contains(subcategory.toLowerCase())
+        );
+        
+        return branchCategoryMatch || companyCategoryMatch || subcategoryMatch;
+      }).toList();
+      
+      print('Found ${filteredBranches.length} branches in category: $categoryName');
+      
+      if (filteredBranches.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No branches found in category: $categoryName')),
+        );
+        return;
+      }
+      
+      // Filter markers to show only branches in the selected category
+      setState(() {
+        _wayPointMarkers = _wayPointMarkers.where((marker) {
+          if (marker is google_maps.Marker) {
+            final markerId = marker.markerId.value;
+            
+            // Keep branch markers that match the category
+            if (markerId.startsWith('branch_')) {
+              // Extract branch ID from marker ID
+              final branchId = markerId.replaceFirst('branch_', '');
+              
+              // Check if this branch is in the filtered list
+              return filteredBranches.any((branch) => branch['id'] == branchId);
+            }
+            
+            // Keep company markers (show company headquarters too)
+            if (markerId.startsWith('company_')) {
+              return true;
+            }
+            
+            // Keep wholesaler markers
+            if (markerId.startsWith('wholesaler_') || markerId.startsWith('wholesaler_branch_')) {
+              return true;
+            }
+            
+            // Hide other markers
+            return false;
+          }
+          return false;
+        }).toList();
+      });
+      
+      // Move camera to the first filtered marker if exists
+      if (_wayPointMarkers.isNotEmpty && _mapController != null) {
+        _mapController.move(_wayPointMarkers[0].position, 15.0);
+      }
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Showing ${filteredBranches.length} branches in $categoryName'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      
+    } catch (e) {
+      print('Error filtering branches by category: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to filter branches: $e')),
+      );
+    }
+  }
 
+  // Method to clear category filter and show all markers
+  void _clearCategoryFilter() {
+    setState(() {
+      _selectedCategory = '';
+    });
+    
+    // Re-fetch all data to restore all markers
+    _fetchAllBranches();
+    _fetchCompanies();
+    _fetchAllWholesalers().catchError((e) {
+      print('Error fetching wholesalers: $e');
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Showing all locations'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
 
   Future<void> _fetchCompanies() async {
     try {
@@ -1048,6 +1200,12 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       
       // Test color conversion
       _testColorConversion();
+      
+      // Fetch categories from API
+      _fetchCategories().then((_) {
+        // Test category integration
+        CategoryIntegrationTest.testCategoryIntegration();
+      });
       
       // Always fetch companies to ensure all company markers are visible
         _fetchCompanies().then((_) {
@@ -2366,34 +2524,9 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                         left: 0,
                         right: 0,
                         child: MediaQuery.of(context).viewInsets.bottom == 0
-                            ? Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  CategoryCircleButton(
-                                    icon: Icons.local_gas_station,
-                                    label: 'Stations',
-                                    isSelected: _selectedCategory == 'Stations',
-                                    onTap: () => _searchPlacesByType('Stations'),
-                                  ),
-                                  CategoryCircleButton(
-                                    icon: Icons.restaurant,
-                                    label: 'Restaurant',
-                                    isSelected: _selectedCategory == 'Restaurant',
-                                    onTap: () => _searchPlacesByType('Restaurant'),
-                                  ),
-                                  CategoryCircleButton(
-                                    icon: Icons.hotel,
-                                    label: 'Hotels',
-                                    isSelected: _selectedCategory == 'Hotels',
-                                    onTap: () => _searchPlacesByType('Hotels'),
-                                  ),
-                                  CategoryCircleButton(
-                                    icon: Icons.shopping_cart,
-                                    label: 'Shops',
-                                    isSelected: _selectedCategory == 'Shops',
-                                    onTap: () => _searchPlacesByType('Shops'),
-                                  ),
-                                ],
+                            ? Container(
+                                height: 100, // Fixed height for category buttons row
+                                child: _buildCategoryButtons(),
                               )
                             : SizedBox.shrink(),
                       ),
@@ -3199,6 +3332,154 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
            categoryLower == 'guesthouse' ||
            categoryLower == 'bed and breakfast' ||
            categoryLower == 'bnb';
+  }
+
+  // Build dynamic category buttons from API data
+  Widget _buildCategoryButtons() {
+    if (_displayCategories.isEmpty) {
+      // Show default categories while loading
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center, // Align all buttons to center
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Expanded(
+              child: CategoryCircleButton(
+                icon: Icons.store,
+                label: 'Stores',
+                isSelected: _selectedCategory == 'Stores',
+                onTap: () {
+                  if (_selectedCategory == 'Stores') {
+                    _clearCategoryFilter();
+                  } else {
+                    _filterCompaniesByApiCategory('Stores');
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: CategoryCircleButton(
+                icon: Icons.hotel,
+                label: 'Lodging',
+                isSelected: _selectedCategory == 'Lodging',
+                onTap: () {
+                  if (_selectedCategory == 'Lodging') {
+                    _clearCategoryFilter();
+                  } else {
+                    _filterCompaniesByApiCategory('Lodging');
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: CategoryCircleButton(
+                icon: Icons.restaurant,
+                label: 'Food & Beverage',
+                isSelected: _selectedCategory == 'Food & Beverage',
+                onTap: () {
+                  if (_selectedCategory == 'Food & Beverage') {
+                    _clearCategoryFilter();
+                  } else {
+                    _filterCompaniesByApiCategory('Food & Beverage');
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: CategoryCircleButton(
+                icon: Icons.sports,
+                label: 'Sports',
+                isSelected: _selectedCategory == 'Sports',
+                onTap: () {
+                  if (_selectedCategory == 'Sports') {
+                    _clearCategoryFilter();
+                  } else {
+                    _filterCompaniesByApiCategory('Sports');
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center, // Align all buttons to center
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: _displayCategories.asMap().entries.map((entry) {
+          final index = entry.key;
+          final category = entry.value;
+          
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: index < _displayCategories.length - 1 ? 4.0 : 0.0,
+              ),
+              child: CategoryCircleButton(
+                icon: _getCategoryIcon(category),
+                label: category,
+                isSelected: _selectedCategory == category,
+                onTap: () {
+                  if (_selectedCategory == category) {
+                    _clearCategoryFilter();
+                  } else {
+                    setState(() {
+                      _selectedCategory = category;
+                    });
+                    _filterCompaniesByApiCategory(category);
+                  }
+                },
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // Get appropriate icon for each category
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'stores':
+        return Icons.store;
+      case 'lodging':
+        return Icons.hotel;
+      case 'food & beverage':
+        return Icons.restaurant;
+      case 'sports':
+        return Icons.sports;
+      case 'vehicles':
+        return Icons.directions_car;
+      case 'health':
+        return Icons.local_hospital;
+      case 'entertainment':
+        return Icons.movie;
+      case 'education':
+        return Icons.school;
+      case 'beauty & fashion':
+        return Icons.face;
+      case 'financial services':
+        return Icons.account_balance;
+      case 'automotive services':
+        return Icons.build;
+      case 'real estate':
+        return Icons.home;
+      case 'technology':
+        return Icons.computer;
+      case 'travel':
+        return Icons.flight;
+      case 'services':
+        return Icons.room_service;
+      default:
+        return Icons.category;
+    }
   }
 
   // Calculate distance between two points using Haversine formula

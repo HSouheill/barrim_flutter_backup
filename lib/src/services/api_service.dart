@@ -14,6 +14,7 @@ import '../models/notification_model.dart';
 import '../models/review.dart';
 import '../utils/api_constants.dart';
 import '../utils/auth_manager.dart';
+import '../utils/centralized_token_manager.dart';
 
 class ApiService {
   static const String baseUrl = 'https://barrim.online';
@@ -36,20 +37,12 @@ class ApiService {
 
   // Headers for API requests
   static Future<Map<String, String>> _getHeaders() async {
-    final token = await _secureStorage.read(key: 'auth_token');
-
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token != null ? 'Bearer $token' : '',
-      'User-Agent': 'BarrimApp/1.0.12',
-      'Accept': 'application/json',
-      'Cache-Control': 'no-cache',
-    };
+    return await CentralizedTokenManager.getAuthHeaders();
   }
 
   // Headers for multipart requests (file uploads)
   static Future<Map<String, String>> _getMultipartHeaders() async {
-    final token = await _secureStorage.read(key: 'auth_token');
+    final token = await CentralizedTokenManager.getToken();
 
     return {
       'Authorization': token != null ? 'Bearer $token' : '',
@@ -63,7 +56,7 @@ class ApiService {
 
   // Get stored token
   static Future<String?> _getToken() async {
-    return await _secureStorage.read(key: 'auth_token');
+    return await CentralizedTokenManager.getToken();
   }
 
   // Check if user is authenticated
@@ -74,12 +67,12 @@ class ApiService {
 
   // Store token
   static Future<void> saveToken(String token) async {
-    await _secureStorage.write(key: 'auth_token', value: token);
+    await CentralizedTokenManager.saveToken(token);
   }
 
   // Clear token (for logout)
   static Future<void> clearToken() async {
-    await _secureStorage.delete(key: 'auth_token');
+    await CentralizedTokenManager.clearToken();
   }
 
   // Helper method to make HTTP requests with standard client
@@ -92,32 +85,36 @@ class ApiService {
     final client = http.Client();
     
     try {
-      // Add timeout and retry logic for DNS issues
+      // Increase timeout for real devices, especially for signup requests
+      final timeoutDuration = uri.path.contains('/signup') 
+          ? const Duration(seconds: 60)  // Longer timeout for signup
+          : const Duration(seconds: 30); // Standard timeout for other requests
+      
       switch (method.toUpperCase()) {
         case 'GET':
           return await client.get(uri, headers: headers).timeout(
-            const Duration(seconds: 30),
+            timeoutDuration,
             onTimeout: () {
               throw Exception('Request timeout. Please check your internet connection.');
             },
           );
         case 'POST':
           return await client.post(uri, headers: headers, body: body).timeout(
-            const Duration(seconds: 30),
+            timeoutDuration,
             onTimeout: () {
               throw Exception('Request timeout. Please check your internet connection.');
             },
           );
         case 'PUT':
           return await client.put(uri, headers: headers, body: body).timeout(
-            const Duration(seconds: 30),
+            timeoutDuration,
             onTimeout: () {
               throw Exception('Request timeout. Please check your internet connection.');
             },
           );
         case 'DELETE':
           return await client.delete(uri, headers: headers, body: body).timeout(
-            const Duration(seconds: 30),
+            timeoutDuration,
             onTimeout: () {
               throw Exception('Request timeout. Please check your internet connection.');
             },
@@ -126,10 +123,14 @@ class ApiService {
           throw Exception('Unsupported HTTP method: $method');
       }
     } catch (e) {
-      // Handle DNS resolution errors specifically
+      // Enhanced error handling for real devices
       if (e.toString().contains('Failed host lookup') || 
           e.toString().contains('No address associated with hostname')) {
         throw Exception('Cannot connect to server. Please check:\n1. Your internet connection\n2. Try again in a few moments');
+      } else if (e.toString().contains('SSL') || e.toString().contains('certificate')) {
+        throw Exception('Connection security error. Please try again.');
+      } else if (e.toString().contains('Connection refused') || e.toString().contains('Connection reset')) {
+        throw Exception('Server connection error. Please try again.');
       }
       rethrow;
     } finally {
@@ -298,14 +299,16 @@ class ApiService {
   static Future<Map<String, dynamic>> signupUser(
       Map<String, dynamic> userData) async {
     try {
-      // Prepare location data - flatten the structure if it exists
+      // Prepare location data - use the same structure as wholesaler signup
       Map<String, dynamic> locationData = {};
       if (userData['location'] != null) {
         final location = userData['location'] as Map<String, dynamic>;
         
-        // Extract coordinates
-        locationData['lat'] = location['lat'];
-        locationData['lng'] = location['lng'];
+        // Use coordinates structure like wholesaler signup
+        locationData['coordinates'] = {
+          'lat': location['lat'],
+          'lng': location['lng'],
+        };
         
         // Extract address components and flatten them
         if (location['address'] != null) {
@@ -351,8 +354,8 @@ class ApiService {
 
       final responseData = jsonDecode(response.body);
 
-      if (response.statusCode == 201) {
-        // Successfully signed up
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        // Successfully signed up (201 for creation, 200 for OTP sent)
         if (responseData['data'] != null &&
             responseData['data']['token'] != null) {
           await saveToken(responseData['data']['token']);
@@ -363,7 +366,16 @@ class ApiService {
         throw Exception(responseData['message'] ?? 'Signup failed');
       }
     } catch (e) {
-      if (kDebugMode) {
+      // Enhanced error handling for real devices
+      if (e.toString().contains('timeout') || e.toString().contains('timed out')) {
+        throw Exception('Connection timeout. Please check your internet connection and try again.');
+      } else if (e.toString().contains('Failed host lookup') || e.toString().contains('No address associated')) {
+        throw Exception('Cannot connect to server. Please check your internet connection.');
+      } else if (e.toString().contains('SSL') || e.toString().contains('certificate')) {
+        throw Exception('Connection security error. Please try again.');
+      } else if (e.toString().contains('Connection refused') || e.toString().contains('Connection reset')) {
+        throw Exception('Server connection error. Please try again.');
+      } else if (kDebugMode) {
         throw Exception('Connection error: $e');
       } else {
         throw Exception('Connection error. Please try again.');
@@ -1941,11 +1953,164 @@ class ApiService {
     }
   }
 
+  // Create a new review with media support
+  static Future<Map<String, dynamic>> createReviewWithMedia({
+    required String serviceProviderId,
+    required int rating,
+    required String comment,
+    String? mediaType,
+    File? mediaFile,
+  }) async {
+    try {
+      // Prepare headers for multipart request (without Content-Type)
+      Map<String, String> headers = await _getMultipartHeaders();
+      
+      // Prepare fields
+      Map<String, String> fields = {
+        'serviceProviderId': serviceProviderId,
+        'rating': rating.toString(),
+        'comment': comment,
+      };
+
+      // Add mediaType if present
+      if (mediaType != null && mediaType.isNotEmpty) {
+        fields['mediaType'] = mediaType;
+      }
+
+      // Prepare files
+      List<http.MultipartFile> files = [];
+
+      // Add media file if present
+      if (mediaFile != null) {
+        final fileStream = http.ByteStream(mediaFile.openRead());
+        final fileLength = await mediaFile.length();
+        
+        final multipartFile = http.MultipartFile(
+          'mediaFile',
+          fileStream,
+          fileLength,
+          filename: mediaFile.path.split('/').last,
+        );
+        
+        files.add(multipartFile);
+      }
+
+      // Send the request using multipart
+      final streamedResponse = await _makeMultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/reviews'),
+        headers: headers,
+        fields: fields,
+        files: files,
+      );
+      
+      final response = await http.Response.fromStream(streamedResponse);
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode == 201) {
+        return {
+          'status': response.statusCode,
+          'message': 'Review created successfully',
+          'data': responseData['data'],
+        };
+      } else {
+        return {
+          'status': response.statusCode,
+          'message': responseData['message'] ?? 'Failed to create review',
+          'data': null,
+        };
+      }
+    } catch (e) {
+      return {
+        'status': 500,
+        'message': 'Error creating review: $e',
+        'data': null,
+      };
+    }
+  }
+
+  // Post a reply to a review
+  static Future<Map<String, dynamic>> postReviewReply({
+    required String reviewId,
+    required String replyText,
+  }) async {
+    try {
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/reviews/$reviewId/reply'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${await getAuthToken()}',
+        },
+        body: json.encode({
+          'replyText': replyText,
+        }),
+      );
+
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'status': response.statusCode,
+          'message': 'Reply posted successfully',
+          'data': responseData['data'],
+        };
+      } else {
+        return {
+          'status': response.statusCode,
+          'message': responseData['message'] ?? 'Failed to post reply',
+          'data': null,
+        };
+      }
+    } catch (e) {
+      return {
+        'status': 500,
+        'message': 'Error posting reply: $e',
+        'data': null,
+      };
+    }
+  }
+
+  // Get reply for a review
+  static Future<Map<String, dynamic>> getReviewReply(String reviewId) async {
+    try {
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/reviews/$reviewId/reply'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${await getAuthToken()}',
+        },
+      );
+
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'status': response.statusCode,
+          'message': 'Reply retrieved successfully',
+          'data': responseData['data'],
+        };
+      } else {
+        return {
+          'status': response.statusCode,
+          'message': responseData['message'] ?? 'Failed to get reply',
+          'data': null,
+        };
+      }
+    } catch (e) {
+      return {
+        'status': 500,
+        'message': 'Error getting reply: $e',
+        'data': null,
+      };
+    }
+  }
+
   // Helper method to get auth token
   static Future<String> getAuthToken() async {
-    // Implement based on your auth storage mechanism
-    // Example using secure storage:
-    return await _secureStorage.read(key: 'token') ?? '';
+    // Use centralized token manager for consistency
+    return await CentralizedTokenManager.getToken() ?? '';
   }
 
   //api_service.dart
@@ -2199,18 +2364,8 @@ class ApiService {
   }
 
   Future<Map<String, String>> _getAuthToken() async {
-    // Get the token from shared preferences or wherever it's stored
-    final token = await _getToken(); // Your method to get the token
-
-    final headers = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-
-    return headers;
+    // Use centralized token manager for consistent headers
+    return await CentralizedTokenManager.getAuthHeaders();
   }
 
   //  api_service.dart
@@ -2249,7 +2404,12 @@ class ApiService {
           };
         }
 
-        return responseData;
+        // Return the response data with consistent status format
+        return {
+          'status': 'success',
+          'message': responseData['message'] ?? 'Comments loaded successfully',
+          'data': responseData['data'],
+        };
       } else {
         // Return a formatted error response
         return {
@@ -2317,24 +2477,62 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> replyToBranchComment(String commentId,
-      String reply) async {
+  // Get branch rating
+  static Future<Map<String, dynamic>> getBranchRating(String branchId) async {
     try {
-      final token = await _getToken();
-      if (token == null) {
+      final Uri uri = Uri.parse('$baseUrl/api/branches/$branchId/rating');
+
+      final response = await _makeRequest(
+        'GET',
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        return {
+          'status': 'success',
+          'message': responseData['message'] ?? 'Rating loaded successfully',
+          'data': responseData['data'],
+        };
+      } else {
+        return {
+          'status': 'error',
+          'message': 'Failed to load rating (Status: ${response.statusCode})',
+          'data': null,
+        };
+      }
+    } catch (e) {
+      return {
+        'status': 'error',
+        'message': 'Error loading rating: $e',
+        'data': null,
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> replyToBranchComment(String commentId,
+      String reply, {String? token}) async {
+    try {
+      // Use provided token or fallback to stored token
+      final authToken = token ?? await _getToken();
+      print('Reply API - Token found: ${authToken != null ? "Yes" : "No"}');
+      print('Reply API - Token length: ${authToken?.length ?? 0}');
+      if (authToken == null) {
         throw Exception('Authentication required');
       }
 
       final Uri uri = Uri.parse(
           '$baseUrl/api/companies/comments/$commentId/reply');
 
-
       final response = await _makeRequest(
         'POST',
         uri,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
+          'Authorization': 'Bearer $authToken',
         },
         body: json.encode({
           'reply': reply,
@@ -2345,11 +2543,20 @@ class ApiService {
         final responseData = json.decode(response.body);
         return responseData;
       } else {
-        throw Exception(
+        final responseData = json.decode(response.body);
+        throw Exception(responseData['message'] ?? 
             'Failed to post reply (Status: ${response.statusCode})');
       }
     } catch (e) {
-      throw Exception('Error posting reply: $e');
+      if (e.toString().contains('timeout') || e.toString().contains('timed out')) {
+        throw Exception('Connection timeout. Please check your internet connection and try again.');
+      } else if (e.toString().contains('Failed host lookup') || e.toString().contains('No address associated')) {
+        throw Exception('Cannot connect to server. Please check your internet connection.');
+      } else if (e.toString().contains('Connection refused') || e.toString().contains('Connection reset')) {
+        throw Exception('Server is not responding. Please try again later.');
+      } else {
+        throw Exception('Error posting reply: $e');
+      }
     }
   }
 

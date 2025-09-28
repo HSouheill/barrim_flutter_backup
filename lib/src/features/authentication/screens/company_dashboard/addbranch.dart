@@ -170,6 +170,26 @@ class _AddBranchPageState extends State<AddBranchPage> {
   void _loadBranchData() {
     final branchData = widget.branchData!;
 
+    // Debug: Print the branch data structure to see what fields are available
+    print('AddBranchPage: Loading branch data:');
+    print('AddBranchPage: Branch name: ${branchData['name']}');
+    print('AddBranchPage: Branch instagram: ${branchData['instagram']}');
+    print('AddBranchPage: Branch facebook: ${branchData['facebook']}');
+    print('AddBranchPage: Branch data keys: ${branchData.keys.toList()}');
+    
+    // Check for any nested objects that might contain social media
+    for (String key in branchData.keys) {
+      if (branchData[key] is Map) {
+        print('AddBranchPage: Found nested object "$key": ${branchData[key]}');
+        Map<String, dynamic> nestedObj = branchData[key] as Map<String, dynamic>;
+        if (nestedObj.containsKey('instagram') || nestedObj.containsKey('facebook')) {
+          print('AddBranchPage: Found social media in nested object "$key"');
+        }
+      }
+    }
+    
+    print('AddBranchPage: Full branch data: $branchData');
+
     // Populate text fields
     _nameController.text = branchData['name']?.toString() ?? '';
     _locationController.text = branchData['location']?.toString() ?? '';
@@ -191,8 +211,33 @@ class _AddBranchPageState extends State<AddBranchPage> {
     }
 
     _descriptionController.text = branchData['description']?.toString() ?? '';
-    _instagramController.text = branchData['instagram']?.toString() ?? '';
-    _facebookController.text = branchData['facebook']?.toString() ?? '';
+    
+    // Debug: Check social media fields specifically
+    // Check multiple possible locations for social media data
+    final instagramValue = branchData['instagram']?.toString() ?? 
+                          branchData['socialMedia']?['instagram']?.toString() ?? 
+                          branchData['SocialMedia']?['instagram']?.toString() ?? 
+                          branchData['social_media']?['instagram']?.toString() ?? 
+                          branchData['socialLinks']?['instagram']?.toString() ?? 
+                          branchData['contactInfo']?['instagram']?.toString() ?? '';
+    
+    final facebookValue = branchData['facebook']?.toString() ?? 
+                         branchData['socialMedia']?['facebook']?.toString() ?? 
+                         branchData['SocialMedia']?['facebook']?.toString() ?? 
+                         branchData['social_media']?['facebook']?.toString() ?? 
+                         branchData['socialLinks']?['facebook']?.toString() ?? 
+                         branchData['contactInfo']?['facebook']?.toString() ?? '';
+    
+    print('AddBranchPage: Instagram value: "$instagramValue"');
+    print('AddBranchPage: Facebook value: "$facebookValue"');
+    print('AddBranchPage: Checking socialMedia field: ${branchData['socialMedia']}');
+    print('AddBranchPage: Checking SocialMedia field: ${branchData['SocialMedia']}');
+    print('AddBranchPage: Checking social_media field: ${branchData['social_media']}');
+    print('AddBranchPage: Checking socialLinks field: ${branchData['socialLinks']}');
+    print('AddBranchPage: Checking contactInfo field: ${branchData['contactInfo']}');
+    
+    _instagramController.text = instagramValue;
+    _facebookController.text = facebookValue;
 
     // Set location coordinates
     latitude = branchData['latitude'] is num ? branchData['latitude'] : null;

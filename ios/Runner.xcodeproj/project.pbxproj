@@ -502,7 +502,7 @@
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = Y32R6F962S;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NAME = 1.0.16;
+				FLUTTER_BUILD_NAME = 1.0.18;
 				FLUTTER_BUILD_NUMBER = 1;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Barrim;
@@ -701,7 +701,7 @@
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = Y32R6F962S;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NAME = 8;
+				FLUTTER_BUILD_NAME = 10;
 				FLUTTER_BUILD_NUMBER = 1;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Barrim;
@@ -738,7 +738,7 @@
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = Y32R6F962S;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NAME = 1.0.16;
+				FLUTTER_BUILD_NAME = 1.0.18;
 				FLUTTER_BUILD_NUMBER = 1;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Barrim;

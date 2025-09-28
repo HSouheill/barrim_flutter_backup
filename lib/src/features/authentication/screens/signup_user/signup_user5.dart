@@ -127,6 +127,45 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     }
   }
 
+  // Enhanced signup method with retry logic for real devices
+  Future<Map<String, dynamic>> _signupWithRetry(Map<String, dynamic> userData, {int maxRetries = 3}) async {
+    int attempt = 0;
+    Exception? lastException;
+    
+    while (attempt < maxRetries) {
+      try {
+        attempt++;
+        print('Signup attempt $attempt of $maxRetries');
+        
+        // Increase timeout for real devices (60 seconds)
+        final response = await ApiService.signupUser(userData).timeout(
+          const Duration(seconds: 60),
+          onTimeout: () {
+            throw Exception('Request timed out after 60 seconds');
+          },
+        );
+        
+        print('Signup successful on attempt $attempt');
+        return response;
+        
+      } catch (e) {
+        lastException = e is Exception ? e : Exception(e.toString());
+        print('Signup attempt $attempt failed: $e');
+        
+        // If this is the last attempt, don't wait
+        if (attempt < maxRetries) {
+          // Wait before retrying (exponential backoff)
+          final waitTime = Duration(seconds: attempt * 2);
+          print('Waiting ${waitTime.inSeconds} seconds before retry...');
+          await Future.delayed(waitTime);
+        }
+      }
+    }
+    
+    // All attempts failed
+    throw lastException ?? Exception('Signup failed after $maxRetries attempts');
+  }
+
   void _submitSignup(BuildContext context) async {
     if (selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -183,13 +222,8 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       print('Updated userData: $updatedUserData');
       print('===============================================');
 
-      // Add timeout to prevent hanging
-      final response = await ApiService.signupUser(updatedUserData).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Request timed out');
-        },
-      );
+      // Add longer timeout for real devices and retry logic
+      final response = await _signupWithRetry(updatedUserData);
 
       if (mounted) {
         // Check response body for success indication, regardless of error
@@ -230,6 +264,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       }
     } catch (e) {
       print('Error in _submitSignup: $e');
+      
       // Special handling for connection errors that might contain partial success
       if (e.toString().contains('OTP sent successfully')) {
         if (mounted) {
@@ -244,8 +279,34 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
           );
         }
       } else if (mounted) {
+        // Enhanced error handling for real devices
+        String errorMessage = "Signup Failed";
+        
+        if (e.toString().contains('timeout') || e.toString().contains('timed out')) {
+          errorMessage = "Connection timeout. Please check your internet connection and try again.";
+        } else if (e.toString().contains('Failed host lookup') || e.toString().contains('No address associated')) {
+          errorMessage = "Cannot connect to server. Please check your internet connection.";
+        } else if (e.toString().contains('SSL') || e.toString().contains('certificate')) {
+          errorMessage = "Connection security error. Please try again.";
+        } else if (e.toString().contains('Connection error')) {
+          errorMessage = "Network connection error. Please check your internet and try again.";
+        } else {
+          errorMessage = "Signup failed: ${e.toString()}";
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Signup Failed: ${e.toString()}")),
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () {
+                // Retry the signup
+                _submitSignup(context);
+              },
+            ),
+          ),
         );
       }
     } finally {

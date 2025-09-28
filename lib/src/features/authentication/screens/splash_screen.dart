@@ -225,7 +225,7 @@ class _SplashScreenState extends State<SplashScreen>
                   width: screenSize.width * 0.4,
                   height: screenSize.width * 0.4,
                   child: Image.asset(
-                    'assets/logo/logo.svg',
+                    'assets/logo/app_logo.jpg',
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
                       // Fallback if logo not found

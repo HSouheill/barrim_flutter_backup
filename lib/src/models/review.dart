@@ -1,7 +1,5 @@
 // models/review.dart
 import 'dart:io';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 class ReviewReply {
   final String serviceProviderId;
@@ -70,7 +68,7 @@ class Review {
 
   factory Review.fromJson(Map<String, dynamic> json) {
     return Review(
-      id: json['id'] ?? '',
+      id: json['_id']?['\$oid'] ?? json['id'] ?? '',
       serviceProviderId: json['serviceProviderId'] ?? '',
       userId: json['userId'] ?? '',
       username: json['username'] ?? 'Anonymous',

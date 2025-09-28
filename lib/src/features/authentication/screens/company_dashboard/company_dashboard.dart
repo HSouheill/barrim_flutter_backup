@@ -972,6 +972,16 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   }
 
   Future<void> _navigateToEditBranch(Map<String, dynamic> branch) async {
+    // Debug: Print the branch data structure to see what fields are available
+    if (!kReleaseMode) {
+      print('CompanyDashboard: Navigating to edit branch with data:');
+      print('CompanyDashboard: Branch name: ${branch['name']}');
+      print('CompanyDashboard: Branch instagram: ${branch['instagram']}');
+      print('CompanyDashboard: Branch facebook: ${branch['facebook']}');
+      print('CompanyDashboard: Branch data keys: ${branch.keys.toList()}');
+      print('CompanyDashboard: Full branch data: $branch');
+    }
+    
     final result = await Navigator.push(
       context,
       MaterialPageRoute(

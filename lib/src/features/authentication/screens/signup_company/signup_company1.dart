@@ -70,7 +70,7 @@ class _SignupCompany1State extends State<SignupCompany1> {
   }
 
   bool _isValidEmailFormat(String email) {
-    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]+$').hasMatch(email);
   }
 
   Future<void> _validateEmail(String email) async {
@@ -309,7 +309,7 @@ class _SignupCompany1State extends State<SignupCompany1> {
               if (value == null || value.isEmpty) {
                 return 'Please enter email address';
               }
-              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]+$').hasMatch(value)) {
                 return 'Please enter a valid email address';
               }
               return null;
