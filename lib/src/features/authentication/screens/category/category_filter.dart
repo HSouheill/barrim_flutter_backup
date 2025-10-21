@@ -164,9 +164,9 @@ class _FiltersPageState extends State<FiltersPage> {
                         ),
                         SizedBox(height: 10),
 
-                        // Price Section
+                        // Cost per Person Section
                         Text(
-                          'Price:',
+                          'Cost per Person:',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -218,7 +218,7 @@ class _FiltersPageState extends State<FiltersPage> {
                           },
                         ),
 
-                        // Price Range Values
+                        // Cost Range Values
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 10.0),
                           child: Row(
@@ -231,7 +231,7 @@ class _FiltersPageState extends State<FiltersPage> {
                         ),
                         SizedBox(height: 15),
 
-                        // Price Input Fields
+                        // Cost Input Fields
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -355,7 +355,7 @@ class _FiltersPageState extends State<FiltersPage> {
                               onPressed: () {
                                 // Reset all filters
                                 setState(() {
-                                  _priceRange = RangeValues(50, 450);
+                                  _priceRange = RangeValues(0, 1000);
                                   _priceSort = "none";
                                   _ratingSort = "none";
                                   _openNow = false;

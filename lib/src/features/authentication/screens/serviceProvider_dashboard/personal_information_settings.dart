@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:table_calendar/table_calendar.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:country_picker/country_picker.dart';
 
 import '../../../../models/service_provider.dart';
 import '../../../../services/service_provider_services.dart';
+import '../../../../services/lebanon_location_data.dart';
 import '../../headers/service_provider_header.dart';
 
 
@@ -32,6 +30,7 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
   late TextEditingController _serviceTypeController;
   late TextEditingController _yearsExperienceController;
   late TextEditingController _countryController;
+  TextEditingController? _governorateController;
   late TextEditingController _districtController;
   late TextEditingController _cityController;
 
@@ -49,25 +48,27 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
   // Available days for service (stored as date strings in YYYY-MM-DD format)
   List<String> _availableDays = [];
 
+  // Day-specific availability system
+  Map<String, List<TimeSlot>> _daySpecificAvailability = {};
+  String? _selectedDateForTimeSlots;
+
   // Service provider data
   ServiceProvider? _serviceProvider;
-
-  // Location data
-  Map<String, dynamic> _locationData = {};
-  String? _selectedCountry;
-  String? _selectedDistrict;
 
   // For Lebanon-specific districts/cities
   List<String> _lebanonDistricts = [];
   List<String> _lebanonCities = [];
+  
+  // For Lebanon location data
+  List<Governorate> _governorates = [];
+  List<District> _districts = [];
 
   @override
   void initState() {
     super.initState();
     _initializeControllers();
-    _loadLocationData().then((_) {
-      _loadServiceProviderData();
-    });
+    _loadLocationData();
+    _loadServiceProviderData();
 
     // Initialize with one empty time slot
     _timeSlots.add(TimeSlot(
@@ -81,17 +82,33 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
     _serviceTypeController = TextEditingController();
     _yearsExperienceController = TextEditingController();
     _countryController = TextEditingController(text: 'Lebanon');
+    _governorateController = TextEditingController();
     _districtController = TextEditingController();
     _cityController = TextEditingController();
   }
 
-  Future<void> _loadLocationData() async {
-    final String jsonString = await rootBundle.loadString('assets/countries_districts_cities.json');
-    final Map<String, dynamic> jsonData = json.decode(jsonString);
+  void _loadLocationData() {
     setState(() {
-      _locationData = jsonData;
+      _governorates = LebanonLocationData.getGovernorates()
+          .map((g) => Governorate.fromJson(g))
+          .toList();
     });
   }
+
+  void _loadDistrictsForGovernorate(String governorateName) {
+    final governorate = _governorates.firstWhere(
+      (g) => g.name.toLowerCase() == governorateName.toLowerCase(),
+      orElse: () => Governorate(name: '', isoCode: '', districts: []),
+    );
+    
+    if (governorate.name.isNotEmpty) {
+      setState(() {
+        _districts = governorate.districts;
+        _lebanonDistricts = governorate.districts.map((d) => d.name).toList();
+      });
+    }
+  }
+
 
   Future<void> _loadServiceProviderData() async {
     try {
@@ -111,12 +128,14 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
         _yearsExperienceController.text =
             provider.serviceProviderInfo?.yearsExperience.toString() ?? '0';
         // Set location dropdowns from provider data
-        _selectedCountry = provider.location?.country;
-        if (_selectedCountry != null && _locationData.containsKey(_selectedCountry)) {
-          _selectedDistrict = provider.location?.district;
-        }
+        _governorateController?.text = provider.location?.governorate ?? '';
         _districtController.text = provider.location?.district ?? '';
         _cityController.text = provider.location?.city ?? '';
+        
+        // Load districts for the selected governorate if available
+        if (provider.location?.governorate != null) {
+          _loadDistrictsForGovernorate(provider.location!.governorate!);
+        }
 
         // Set available days if they exist
         if (provider.serviceProviderInfo?.availableDays != null) {
@@ -157,6 +176,21 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
             ));
           }
         }
+
+        // Load day-specific availability if it exists
+        // This would need to be added to the ServiceProvider model and API response
+        // For now, we'll initialize day-specific availability from available days
+        _daySpecificAvailability.clear();
+        for (String date in _availableDays) {
+          if (!_daySpecificAvailability.containsKey(date)) {
+            _daySpecificAvailability[date] = [
+              TimeSlot(
+                from: const TimeOfDay(hour: 9, minute: 0),
+                to: const TimeOfDay(hour: 17, minute: 0),
+              )
+            ];
+          }
+        }
       });
       print('Service provider data loaded and form populated successfully');
     } catch (e) {
@@ -179,6 +213,7 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
     _serviceTypeController.dispose();
     _yearsExperienceController.dispose();
     _countryController.dispose();
+    _governorateController?.dispose();
     _districtController.dispose();
     _cityController.dispose();
     super.dispose();
@@ -227,7 +262,7 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
       // Show loading indicator
       _showLoadingDialog();
 
-      // Prepare the available hours format
+      // Prepare the available hours format (legacy support)
       List<String> availableHours = _timeSlots.map((slot) {
         final fromHour = slot.from.hour.toString().padLeft(2, '0');
         final fromMinute = slot.from.minute.toString().padLeft(2, '0');
@@ -237,15 +272,33 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
         return '$fromHour:$fromMinute-$toHour:$toMinute';
       }).toList();
 
+      // Prepare day-specific availability data
+      Map<String, List<Map<String, String>>> daySpecificHours = {};
+      _daySpecificAvailability.forEach((date, timeSlots) {
+        daySpecificHours[date] = timeSlots.map((slot) {
+          final fromHour = slot.from.hour.toString().padLeft(2, '0');
+          final fromMinute = slot.from.minute.toString().padLeft(2, '0');
+          final toHour = slot.to.hour.toString().padLeft(2, '0');
+          final toMinute = slot.to.minute.toString().padLeft(2, '0');
+          
+          return {
+            'from': '$fromHour:$fromMinute',
+            'to': '$toHour:$toMinute',
+          };
+        }).toList();
+      });
+
       // Prepare the update data
       final updateData = {
         'phone': _phoneController.text,
         'serviceType': _serviceTypeController.text,
         'yearsExperience': int.tryParse(_yearsExperienceController.text) ?? 0,
         'availableDays': _availableDays,
-        'availableHours': availableHours,
+        'availableHours': availableHours, // Legacy support
+        'daySpecificAvailability': daySpecificHours, // New day-specific data
         'location': {
           'country': _countryController.text,
+          'governorate': _governorateController?.text ?? '',
           'district': _districtController.text,
           'city': _cityController.text,
         },
@@ -409,6 +462,22 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
                         validator: (value) => value == null || value.isEmpty ? 'This field is required' : null,
                       ),
                       const SizedBox(height: 16),
+                      // Governorate Picker
+                      _buildFieldLabel('Governorate'),
+                      TextFormField(
+                        controller: _governorateController ??= TextEditingController(),
+                        readOnly: true,
+                        onTap: _showGovernoratePickerDialog,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          suffixIcon: const Icon(Icons.keyboard_arrow_down),
+                        ),
+                        validator: (value) => value == null || value.isEmpty ? 'This field is required' : null,
+                      ),
+                      const SizedBox(height: 16),
                       // District Picker (only for Lebanon)
                       _buildFieldLabel('District'),
                       TextFormField(
@@ -423,12 +492,12 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
                           suffixIcon: const Icon(Icons.keyboard_arrow_down),
                         ),
                         validator: (value) {
-                          if (_countryController.text == 'Lebanon' && (value == null || value.isEmpty)) {
+                          if (_governorateController?.text.isNotEmpty == true && (value == null || value.isEmpty)) {
                             return 'This field is required';
                           }
                           return null;
                         },
-                        enabled: _countryController.text == 'Lebanon',
+                        enabled: _governorateController?.text.isNotEmpty == true,
                       ),
                       const SizedBox(height: 16),
                       // City Picker (only for Lebanon)
@@ -445,12 +514,12 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
                           suffixIcon: const Icon(Icons.keyboard_arrow_down),
                         ),
                         validator: (value) {
-                          if (_countryController.text == 'Lebanon' && (value == null || value.isEmpty)) {
+                          if (_governorateController?.text.isNotEmpty == true && (value == null || value.isEmpty)) {
                             return 'This field is required';
                           }
                           return null;
                         },
-                        enabled: _countryController.text == 'Lebanon',
+                        enabled: _governorateController?.text.isNotEmpty == true,
                       ),
                       const SizedBox(height: 24),
 
@@ -633,7 +702,73 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
 
         // Custom Calendar
         _buildCustomCalendar(),
+        
+        // Calendar Legend
+        const SizedBox(height: 12),
+        _buildCalendarLegend(),
+        
+        // Day-specific time slots section
+        if (_selectedDateForTimeSlots != null) ...[
+          const SizedBox(height: 20),
+          _buildDaySpecificTimeSlots(),
+        ],
       ],
+    );
+  }
+
+  Widget _buildCalendarLegend() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Legend:',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('Available day', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 16),
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.4),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.green, width: 2),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.schedule,
+                    size: 8,
+                    color: Colors.green,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('Custom time slots', style: TextStyle(fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -810,46 +945,84 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
 
               final dateString = DateFormat('yyyy-MM-dd').format(date);
               final isAvailable = _availableDays.contains(dateString);
+              final hasCustomTimeSlots = _daySpecificAvailability.containsKey(dateString) && 
+                  _daySpecificAvailability[dateString]!.length > 1;
 
               return GestureDetector(
                 onTap: () {
                   if (isCurrentMonth) {
-                                          setState(() {
-                        _selectedDay = date;
-                        // Toggle availability for this day
-                        final dateString = DateFormat('yyyy-MM-dd').format(date);
-                        if (_availableDays.contains(dateString)) {
-                          _availableDays.remove(dateString);
-                        } else {
-                          _availableDays.add(dateString);
+                    setState(() {
+                      _selectedDay = date;
+                      final dateString = DateFormat('yyyy-MM-dd').format(date);
+                      
+                      // Toggle availability for this day
+                      if (_availableDays.contains(dateString)) {
+                        _availableDays.remove(dateString);
+                        _daySpecificAvailability.remove(dateString);
+                      } else {
+                        _availableDays.add(dateString);
+                        // Initialize with default time slot if none exists
+                        if (!_daySpecificAvailability.containsKey(dateString)) {
+                          _daySpecificAvailability[dateString] = [
+                            TimeSlot(
+                              from: const TimeOfDay(hour: 9, minute: 0),
+                              to: const TimeOfDay(hour: 17, minute: 0),
+                            )
+                          ];
                         }
-                      });
+                      }
+                      
+                      // Set selected date for time slot editing
+                      _selectedDateForTimeSlots = dateString;
+                    });
                   }
                 },
                 child: Container(
                   margin: EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: isAvailable
-                        ? Colors.blue.withOpacity(0.3)
+                        ? hasCustomTimeSlots
+                            ? Colors.green.withOpacity(0.4)
+                            : Colors.blue.withOpacity(0.3)
                         : isSelected
                         ? Colors.blue
                         : isToday
                         ? Colors.blue.shade100
                         : Colors.transparent,
                     shape: BoxShape.circle,
+                    border: hasCustomTimeSlots
+                        ? Border.all(color: Colors.green, width: 2)
+                        : null,
                   ),
-                  child: Center(
-                    child: Text(
-                      isCurrentMonth ? day.toString() : '',
-                      style: TextStyle(
-                        color: isSelected
-                            ? Colors.white
-                            : isCurrentMonth
-                            ? Colors.black
-                            : Colors.grey,
-                        fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: Text(
+                          isCurrentMonth ? day.toString() : '',
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : isCurrentMonth
+                                ? Colors.black
+                                : Colors.grey,
+                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (hasCustomTimeSlots)
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               );
@@ -947,6 +1120,206 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
     });
   }
 
+  Widget _buildDaySpecificTimeSlots() {
+    if (_selectedDateForTimeSlots == null) return const SizedBox.shrink();
+    
+    final date = DateTime.parse(_selectedDateForTimeSlots!);
+    final formattedDate = DateFormat('EEEE, MMMM d, yyyy').format(date);
+    final timeSlots = _daySpecificAvailability[_selectedDateForTimeSlots!] ?? [];
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Time Slots for:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      formattedDate,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        color: Colors.blue,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _selectedDateForTimeSlots = null;
+                  });
+                },
+                icon: const Icon(Icons.close),
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // List of time slots for this specific day
+          ...timeSlots.asMap().entries.map((entry) {
+            final index = entry.key;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: _buildDaySpecificTimeSelector(index),
+                  ),
+                  if (timeSlots.length > 1) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                      onPressed: () {
+                        setState(() {
+                          timeSlots.removeAt(index);
+                          _daySpecificAvailability[_selectedDateForTimeSlots!] = timeSlots;
+                        });
+                      },
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      padding: EdgeInsets.zero,
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }).toList(),
+          
+          // Add time slot button for this day
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text('Add Time Slot', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            onPressed: () {
+              setState(() {
+                timeSlots.add(TimeSlot(
+                  from: const TimeOfDay(hour: 9, minute: 0),
+                  to: const TimeOfDay(hour: 17, minute: 0),
+                ));
+                _daySpecificAvailability[_selectedDateForTimeSlots!] = timeSlots;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDaySpecificTimeSelector(int index) {
+    final timeSlots = _daySpecificAvailability[_selectedDateForTimeSlots!] ?? [];
+    if (index >= timeSlots.length) return const SizedBox.shrink();
+    
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () => _selectDaySpecificTime(context, index, true),
+            child: Container(
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade300),
+              ),
+              child: Text(
+                _formatTimeOfDay(timeSlots[index].from),
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4.0),
+          child: Text('-', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        ),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => _selectDaySpecificTime(context, index, false),
+            child: Container(
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade300),
+              ),
+              child: Text(
+                _formatTimeOfDay(timeSlots[index].to),
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _selectDaySpecificTime(BuildContext context, int index, bool isStartTime) async {
+    final timeSlots = _daySpecificAvailability[_selectedDateForTimeSlots!] ?? [];
+    if (index >= timeSlots.length) return;
+    
+    final TimeOfDay initialTime = isStartTime
+        ? timeSlots[index].from
+        : timeSlots[index].to;
+
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isStartTime) {
+          timeSlots[index] = TimeSlot(
+            from: picked,
+            to: timeSlots[index].to,
+          );
+        } else {
+          timeSlots[index] = TimeSlot(
+            from: timeSlots[index].from,
+            to: picked,
+          );
+        }
+        _daySpecificAvailability[_selectedDateForTimeSlots!] = timeSlots;
+      });
+    }
+  }
+
   void _showCountryPickerDialog() {
     showCountryPicker(
       context: context,
@@ -954,26 +1327,79 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
       onSelect: (Country country) {
         setState(() {
           _countryController.text = country.name;
+          _governorateController?.clear();
           _districtController.clear();
           _cityController.clear();
-          if (country.name == 'Lebanon' && _locationData.containsKey('Lebanon')) {
-            _lebanonDistricts = (_locationData['Lebanon'] as Map<String, dynamic>).keys.toList();
-          } else {
-            _lebanonDistricts = [];
-            _lebanonCities = [];
-          }
+          _lebanonDistricts = [];
+          _lebanonCities = [];
         });
       },
     );
   }
 
-  void _showDistrictPickerDialog() {
-    if (_countryController.text != 'Lebanon' || _lebanonDistricts.isEmpty) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(content: Text('Districts only available for Lebanon.')),
-      // );
+  void _showGovernoratePickerDialog() {
+    // Ensure controller is initialized
+    if (_governorateController == null) {
+      _governorateController = TextEditingController();
+    }
+    
+    if (_governorates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No governorates available.')),
+      );
       return;
     }
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Governorate'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: _governorates.map((governorate) {
+                return ListTile(
+                  title: Text(governorate.name),
+                  subtitle: Text('${governorate.districts.length} districts'),
+                  onTap: () {
+                    setState(() {
+                      _governorateController?.text = governorate.name;
+                      _districtController.clear();
+                      _cityController.clear();
+                      _lebanonDistricts.clear();
+                      _lebanonCities.clear();
+                      
+                      // Load districts for the selected governorate
+                      _loadDistrictsForGovernorate(governorate.name);
+                    });
+                    Navigator.pop(context);
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDistrictPickerDialog() {
+    if (_governorateController?.text.isEmpty ?? true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a governorate first.')),
+      );
+      return;
+    }
+    
+    if (_districts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No districts available for the selected governorate.')),
+      );
+      return;
+    }
+    
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -983,14 +1409,15 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
             width: double.maxFinite,
             child: ListView(
               shrinkWrap: true,
-              children: _lebanonDistricts.map((district) {
+              children: _districts.map((district) {
                 return ListTile(
-                  title: Text(district),
+                  title: Text(district.name),
+                  subtitle: Text('${district.cities.length} cities'),
                   onTap: () {
                     setState(() {
-                      _districtController.text = district;
+                      _districtController.text = district.name;
                       _cityController.clear();
-                      _lebanonCities = List<String>.from((_locationData['Lebanon'][district] as List<dynamic>));
+                      _lebanonCities = district.cities;
                     });
                     Navigator.pop(context);
                   },
@@ -1004,12 +1431,27 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
   }
 
   void _showCityPickerDialog() {
-    if (_countryController.text != 'Lebanon' || _districtController.text.isEmpty || _lebanonCities.isEmpty) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(content: Text('Cities only available for selected district in Lebanon.')),
-      // );
+    if (_governorateController?.text.isEmpty ?? true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a governorate first.')),
+      );
       return;
     }
+    
+    if (_districtController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a district first.')),
+      );
+      return;
+    }
+    
+    if (_lebanonCities.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cities available for the selected district.')),
+      );
+      return;
+    }
+    
     showDialog(
       context: context,
       builder: (BuildContext context) {

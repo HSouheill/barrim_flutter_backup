@@ -15,6 +15,7 @@ class ServiceProvider {
   final List<String>? availableWeekdays;
   final List<String>? availableDays;
   final String? category; // Add category field
+  final bool? sponsorship; // Add sponsorship field
 
 
   ServiceProvider({
@@ -30,6 +31,7 @@ class ServiceProvider {
     this.availableWeekdays,
     this.availableDays,
     this.category, // Add category parameter
+    this.sponsorship, // Add sponsorship parameter
   });
 
 
@@ -73,6 +75,7 @@ class ServiceProvider {
             ? List<String>.from(json['availableDays'])
             : null,
         category: json['category']?.toString(), // Parse category field
+        sponsorship: json['sponsorship'] != null ? json['sponsorship'] as bool : null, // Parse sponsorship field
       );
     } catch (e) {
       debugPrint('Error parsing ServiceProvider from JSON: $e');
@@ -94,6 +97,7 @@ class ServiceProvider {
       'availableWeekdays': availableWeekdays,
       'availableDays': availableDays,
       'category': category, // Include category field
+      'sponsorship': sponsorship, // Include sponsorship field
     };
   }
 }
@@ -253,6 +257,7 @@ class ServiceProviderInfo {
 class Location {
   final String? city;
   final String? country;
+  final String? governorate;
   final String? district;
   final String? street;
   final String? postalCode;
@@ -263,6 +268,7 @@ class Location {
   Location({
     this.city,
     this.country,
+    this.governorate,
     this.district,
     this.street,
     this.postalCode,
@@ -278,6 +284,7 @@ class Location {
       return Location(
         city: json['city']?.toString(),
         country: json['country']?.toString(),
+        governorate: json['governorate']?.toString(),
         district: json['district']?.toString(),
         street: json['street']?.toString(),
         postalCode: json['postalCode']?.toString(),
@@ -295,6 +302,7 @@ class Location {
     return {
       'city': city,
       'country': country,
+      'governorate': governorate,
       'district': district,
       'street': street,
       'postalCode': postalCode,

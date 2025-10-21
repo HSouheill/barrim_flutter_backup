@@ -206,12 +206,7 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
       'availability': {
         // 'emergencyStatus': spInfo['status']?.toString() ?? 'Not Available',
         'calendar': spInfo['calendar'] ?? {},
-        'hours': spInfo['availableHours'] ?? {
-          'morning': false,
-          'afternoon': false,
-          'evening': false,
-          'night': false,
-        }
+        'hours': spInfo['availableHours'] ?? ['09:00', '17:00']
       },
       'phoneNumber': apiData['phone']?.toString() ?? 'No phone number',
       'reviews': apiData['reviews'] ?? [],
@@ -239,8 +234,18 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
   List<String> _parseAvailableDays(Map<String, dynamic> apiData) {
     List<String> availableDays = [];
     
-    // First try root level availableDays (from serviceProviders collection)
-    if (apiData['availableDays'] != null) {
+    // First try serviceProviderInfo (this is where the data actually is)
+    final spInfo = apiData['serviceProviderInfo'] ?? {};
+    final spAvailableDays = spInfo['availableDays'];
+    print('ServiceProviderProfile: ServiceProviderInfo availableDays: $spAvailableDays');
+    
+    if (spAvailableDays is List) {
+      availableDays = spAvailableDays.cast<String>().where((day) => day.isNotEmpty).toList();
+      print('ServiceProviderProfile: Using serviceProviderInfo availableDays: $availableDays');
+    }
+    
+    // If serviceProviderInfo is empty, try root level availableDays (from serviceProviders collection)
+    if (availableDays.isEmpty && apiData['availableDays'] != null) {
       final rootAvailableDays = apiData['availableDays'];
       print('ServiceProviderProfile: Root availableDays: $rootAvailableDays');
       
@@ -258,18 +263,6 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
             print('ServiceProviderProfile: Failed to parse root availableDays JSON: $e');
           }
         }
-      }
-    }
-    
-    // If root level is empty, try serviceProviderInfo
-    if (availableDays.isEmpty) {
-      final spInfo = apiData['serviceProviderInfo'] ?? {};
-      final spAvailableDays = spInfo['availableDays'];
-      print('ServiceProviderProfile: ServiceProviderInfo availableDays: $spAvailableDays');
-      
-      if (spAvailableDays is List) {
-        availableDays = spAvailableDays.cast<String>().where((day) => day.isNotEmpty).toList();
-        print('ServiceProviderProfile: Using serviceProviderInfo availableDays: $availableDays');
       }
     }
     
@@ -491,6 +484,17 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
                         onBackPressed: () => Navigator.of(context).pop(),
                       ),
                       DescriptionSection(providerData: providerData),
+                      // Debug logging for BookingSection
+                      Builder(
+                        builder: (context) {
+                          print("=== BOOKING SECTION DEBUG ===");
+                          print("Provider availableDays: ${providerData['availableDays']}");
+                          print("Provider availableDays length: ${providerData['availableDays']?.length}");
+                          print("Provider availability hours: ${providerData['availability']?['hours']}");
+                          print("=== END BOOKING SECTION DEBUG ===");
+                          return SizedBox.shrink();
+                        },
+                      ),
                       BookingSection(
                         serviceProvider: ServiceProvider(
                           id: widget.providerId,

@@ -1,20 +1,13 @@
 // Fix for serviceProvider_dashboard.dart
-import 'dart:convert';
-
-import 'package:barrim/src/features/authentication/screens/serviceProvider_dashboard/service_provider_edit_profile.dart';
 import 'package:barrim/src/features/authentication/screens/serviceProvider_dashboard/service_provider_referrals.dart';
 import 'package:barrim/src/features/authentication/screens/serviceProvider_dashboard/serviceprovider_reviews.dart';
 import 'package:barrim/src/features/authentication/screens/serviceProvider_dashboard/serviceprovider_subscriptions/serviceprovider_subscription.dart';
 import 'package:flutter/material.dart';
 import '../../../../services/api_service.dart';
-import '../../../../services/user_provider.dart';
 import '../../../../services/route_tracking_service.dart';
 import '../../../../models/service_provider.dart';
 import '../../headers/service_provider_header.dart';
-import '../company_dashboard/subscription/company_subscription.dart';
 import 'my_booking.dart';
-import '../login_page.dart';
-import 'package:provider/provider.dart';
 
 class ServiceproviderDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -67,7 +60,7 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
       try {
         final providerDetailsData = await ApiService.getServiceProviderDetails();
         
-        if (providerDetailsData != null) {
+        if (providerDetailsData.isNotEmpty) {
           setState(() {
             serviceProvider = ServiceProvider.fromJson(providerDetailsData);
 
@@ -88,6 +81,16 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
         }
       } catch (e) {
         debugPrint('Failed to get service provider details: $e');
+        
+        // Check if this is an authentication error
+        if (e.toString().contains('Authentication error') || 
+            e.toString().contains('User account is inactive')) {
+          setState(() {
+            error = 'Your account is inactive. Please contact support to reactivate your account.';
+            isLoading = false;
+          });
+          return;
+        }
       }
 
       // If that fails, try getting by ID
@@ -161,6 +164,20 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
         isLoading = true;
       });
 
+      // Validate description length
+      if (newDescription.length > 1000) {
+        setState(() {
+          isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Description must be less than 1000 characters'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       // Use the ApiService to update the description
       final success = await ApiService.updateServiceProviderDescription(newDescription);
 
@@ -173,9 +190,12 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
             isLoading = false;
           });
 
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //   const SnackBar(content: Text('Description updated successfully')),
-          // );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Description updated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
 
           // Clear the cached data to force fresh fetch next time
           await ApiService.clearServiceProviderCache();
@@ -187,9 +207,25 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
       setState(() {
         isLoading = false;
       });
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Failed to update description: $e')),
-      // );
+      
+      // Show specific error messages based on the error
+      String errorMessage = 'Failed to update description';
+      if (e.toString().contains('Service provider not found')) {
+        errorMessage = 'Service provider not found. Please try logging in again.';
+      } else if (e.toString().contains('Description must be less than 1000 characters')) {
+        errorMessage = 'Description must be less than 1000 characters';
+      } else if (e.toString().contains('Not authenticated')) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (e.toString().isNotEmpty) {
+        errorMessage = e.toString().replaceFirst('Exception: ', '');
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -198,33 +234,57 @@ class _ServiceproviderDashboardState extends State<ServiceproviderDashboard> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Edit Description'),
-          content: TextField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(
-              hintText: 'Enter your description',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 4,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                _updateDescription(_descriptionController.text);
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0066B3),
-                foregroundColor: Colors.white,
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Edit Description'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _descriptionController,
+                    decoration: InputDecoration(
+                      hintText: 'Enter your description',
+                      border: const OutlineInputBorder(),
+                      counterText: '${_descriptionController.text.length}/1000',
+                    ),
+                    maxLines: 4,
+                    maxLength: 1000,
+                    onChanged: (value) {
+                      setState(() {}); // Update character count
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Describe your services, experience, and what makes you unique',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
               ),
-              child: const Text('Save'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: _descriptionController.text.trim().isEmpty
+                      ? null
+                      : () {
+                          _updateDescription(_descriptionController.text.trim());
+                          Navigator.pop(context);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0066B3),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -970,6 +1030,8 @@ extension ServiceProviderExtension on ServiceProvider {
     String? description,
     List<String>? availableWeekdays,
     List<String>? availableDays,
+    String? category,
+    bool? sponsorship,
   }) {
     // Create a new ServiceProviderInfo with updated description if needed
     ServiceProviderInfo? updatedInfo;
@@ -997,6 +1059,8 @@ extension ServiceProviderExtension on ServiceProvider {
       reviewCount: reviewCount ?? this.reviewCount,
       availableWeekdays: availableWeekdays ?? this.availableWeekdays,
       availableDays: availableDays ?? this.availableDays,
+      category: category ?? this.category,
+      sponsorship: sponsorship ?? this.sponsorship,
     );
   }
 

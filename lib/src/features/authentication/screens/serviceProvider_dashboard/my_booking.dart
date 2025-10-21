@@ -6,7 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../models/booking.dart';
 import '../../../../services/booking_service.dart';
 import '../../../../services/serviceprovider_controller.dart';
-import '../../../../utils/token_manager.dart';
+import '../../../../utils/centralized_token_manager.dart';
 import '../../headers/service_provider_header.dart';
 
 class SPMyBookingsPage extends StatefulWidget {
@@ -17,7 +17,6 @@ class SPMyBookingsPage extends StatefulWidget {
 }
 
 class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
-  final TokenManager _tokenManager = TokenManager();
   final ServiceProviderController _serviceProviderController = ServiceProviderController();
   BookingService? _bookingService;
 
@@ -63,8 +62,8 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
 
   Future<void> _initializeBookingService() async {
     try {
-      final token = await _tokenManager.getToken();
-      if (token?.isNotEmpty == true) {
+      final token = await CentralizedTokenManager.getToken();
+      if (token == null || token.isEmpty) {
         setState(() {
           _error = "Authentication token not found. Please login again.";
           _isLoading = false;
@@ -72,7 +71,7 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
         return;
       }
 
-      _bookingService = BookingService(token: token ?? '');
+      _bookingService = BookingService(token: token);
       _loadBookings();
     } catch (e) {
       setState(() {

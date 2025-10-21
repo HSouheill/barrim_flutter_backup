@@ -125,7 +125,7 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
     );
     if (picked != null) {
       setState(() {
-        _dateController.text = DateFormat('yyyy-MM-dd').format(picked);
+        _dateController.text = DateFormat('yyyy/MM/dd').format(picked);
       });
     }
   }
@@ -783,13 +783,18 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
   Widget _buildDateField(double labelFontSize, double textFontSize) {
     return TextFormField(
       controller: _dateController,
-      readOnly: true,
+      keyboardType: TextInputType.number,
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9/]')),
+        LengthLimitingTextInputFormatter(10),
+        _DateTextFormatter(),
+      ],
       style: GoogleFonts.nunito(
         color: Colors.white,
         fontSize: textFontSize,
       ),
       decoration: InputDecoration(
-        labelText: 'Date of Birth',
+        labelText: 'Date of Birth (YYYY/MM/DD)',
         labelStyle: GoogleFonts.nunito(
           color: const Color(0xFFDBD5D5),
           fontSize: labelFontSize,
@@ -802,7 +807,6 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
           borderSide: BorderSide(color: Colors.white, width: 1.0),
         ),
         contentPadding: const EdgeInsets.only(bottom: 4),
-
         suffixIcon: IconButton(
           icon: const Icon(Icons.calendar_today, color: Colors.white, size: 28),
           onPressed: () => _selectDate(context),
@@ -810,11 +814,31 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please select your date of birth';
+          return 'Please enter your date of birth';
+        }
+        // Validate date format YYYY/MM/DD
+        final dateRegex = RegExp(r'^\d{4}/\d{2}/\d{2}$');
+        if (!dateRegex.hasMatch(value)) {
+          return 'Please enter a valid date (YYYY/MM/DD)';
+        }
+        // Validate actual date
+        try {
+          final parts = value.split('/');
+          final year = int.parse(parts[0]);
+          final month = int.parse(parts[1]);
+          final day = int.parse(parts[2]);
+          final date = DateTime(year, month, day);
+          if (date.isAfter(DateTime.now())) {
+            return 'Date cannot be in the future';
+          }
+          if (year < 1900) {
+            return 'Please enter a valid year';
+          }
+        } catch (e) {
+          return 'Please enter a valid date';
         }
         return null;
       },
-      onTap: () => _selectDate(context),
     );
   }
 
@@ -875,6 +899,49 @@ class _SignupServiceprovider2State extends State<SignupServiceprovider2> {
     _governorateController.dispose();
     _districtController.dispose();
     _cityController.dispose();
+    _dateController.dispose();
     super.dispose();
+  }
+}
+
+// Custom TextInputFormatter for date with protected slashes
+class _DateTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    
+    // If user is trying to delete a slash, prevent it
+    if (oldValue.text.length > newValue.text.length) {
+      // Check if deleted character was a slash
+      final deletedIndex = newValue.selection.baseOffset;
+      if (deletedIndex < oldValue.text.length && 
+          (oldValue.text[deletedIndex] == '/' || 
+           (deletedIndex > 0 && oldValue.text[deletedIndex - 1] == '/'))) {
+        return oldValue;
+      }
+    }
+    
+    // Remove all non-digit characters except slashes
+    String digitsOnly = text.replaceAll(RegExp(r'[^0-9]'), '');
+    
+    // Build formatted string
+    String formatted = '';
+    for (int i = 0; i < digitsOnly.length && i < 8; i++) {
+      if (i == 4 || i == 6) {
+        formatted += '/';
+      }
+      formatted += digitsOnly[i];
+    }
+    
+    // Calculate new cursor position
+    int offset = formatted.length;
+    
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: offset),
+    );
   }
 }

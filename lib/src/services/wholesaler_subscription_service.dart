@@ -10,6 +10,17 @@ import '../models/subscription.dart';
 import '../models/wholesaler_model.dart';
 import '../utils/token_storage.dart';
 
+// Custom exception for 409 Conflict errors
+class ConflictException implements Exception {
+  final String message;
+  final int statusCode;
+  
+  ConflictException(this.message, this.statusCode);
+  
+  @override
+  String toString() => 'ConflictException: $message (Status: $statusCode)';
+}
+
 class WholesalerSubscriptionService {
   static final WholesalerSubscriptionService _instance = WholesalerSubscriptionService._internal();
   factory WholesalerSubscriptionService() => _instance;
@@ -235,7 +246,9 @@ class WholesalerSubscriptionService {
       
       final response = await http.Response.fromStream(streamedResponse);
 
-      // Response logged without sensitive data
+      // Log response details for debugging
+      print('WholesalerSubscriptionService - Response Status: ${response.statusCode}');
+      print('WholesalerSubscriptionService - Response Body: ${response.body}');
 
       if (response.statusCode == 201) {
         final Map<String, dynamic> responseData = json.decode(response.body);
@@ -268,12 +281,40 @@ class WholesalerSubscriptionService {
           }
         }
       } else {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        final errorMessage = responseData['message'] ?? 'Failed to create subscription request';
-        throw Exception(errorMessage);
+        print('WholesalerSubscriptionService - HTTP Status: ${response.statusCode}');
+        print('WholesalerSubscriptionService - Response Body: ${response.body}');
+        
+        // Try to parse the response body
+        String errorMessage = 'Failed to create subscription request';
+        try {
+          final Map<String, dynamic> responseData = json.decode(response.body);
+          errorMessage = responseData['message'] ?? 'Failed to create subscription request';
+          print('WholesalerSubscriptionService - Parsed Error Message: $errorMessage');
+        } catch (parseError) {
+          print('WholesalerSubscriptionService - Failed to parse response body: $parseError');
+          // Use the raw response body if JSON parsing fails
+          if (response.body.isNotEmpty) {
+            errorMessage = response.body;
+          }
+        }
+        
+        // Create a custom exception that includes the status code
+        if (response.statusCode == 409) {
+          print('WholesalerSubscriptionService - Throwing ConflictException for 409 error');
+          throw ConflictException(errorMessage, response.statusCode);
+        } else {
+          print('WholesalerSubscriptionService - Throwing regular Exception for status: ${response.statusCode}');
+          throw Exception(errorMessage);
+        }
       }
     } catch (e) {
-      if (e is SocketException) {
+      print('WholesalerSubscriptionService - Caught exception: $e');
+      print('WholesalerSubscriptionService - Exception type: ${e.runtimeType}');
+      if (e is ConflictException) {
+        // Preserve ConflictException for 409 errors
+        print('WholesalerSubscriptionService - Preserving ConflictException');
+        rethrow;
+      } else if (e is SocketException) {
         throw Exception('No internet connection. Please check your network.');
       } else if (e is FormatException) {
         throw Exception('Invalid response format from server.');

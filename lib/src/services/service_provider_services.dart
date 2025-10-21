@@ -233,93 +233,98 @@ class ServiceProviderService {
       final token = await _tokenStorage.getToken();
       if (token == null) throw Exception('No token found');
       
-      // Create multipart request
-      var request = http.MultipartRequest(
-        'PUT',
-        Uri.parse('$baseUrl/api/service-provider/update'),
-      );
-      request.headers['Authorization'] = 'Bearer $token';
+      // Prepare the request body as JSON (matching backend expectations)
+      Map<String, dynamic> requestBody = {
+        'businessName': businessName.trim(),
+      };
       
-      // Add basic fields
-      request.fields['fullName'] = businessName.trim();
       if (email != null && email.isNotEmpty) {
-        request.fields['email'] = email;
+        requestBody['email'] = email;
       }
       if (newPassword != null && newPassword.trim().isNotEmpty) {
-        request.fields['password'] = newPassword.trim();
+        requestBody['password'] = newPassword.trim();
       }
       
       // Add additional data fields
       if (additionalData != null) {
         if (additionalData['phone'] != null) {
-          request.fields['phone'] = additionalData['phone'];
+          requestBody['phone'] = additionalData['phone'];
         }
         if (additionalData['serviceType'] != null) {
-          request.fields['serviceType'] = additionalData['serviceType'];
+          requestBody['serviceType'] = additionalData['serviceType'];
         }
         if (additionalData['yearsExperience'] != null) {
-          request.fields['yearsExperience'] = additionalData['yearsExperience'].toString();
+          requestBody['yearsExperience'] = additionalData['yearsExperience'];
         }
         if (additionalData['location'] != null) {
-          Map<String, dynamic> location = additionalData['location'];
-          if (location['country'] != null) {
-            request.fields['country'] = location['country'];
-          }
-          if (location['district'] != null) {
-            request.fields['district'] = location['district'];
-          }
-          if (location['city'] != null) {
-            request.fields['city'] = location['city'];
-          }
-          if (location['street'] != null) {
-            request.fields['street'] = location['street'];
-          }
-          if (location['postalCode'] != null) {
-            request.fields['postalCode'] = location['postalCode'];
-          }
+          requestBody['location'] = additionalData['location'];
         }
         
-        // Handle arrays by sending them as comma-separated strings
+        // Handle arrays directly (backend expects arrays, not comma-separated strings)
         if (additionalData['availableDays'] != null) {
-          List<String> availableDays = List<String>.from(additionalData['availableDays']);
-          request.fields['availableDays'] = availableDays.join(',');
-          print('Sending availableDays: $availableDays');
+          requestBody['availableDays'] = additionalData['availableDays'];
+          print('Sending availableDays: ${additionalData['availableDays']}');
         }
         if (additionalData['availableHours'] != null) {
-          List<String> availableHours = List<String>.from(additionalData['availableHours']);
-          request.fields['availableHours'] = availableHours.join(',');
-          print('Sending availableHours: $availableHours');
+          requestBody['availableHours'] = additionalData['availableHours'];
+          print('Sending availableHours: ${additionalData['availableHours']}');
         }
         if (additionalData['availableWeekdays'] != null) {
-          List<String> availableWeekdays = List<String>.from(additionalData['availableWeekdays']);
-          request.fields['availableWeekdays'] = availableWeekdays.join(',');
-          print('Sending availableWeekdays: $availableWeekdays');
+          requestBody['availableWeekdays'] = additionalData['availableWeekdays'];
+          print('Sending availableWeekdays: ${additionalData['availableWeekdays']}');
         }
         if (additionalData['applyToAllMonths'] != null) {
-          request.fields['applyToAllMonths'] = additionalData['applyToAllMonths'].toString();
+          requestBody['applyToAllMonths'] = additionalData['applyToAllMonths'];
           print('Sending applyToAllMonths: ${additionalData['applyToAllMonths']}');
         }
-      }
-      
-      // Add certificate files if provided
-      if (certificateFiles != null && certificateFiles.isNotEmpty) {
-        for (File certificateFile in certificateFiles) {
-          request.files.add(
-            await http.MultipartFile.fromPath(
-              'certificates',
-              certificateFile.path,
-              contentType: MediaType('image', 'jpeg'),
-            ),
-          );
+        
+        // Convert day-specific availability to availabilitySchedule format
+        if (additionalData['daySpecificAvailability'] != null) {
+          List<Map<String, dynamic>> availabilitySchedule = _convertToAvailabilitySchedule(additionalData['daySpecificAvailability']);
+          requestBody['availabilitySchedule'] = availabilitySchedule;
+          print('Sending availabilitySchedule: $availabilitySchedule');
         }
       }
       
-      print('Updating service provider info with data: ${request.fields}');
-      print('Certificate files count: ${request.files.length}');
+      // Create the service provider info structure
+      Map<String, dynamic> serviceProviderInfo = {};
+      if (additionalData != null) {
+        if (additionalData['serviceType'] != null) {
+          serviceProviderInfo['serviceType'] = additionalData['serviceType'];
+        }
+        if (additionalData['yearsExperience'] != null) {
+          serviceProviderInfo['yearsExperience'] = additionalData['yearsExperience'];
+        }
+        if (additionalData['availableDays'] != null) {
+          serviceProviderInfo['availableDays'] = additionalData['availableDays'];
+        }
+        if (additionalData['availableHours'] != null) {
+          serviceProviderInfo['availableHours'] = additionalData['availableHours'];
+        }
+        if (additionalData['availableWeekdays'] != null) {
+          serviceProviderInfo['availableWeekdays'] = additionalData['availableWeekdays'];
+        }
+        if (additionalData['applyToAllMonths'] != null) {
+          serviceProviderInfo['applyToAllMonths'] = additionalData['applyToAllMonths'];
+        }
+      }
       
-      // Send multipart request
+      if (serviceProviderInfo.isNotEmpty) {
+        requestBody['serviceProviderInfo'] = serviceProviderInfo;
+      }
+      
+      print('Updating service provider info with JSON data: $requestBody');
+      
+      // Send JSON request
       final client = await _getCustomClient();
-      var response = await http.Response.fromStream(await client.send(request));
+      var response = await client.put(
+        Uri.parse('$baseUrl/api/service-provider/update'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(requestBody),
+      );
       
       print('Service provider info update response status: ${response.statusCode}');
       print('Service provider info update response body: ${response.body}');
@@ -341,8 +346,108 @@ class ServiceProviderService {
         }
         throw Exception(errorMessage);
       }
+      
+      // Handle certificate files separately if provided
+      if (certificateFiles != null && certificateFiles.isNotEmpty) {
+        await _uploadCertificateFiles(certificateFiles, token);
+      }
+      
+      // Handle logo file separately if provided
+      if (additionalData != null && additionalData['logoFile'] != null) {
+        await _uploadLogoFile(additionalData['logoFile'], token);
+      }
     } catch (e) {
       throw Exception('Error updating service provider info: $e');
+    }
+  }
+  
+  // Helper method to convert day-specific availability to availabilitySchedule format
+  List<Map<String, dynamic>> _convertToAvailabilitySchedule(Map<String, List<Map<String, String>>> daySpecificAvailability) {
+    List<Map<String, dynamic>> availabilitySchedule = [];
+    
+    daySpecificAvailability.forEach((date, timeSlots) {
+      // Check if it's a specific date (YYYY-MM-DD) or weekday
+      bool isWeekday = false;
+      try {
+        DateTime.parse(date); // This will throw if not a valid date
+        isWeekday = false; // It's a specific date
+      } catch (e) {
+        // Check if it's a weekday name
+        List<String> weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        isWeekday = weekdays.contains(date);
+      }
+      
+      // Convert time slots to the expected format
+      List<String> timeSlotStrings = timeSlots.map((slot) {
+        return '${slot['from']}-${slot['to']}';
+      }).toList();
+      
+      availabilitySchedule.add({
+        'date': date,
+        'isWeekday': isWeekday,
+        'timeSlots': timeSlotStrings,
+        'isAvailable': true, // All entries in daySpecificAvailability are available
+      });
+    });
+    
+    return availabilitySchedule;
+  }
+
+  // Helper method to upload logo file
+  Future<void> _uploadLogoFile(File logoFile, String token) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/service-provider/upload-logo'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'logo',
+          logoFile.path,
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
+      
+      final client = await _getCustomClient();
+      var response = await http.Response.fromStream(await client.send(request));
+      
+      if (response.statusCode != 200) {
+        print('Warning: Failed to upload logo file: ${response.body}');
+      }
+    } catch (e) {
+      print('Warning: Error uploading logo file: $e');
+    }
+  }
+
+  // Helper method to upload certificate files
+  Future<void> _uploadCertificateFiles(List<File> certificateFiles, String token) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/service-provider/upload-certificates'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      
+      for (File certificateFile in certificateFiles) {
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'certificates',
+            certificateFile.path,
+            contentType: MediaType('image', 'jpeg'),
+          ),
+        );
+      }
+      
+      final client = await _getCustomClient();
+      var response = await http.Response.fromStream(await client.send(request));
+      
+      if (response.statusCode != 200) {
+        print('Warning: Failed to upload certificate files: ${response.body}');
+      }
+    } catch (e) {
+      print('Warning: Error uploading certificate files: $e');
     }
   }
 

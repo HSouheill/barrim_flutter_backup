@@ -7,9 +7,7 @@ import '../responsive_utils.dart';
 import '../../../../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../../../../services/gcp_google_auth_service.dart';
-import '../apple_signin.dart';
 import '../../../../services/user_provider.dart';
-import '../../../../services/apple_auth_service.dart';
 import '../user_dashboard/home.dart';
 import '../company_dashboard/company_dashboard.dart';
 import '../serviceProvider_dashboard/serviceprovider_dashboard.dart';
@@ -47,8 +45,6 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
   String? _emailValidationMessage;
 
   bool _isGoogleLoading = false;
-  bool _isAppleLoading = false;
-  final AppleSignin _appleSignin = AppleSignin();
 
   @override
   void initState() {
@@ -154,8 +150,8 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
         if (result['needsSignup'] == true) {
           print("User needs to complete signup, navigating to signup form");
           
-          // Navigate to signup with pre-filled Google data
-          Navigator.pushReplacement(
+          // Navigate to signup with pre-filled Google data (use push instead of pushReplacement)
+          Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => SignupUserPage1(
@@ -168,13 +164,23 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
 
         print('Google sign-in successful, processing user data...');
         
-        // Update UserProvider with user data and token
+        // Update UserProvider - use setUserAndTokenTogether for proper session persistence
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-        userProvider.setUser(result['user']);
-        userProvider.setToken(result['token']);
-        
         final userData = result['user'] ?? {};
+        final token = result['token'] ?? '';
+        
+        // Set user and token together to ensure session is saved properly
+        await userProvider.setUserAndTokenTogether(userData, token);
+        
         final userType = userData['userType'] ?? 'user';
+        
+        // Save the last visited page for session restoration
+        final dashboardPageName = _getDashboardPageName(userType);
+        userProvider.saveLastVisitedPage(
+          dashboardPageName,
+          pageData: userData,
+          routePath: dashboardPageName,
+        );
         
         print('User type detected: $userType');
         print('User data: ${userData['email']} - ${userData['fullName']}');
@@ -240,51 +246,19 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
     }
   }
 
-  Future<void> _handleAppleSignIn() async {
-    setState(() {
-      _isAppleLoading = true;
-    });
-    try {
-      final credential = await _appleSignin.getAppleCredential();
-      setState(() {
-        _isAppleLoading = false;
-      });
-      if (credential != null && credential['identityToken'] != null) {
-        // Send the idToken to your backend
-        final backendResponse = await AppleAuthService.appleLogin(credential['identityToken']!);
-        if (backendResponse != null && backendResponse['status'] == 200) {
-          final data = backendResponse['data'];
-          final userProvider = Provider.of<UserProvider>(context, listen: false);
-          userProvider.setUser(data['user']);
-          userProvider.setToken(data['token']);
-          final userType = data['user']['userType'] ?? 'user';
-          _navigateAfterLogin(userType, data);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(backendResponse?['message'] ?? 'Apple sign-in failed'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Apple sign-in failed: No ID token received'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isAppleLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Apple sign-in error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+  // Helper method to get dashboard page name for session restoration
+  String _getDashboardPageName(String userType) {
+    switch (userType) {
+      case 'user':
+        return 'UserDashboard';
+      case 'company':
+        return 'CompanyDashboard';
+      case 'serviceProvider':
+        return 'ServiceproviderDashboard';
+      case 'wholesaler':
+        return 'WholesalerDashboard';
+      default:
+        return 'UserDashboard';
     }
   }
 
@@ -389,7 +363,21 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                       height: whiteHeaderHeight,
                       child: WhiteHeader(
                         title: 'Sign Up',
-                        onBackPressed: () => Navigator.pop(context),
+                        onBackPressed: () {
+                          // If we have Google user data, we came from social sign-in
+                          // Navigate back to login page instead of just popping
+                          if (widget.googleUserData != null) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => LoginPage(),
+                              ),
+                            );
+                          } else {
+                            // Normal back navigation
+                            Navigator.pop(context);
+                          }
+                        },
                       ),
                     ),
                   ),
@@ -821,32 +809,6 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                                         'assets/icons/google.png',
                                         constraints.maxWidth * 0.12,
                                         onPressed: _handleGoogleSignIn,
-                                      ),
-                                SizedBox(width: constraints.maxWidth * 0.05),
-                                _isAppleLoading
-                                    ? Container(
-                                        width: constraints.maxWidth * 0.12,
-                                        height: constraints.maxWidth * 0.12,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Center(
-                                          child: SizedBox(
-                                            width: constraints.maxWidth * 0.06,
-                                            height: constraints.maxWidth * 0.06,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF05055A)),
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                    : _buildSocialLoginButton(
-                                        context,
-                                        'assets/icons/apple.png',
-                                        constraints.maxWidth * 0.12,
-                                        onPressed: _handleAppleSignIn,
                                       ),
                               ],
                             ),

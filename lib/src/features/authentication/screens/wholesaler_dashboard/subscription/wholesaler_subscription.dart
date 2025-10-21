@@ -653,9 +653,11 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
         _showSubscriptionDialog(plan.title ?? 'Unknown Plan',
             plan.price?.toString() ?? '0');
       } else {
-        // Show info dialog if error is about pending subscription
+        // Show info dialog if error is about pending subscription or 409 conflict
         final errorMessage = provider.errorMessage ?? '';
-        if (errorMessage.toLowerCase().contains('already have a pending subscription request')) {
+        if (errorMessage.toLowerCase().contains('already have a pending subscription request') ||
+            errorMessage.toLowerCase().contains('subscription request has already been sent') ||
+            errorMessage.toLowerCase().contains('conflict')) {
           _showActiveSubscriptionDialog();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -671,9 +673,12 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
-      // Show info dialog if error is about pending subscription
+      // Show info dialog if error is about pending subscription or 409 conflict
       final errorString = e.toString().toLowerCase();
-      if (errorString.contains('already have a pending subscription request')) {
+      if (errorString.contains('already have a pending subscription request') ||
+          errorString.contains('subscription request has already been sent') ||
+          errorString.contains('conflict') ||
+          errorString.contains('conflictexception')) {
         _showActiveSubscriptionDialog();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -969,7 +974,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
               ),
               SizedBox(height: 10),
               Text(
-                'Subscription In Progress',
+                'Request Already Sent',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -979,7 +984,7 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
             ],
           ),
           content: Text(
-            'You are already in the subscription process.',
+            'A subscription request has already been sent for this branch. Please wait for approval before submitting another request.',
             style: TextStyle(fontSize: 16),
             textAlign: TextAlign.center,
           ),

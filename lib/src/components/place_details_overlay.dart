@@ -608,7 +608,10 @@ class _PlaceDetailsOverlayState extends State<PlaceDetailsOverlay>
                 leading: Icon(Icons.map, color: Theme.of(context).primaryColor),
                 title: Text("In-app Navigation"),
                 onTap: () {
+                  print('PlaceDetailsOverlay: In-app navigation selected');
+                  print('PlaceDetailsOverlay: Coordinates: ${coordinates.latitude}, ${coordinates.longitude}');
                   Navigator.pop(context);
+                  // Call onNavigate first, then onClose to ensure navigation is set before overlay closes
                   widget.onNavigate(coordinates);
                   widget.onClose();
                 },
@@ -1395,44 +1398,8 @@ Check it out on our app!
                         color: Colors.grey[800],
                       ),
                     ),
-                    Text(
-                      currentBranch?['description'] ?? widget.place['description'] ?? 'No description available',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-
+                    
                     SizedBox(height: 16),
-
-                    // Branch location
-                    if (currentBranch != null)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Location',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.location_on, size: 16),
-                              SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  currentBranch['location'] ?? 'No address available',
-                                  style: TextStyle(fontSize: 14),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 16),
-                        ],
-                      ),
 
                     // Branch images if available
                     if (currentBranch != null && currentBranch['images'] != null && currentBranch['images'] is List && currentBranch['images'].isNotEmpty)

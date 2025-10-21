@@ -1695,8 +1695,8 @@ class ApiService {
   //api_service.dart
   static Future<Map<String, dynamic>> getServiceProviderDetails() async {
     try {
-      // Get the auth token
-      final token = await _secureStorage.read(key: 'auth_token');
+      // Use centralized token management for consistency
+      final token = await CentralizedTokenManager.getToken();
 
       if (token == null) {
         throw Exception('Not authenticated');
@@ -1708,10 +1708,7 @@ class ApiService {
       final response = await _makeRequest(
         'GET',
         Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        headers: await CentralizedTokenManager.getAuthHeaders(),
       );
 
       // Check response status
@@ -1743,6 +1740,11 @@ class ApiService {
           throw Exception(
               responseData['message'] ?? 'Failed to get service provider data');
         }
+      } else if (response.statusCode == 401) {
+        // Handle authentication errors - user account might be inactive
+        final responseData = json.decode(response.body);
+        final errorMessage = responseData['message'] ?? 'Authentication failed';
+        throw Exception('Authentication error: $errorMessage');
       } else if (response.statusCode == 404) {
         throw Exception('Service provider not found');
       } else if (response.statusCode == 403) {
@@ -2625,28 +2627,38 @@ static Future<Map<String, dynamic>> signupWholesaler(
         'subCategory': userData['wholesalerInfo']['subCategory'] ?? '',
         'phones': userData['wholesalerInfo']['phones'] ?? [phone],
         'emails': userData['wholesalerInfo']['emails'] ?? [userData['email']],
-        'contactInfo': {
-          'address': {
-            'country': userData['location']['country'],
-            'district': userData['location']['district'],
-            'city': userData['location']['city'],
-            'street': userData['location']['street'],
-            'postalCode': userData['location']['postalCode'],
-            'lat': userData['location']['coordinates']['lat'],
-            'lng': userData['location']['coordinates']['lng'],
-          },
-          'whatsapp': userData['wholesalerInfo']['contactInfo']?['whatsapp'] ?? '',
-          'website': userData['wholesalerInfo']['contactInfo']?['website'] ?? '',
-          'facebook': userData['wholesalerInfo']['contactInfo']?['facebook'] ?? '',
+        'address': {
+          'country': userData['wholesalerInfo']['address']['country'] ?? 'Unknown',
+          'governorate': userData['wholesalerInfo']['address']['governorate'] ?? 'Unknown',
+          'district': userData['wholesalerInfo']['address']['district'] ?? 'Unknown',
+          'city': userData['wholesalerInfo']['address']['city'] ?? 'Unknown',
+          'lat': userData['wholesalerInfo']['address']['lat'],
+          'lng': userData['wholesalerInfo']['address']['lng'],
         },
-        'socialMedia': {
-          'facebook': userData['wholesalerInfo']['socialMedia']?['facebook'] ?? '',
-          'instagram': userData['wholesalerInfo']['socialMedia']?['instagram'] ?? '',
+        'socialMedia': userData['wholesalerInfo']['socialMedia'] != null ? {
+          'facebook': userData['wholesalerInfo']['socialMedia']['facebook'] ?? '',
+          'instagram': userData['wholesalerInfo']['socialMedia']['instagram'] ?? '',
+        } : {
+          'facebook': '',
+          'instagram': '',
+        },
+        'contactInfo': userData['wholesalerInfo']['contactInfo'] != null ? {
+          'whatsapp': userData['wholesalerInfo']['contactInfo']['whatsapp'] ?? '',
+          'website': userData['wholesalerInfo']['contactInfo']['website'] ?? '',
+          'facebook': userData['wholesalerInfo']['contactInfo']['facebook'] ?? '',
+        } : {
+          'whatsapp': '',
+          'website': '',
+          'facebook': '',
         },
         'referralCode': userData['wholesalerInfo']['referralCode'] ?? '',
       }
     };
 
+    // Debug print to verify final request data
+    print('=== FINAL WHOLESALER REQUEST DATA ===');
+    print('Request data: ${jsonEncode(requestData)}');
+    print('=====================================');
 
     // Make the API request
     final response = await _makeRequest(
@@ -2877,17 +2889,12 @@ static Future<Map<String, dynamic>> signupWholesaler(
       ];
 
       for (final url in possibleUrls) {
-
-      
-
         try {
           final response = await _makeRequest(
-        'GET',
-        Uri.parse(url),
-            headers: {
-              'Content-Type': 'application/json',
-            },
-      );
+            'GET',
+            Uri.parse(url),
+            headers: await CentralizedTokenManager.getAuthHeaders(),
+          );
 
           if (response.statusCode == 200) {
             final Map<String, dynamic> responseData = json.decode(
@@ -2914,8 +2921,8 @@ static Future<Map<String, dynamic>> signupWholesaler(
   static Future<Map<String, dynamic>?> getServiceProviderById(
   String providerId) async {
   try {
-    // Get auth token from secure storage
-    final String? authToken = await _secureStorage.read(key: 'auth_token');
+    // Use centralized token management for consistency
+    final String? authToken = await CentralizedTokenManager.getToken();
     if (authToken == null) {
       debugPrint('No auth token found');
       return null;
@@ -2929,10 +2936,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
     final response = await _makeRequest(
         'GET',
        Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $authToken',
-        'Content-Type': 'application/json',
-      },
+      headers: await CentralizedTokenManager.getAuthHeaders(),
       );
     
     debugPrint('Response status: ${response.statusCode}');
@@ -3081,56 +3085,76 @@ static Future<List<NotificationModel>> fetchNotifications() async {
   static Future<bool> updateServiceProviderDescription(
       String description) async {
     try {
-      // Get the auth token
-      final token = await _secureStorage.read(key: 'auth_token');
+      // Get the auth token using centralized token management
+      final token = await CentralizedTokenManager.getToken();
 
       if (token == null) {
         throw Exception('Not authenticated');
       }
 
-      // First get current provider data to ensure we have all necessary fields
-      final providerData = await getServiceProviderDetails();
+      // Validate description length (matching backend validation)
+      if (description.length > 1000) {
+        throw Exception('Description must be less than 1000 characters');
+      }
 
-      // Prepare request data with current values plus new description
+      // Prepare request data for the new description endpoint
       final Map<String, dynamic> requestData = {
-        'fullName': providerData['fullName'] ?? '',
         'description': description,
       };
 
-
-      // Make API request to update profile
-      final url = '${baseUrl}/api/service-provider/update';
+      // Make API request to the new description endpoint
+      final url = '${baseUrl}/api/service-providers/description';
 
       final response = await _makeRequest(
-          'PUT',
+        'PUT',
         Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        headers: await CentralizedTokenManager.getAuthHeaders(),
         body: json.encode(requestData),
-
-        );
+      );
 
       // Check response status
       if (response.statusCode == 200) {
-        // Update cached data
+        // Update cached data to reflect the new description
         try {
           final cachedData = await _secureStorage.read(key: 'service_provider_data');
           if (cachedData != null) {
             final Map<String, dynamic> data = json.decode(cachedData);
-            data['description'] = description;
+            
+            // Update description in the nested serviceProviderInfo structure
+            if (data['serviceProviderInfo'] != null) {
+              data['serviceProviderInfo']['description'] = description;
+            } else {
+              // If serviceProviderInfo doesn't exist, create it
+              data['serviceProviderInfo'] = {'description': description};
+            }
+            
             await _secureStorage.write(key: 'service_provider_data', value: json.encode(data));
           }
         } catch (e) {
-          // Error updating cached data
+          // Error updating cached data - log but don't fail the operation
+          if (!kReleaseMode) {
+            print('Error updating cached data: $e');
+          }
         }
 
         return true;
       } else {
-        return false;
+        // Handle specific error responses
+        final responseData = json.decode(response.body);
+        final errorMessage = responseData['message'] ?? 'Failed to update description';
+        
+        if (response.statusCode == 404) {
+          throw Exception('Service provider not found');
+        } else if (response.statusCode == 400) {
+          throw Exception(errorMessage);
+        } else {
+          throw Exception('Failed to update description: ${response.statusCode}');
+        }
       }
     } catch (e) {
+      if (!kReleaseMode) {
+        print('Error updating service provider description: $e');
+      }
       return false;
     }
   }

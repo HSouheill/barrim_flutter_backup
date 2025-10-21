@@ -2,6 +2,7 @@ import 'package:barrim/src/features/authentication/screens/settings/personal_inf
 import 'package:barrim/src/features/authentication/screens/settings/profile_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:barrim/src/services/api_service.dart';
+import 'package:barrim/src/services/route_tracking_service.dart';
 import '../user_dashboard/notification.dart' as notification;
 import '../user_dashboard/home.dart';
 import '../category/categories.dart';
@@ -32,6 +33,13 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    
+    // Track this route using the route tracking service
+    RouteTrackingService.trackSettingsRoute(
+      context,
+      pageData: {},
+    );
+    
     _fetchUserData();
   }
 

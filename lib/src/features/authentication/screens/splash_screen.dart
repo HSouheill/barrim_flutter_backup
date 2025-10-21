@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../services/user_provider.dart';
+import '../../../services/extended_session_service.dart';
 import 'user_dashboard/home.dart';
 import 'company_dashboard/company_dashboard.dart';
 import 'serviceProvider_dashboard/serviceProvider_dashboard.dart';
@@ -82,22 +82,66 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
     
     // Check if user is logged in and has a valid saved route
-    if (userProvider.isLoggedIn && 
-        userProvider.isSavedRouteValid() && 
-        userProvider.user != null) {
+    print('Splash screen - checking session status:');
+    print('  isLoggedIn: ${userProvider.isLoggedIn}');
+    print('  user: ${userProvider.user != null ? 'exists' : 'null'}');
+    print('  token: ${userProvider.token != null ? 'exists' : 'null'}');
+    print('  lastVisitedPage: ${userProvider.lastVisitedPage}');
+    print('  isSavedRouteValid: ${userProvider.isSavedRouteValid()}');
+    
+    // Check for extended session first
+    bool hasValidExtendedSession = false;
+    Map<String, dynamic>? extendedRouteInfo;
+    
+    try {
+      final isExtendedValid = await ExtendedSessionService.isSessionValid();
+      final isExtendedRouteValid = await ExtendedSessionService.isSavedRouteValid();
       
+      if (isExtendedValid && isExtendedRouteValid) {
+        extendedRouteInfo = await ExtendedSessionService.getCurrentRouteInfo();
+        hasValidExtendedSession = extendedRouteInfo != null;
+        print('Extended session found and valid: $hasValidExtendedSession');
+      }
+    } catch (e) {
+      print('Error checking extended session: $e');
+    }
+    
+    // Check regular session
+    bool hasValidRegularSession = userProvider.isLoggedIn && 
+        userProvider.isSavedRouteValid() && 
+        userProvider.user != null;
+    
+    if (hasValidExtendedSession && extendedRouteInfo != null) {
+      // Use extended session route
+      final pageName = extendedRouteInfo['pageName'] as String;
+      final pageData = extendedRouteInfo['pageData'] as Map<String, dynamic>? ?? {};
+      final routeArguments = extendedRouteInfo['routeArguments'] as Map<String, dynamic>? ?? {};
+      
+      print('Navigating from splash to extended session last visited page: $pageName');
+      print('  pageData keys: ${pageData.keys.toList()}');
+      
+      // Navigate to the last visited page
+      _navigateToPage(context, pageName, pageData, routeArguments, userProvider);
+      return;
+    } else if (hasValidRegularSession) {
+      // Use regular session route
       final routeInfo = userProvider.getCurrentRouteInfo();
       if (routeInfo != null) {
         final pageName = routeInfo['pageName'] as String;
         final pageData = routeInfo['pageData'] as Map<String, dynamic>? ?? {};
         final routeArguments = routeInfo['routeArguments'] as Map<String, dynamic>? ?? {};
         
-        print('Navigating from splash to last visited page: $pageName');
+        print('Navigating from splash to regular session last visited page: $pageName');
+        print('  pageData keys: ${pageData.keys.toList()}');
         
         // Navigate to the last visited page
         _navigateToPage(context, pageName, pageData, routeArguments, userProvider);
         return;
+      } else {
+        print('No route info found despite valid regular session');
       }
+    } else {
+      print('No valid session found for auto-navigation');
     }
     
     // If no valid route or not logged in, navigate to login

@@ -26,11 +26,15 @@ class _FilterPageState extends State<FilterPage> {
   bool _isLoadingCategories = true;
   String? _categoriesError;
 
-  final List<String> _distanceOptions = ['1 km', '5 km', '10 km', '20 km', 'Custom...'];
+  final List<String> _distanceOptions = [
+    '500 m', '1 km', '2 km', '5 km', '10 km', '20 km', '50 km', '100 km', 'Custom...'
+  ];
   final List<String> _sortByOptions = [
+    'Closest',
     'Most Popular',
     'Most Recent',
-    'Closest'
+    'Highest Rated',
+    'Most Reviews'
   ];
 
   // Flag to track if sidebar is open

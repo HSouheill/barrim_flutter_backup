@@ -64,6 +64,23 @@ class _ReferralsPageState extends State<ReferralsPage> {
         // Construct the referral link using the user's referral code
         final String referralLink = 'https://barrim.com/referral?code=${_userReferralCode ?? ''}';
 
+        final int referralsCount = referralData['referralCount'] ?? 
+                                 referralData['referralsCount'] ?? 
+                                 referralData['totalReferrals'] ?? 
+                                 referralData['count'] ?? 
+                                 responseData['referralCount'] ??
+                                 responseData['referralsCount'] ??
+                                 responseData['totalReferrals'] ??
+                                 responseData['count'] ?? 0;
+        
+        final int totalRewards = referralData['points'] ?? 
+                                referralData['totalPoints'] ?? 
+                                referralData['rewardPoints'] ?? 
+                                referralData['earnedPoints'] ??
+                                responseData['points'] ??
+                                responseData['totalPoints'] ??
+                                responseData['rewardPoints'] ??
+                                responseData['earnedPoints'] ?? 0;
         // Transform the data to match expected format, using userReferralCode as fallback
         final Map<String, dynamic> transformedData = {
           'referralCode': _userReferralCode ?? referralData['referralCode'] ?? '',
@@ -216,8 +233,8 @@ class _ReferralsPageState extends State<ReferralsPage> {
                           value: '${_referralData['referralsCount'] ?? 0}',
                         ),
                         _StatItem(
-                          label: 'USD Awarded',
-                          value: '\$${_referralData['totalRewards'] ?? 0}',
+                          label: 'Points Earned',
+                          value: '${_referralData['totalRewards'] ?? 0}',
                         ),
                       ],
                     ),
@@ -452,7 +469,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
           companyLogo: 'assets/images/default_logo.png',
           companyName: 'Company ID: ${referral.substring(0, min(referral.length, 8))}...',
           referralMethod: 'Referred company',
-          amount: '+\$0', // Cannot determine amount from just ID
+          amount: '+0 pts', // Cannot determine amount from just ID
         );
       }
 
@@ -461,7 +478,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
         companyLogo: referral['logoUrl'] ?? 'assets/images/default_logo.png',
         companyName: referral['companyName'] ?? 'Unknown',
         referralMethod: referral['method'] ?? 'Referred company',
-        amount: '+\$${referral['rewardAmount'] ?? 0}',
+        amount: '+${referral['rewardAmount'] ?? 0} pts',
       );
     }).toList();
   }

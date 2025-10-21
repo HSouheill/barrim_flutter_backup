@@ -52,17 +52,30 @@ class _CategoriesPageState extends State<CategoriesPage> {
   List<CategoryData> _filteredCategories = [];
   List<CategoryData> _featuredCategories = [];
 
+  // Search functionality
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _isSearching = false;
+
   @override
   void initState() {
     super.initState();
     _loadCategories();
     _fetchUserData();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUserData() async {
     try {
       final userData = await ApiService.getUserData();
-      if (userData != null && userData['profilePic'] != null) {
+      if (userData['profilePic'] != null) {
         setState(() {
           _profileImagePath = ApiService.getImageUrl(userData['profilePic']);
           print('Profile Image Path: $_profileImagePath');
@@ -176,6 +189,85 @@ class _CategoriesPageState extends State<CategoriesPage> {
     return 2.0 + (categoryName.length % 8);
   }
 
+  // Search functionality methods
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.toLowerCase().trim();
+      _isSearching = _searchQuery.isNotEmpty;
+    });
+    _applySearchAndFilters();
+  }
+
+  void _applySearchAndFilters() {
+    setState(() {
+      // Check if categories are available
+      if (_allCategories.isEmpty) {
+        _featuredCategories = [];
+        _filteredCategories = [];
+        return;
+      }
+
+      // Start with all categories
+      List<CategoryData> filtered = List.from(_allCategories);
+
+      // Apply search filter if searching
+      if (_isSearching && _searchQuery.isNotEmpty) {
+        filtered = filtered.where((category) =>
+          category.title.toLowerCase().contains(_searchQuery)
+        ).toList();
+      }
+
+      // Apply price range filter
+      filtered = filtered.where((category) =>
+        category.price >= _filterOptions.priceRange.start &&
+        category.price <= _filterOptions.priceRange.end
+      ).toList();
+
+      // Apply "Open Now" filter if enabled
+      if (_filterOptions.openNow) {
+        filtered = filtered.where((category) => category.isOpen).toList();
+      }
+
+      // Apply sorting
+      if (_filterOptions.priceSort == 'highToLow') {
+        filtered.sort((a, b) => b.price.compareTo(a.price));
+      } else if (_filterOptions.priceSort == 'lowToHigh') {
+        filtered.sort((a, b) => a.price.compareTo(b.price));
+      }
+
+      if (_filterOptions.ratingSort == 'highToLow') {
+        filtered.sort((a, b) => b.rating.compareTo(a.rating));
+      } else if (_filterOptions.ratingSort == 'lowToHigh') {
+        filtered.sort((a, b) => a.rating.compareTo(b.rating));
+      }
+
+      // Apply "Closest to" filter if enabled
+      if (_filterOptions.closest) {
+        filtered.sort((a, b) => a.distance.compareTo(b.distance));
+      }
+
+      // When searching, show all results in the grid (no featured categories)
+      if (_isSearching) {
+        _featuredCategories = [];
+        _filteredCategories = filtered;
+      } else {
+        // Separate featured categories (first 3) and regular grid categories
+        _featuredCategories = filtered.take(3).toList();
+        _filteredCategories = filtered.skip(3).toList();
+      }
+    });
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _isSearching = false;
+    });
+    _applySearchAndFilters();
+  }
+
+
   void _toggleSidebar() {
     setState(() {
       _isSidebarOpen = !_isSidebarOpen;
@@ -204,51 +296,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
   void _applyFilters(FilterOptions filters) {
     setState(() {
       _filterOptions = filters;
-
-      // Check if categories are available
-      if (_allCategories.isEmpty) {
-        _featuredCategories = [];
-        _filteredCategories = [];
-        return;
-      }
-
-      // Start with all categories
-      List<CategoryData> filtered = List.from(_allCategories);
-
-      // Apply price range filter
-      filtered = filtered.where((category) =>
-      category.price >= filters.priceRange.start &&
-          category.price <= filters.priceRange.end
-      ).toList();
-
-      // Apply "Open Now" filter if enabled
-      if (filters.openNow) {
-        filtered = filtered.where((category) => category.isOpen).toList();
-      }
-
-      // Apply sorting
-      if (filters.priceSort == 'highToLow') {
-        filtered.sort((a, b) => b.price.compareTo(a.price));
-      } else if (filters.priceSort == 'lowToHigh') {
-        filtered.sort((a, b) => a.price.compareTo(b.price));
-      }
-
-      if (filters.ratingSort == 'highToLow') {
-        filtered.sort((a, b) => b.rating.compareTo(a.rating));
-      } else if (filters.ratingSort == 'lowToHigh') {
-        filtered.sort((a, b) => a.rating.compareTo(b.rating));
-      }
-
-      // Apply "Closest to" filter if enabled
-      if (filters.closest) {
-        filtered.sort((a, b) => a.distance.compareTo(b.distance));
-      }
-
-      // Separate featured categories (first 3) and regular grid categories
-      // Use dynamic featured categories instead of hardcoded ones
-      _featuredCategories = filtered.take(3).toList();
-      _filteredCategories = filtered.skip(3).toList();
     });
+    _applySearchAndFilters();
   }
 
   Widget _buildSidebar() {
@@ -426,10 +475,48 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 filterOptions: _filterOptions,
                 applyFilters: _applyFilters,
                 profileImagePath: _profileImagePath,
+                searchController: _searchController,
+                isSearching: _isSearching,
+                onClearSearch: _clearSearch,
               ),
 
+
+              // Search results indicator
+              if (_isSearching)
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.search, color: Colors.blue, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Search results for "${_searchQuery}" (${_filteredCategories.length} found)',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Spacer(),
+                      GestureDetector(
+                        onTap: _clearSearch,
+                        child: Text(
+                          'Clear',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Space to accommodate overlapping tiles
-              SizedBox(height: 110),
+              SizedBox(height: _isSearching ? 20 : 110),
 
               // Categories grid
               Expanded(
@@ -455,6 +542,49 @@ class _CategoriesPageState extends State<CategoriesPage> {
                                 fontSize: 16,
                                 color: Colors.grey[600],
                               ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Show empty search results
+                    if (_isSearching && _filteredCategories.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No categories found',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Try searching with different keywords',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: 24),
+                            ElevatedButton(
+                              onPressed: _clearSearch,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              ),
+                              child: Text('Clear Search'),
                             ),
                           ],
                         ),
@@ -512,7 +642,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                           crossAxisCount: crossAxisCount,
                           mainAxisSpacing: 16,
                           crossAxisSpacing: 12,
-                          childAspectRatio: 0.85,
+                          childAspectRatio: 0.9, // Increased from 0.85 to 0.9
                         ),
                         padding: const EdgeInsets.all(16),
                         itemCount: _filteredCategories.length,
@@ -536,8 +666,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
             ],
           ),
 
-          // First row of featured categories overlapping the header
-          if (!_isLoadingCategories && _categoriesError == null && _featuredCategories.isNotEmpty)
+          // First row of featured categories overlapping the header (hide when searching)
+          if (!_isLoadingCategories && _categoriesError == null && _featuredCategories.isNotEmpty && !_isSearching)
             Positioned(
               top: 280,
               left: 12,
@@ -601,6 +731,9 @@ class CategoriesHeader extends StatelessWidget {
   final FilterOptions filterOptions;
   final Function(FilterOptions) applyFilters;
   final String? profileImagePath;
+  final TextEditingController? searchController;
+  final bool isSearching;
+  final VoidCallback? onClearSearch;
 
   const CategoriesHeader({
     Key? key,
@@ -610,6 +743,9 @@ class CategoriesHeader extends StatelessWidget {
     required this.filterOptions,  // Add this required parameter
     required this.applyFilters,  // Add this required parameter
     this.profileImagePath,
+    this.searchController,
+    this.isSearching = false,
+    this.onClearSearch,
   }) : super(key: key);
 
   @override
@@ -721,14 +857,24 @@ class CategoriesHeader extends StatelessWidget {
                       SizedBox(width: 20),
                       Expanded(
                         child: TextField(
+                          controller: searchController,
                           decoration: InputDecoration(
                             hintText: 'Search for places, categories...',
                             border: InputBorder.none,
                             hintStyle: TextStyle(fontSize: 16, color: Colors.white),
                             contentPadding: EdgeInsets.symmetric(vertical: 9.5),
                           ),
+                          style: TextStyle(fontSize: 16, color: Colors.white),
                         ),
                       ),
+                      if (isSearching && onClearSearch != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: GestureDetector(
+                            onTap: onClearSearch,
+                            child: Icon(Icons.clear, color: Colors.white, size: 24),
+                          ),
+                        ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Icon(Icons.search, color: Colors.white, size: 30),
@@ -803,19 +949,21 @@ class CategoryItem extends StatelessWidget {
               child: _buildLogoWidget(),
             ),
           ),
-          SizedBox(height: 8),
-          // Category title - increase width and add Container for better control
-          Container(
-            width: width, // Slightly wider than the icon container
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+          SizedBox(height: 6), // Reduced from 8 to 6
+          // Category title - use Flexible to prevent overflow
+          Flexible(
+            child: Container(
+              width: width,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11, // Reduced from 12 to 11
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

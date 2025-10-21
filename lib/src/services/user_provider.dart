@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import '../utils/session_manager.dart';
 import 'notification_provider.dart';
+import 'extended_session_service.dart';
 
 class UserProvider extends ChangeNotifier {
   Map<String, dynamic>? _userData;
@@ -17,6 +18,7 @@ class UserProvider extends ChangeNotifier {
   String? _rememberMeToken; // Add remember me token field
   bool _isInitialized = false;
   DateTime? _lastValidationTime; // Track last validation time
+  DateTime? _lastLoginTime; // Track last login time to prevent aggressive validation
   String? _lastVisitedPage; // Track last visited page
   Map<String, dynamic>? _lastPageData; // Track data for last visited page
   
@@ -54,7 +56,49 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load stored data without server validation to avoid blocking
+      // First try to load from extended session service
+      final extendedToken = await ExtendedSessionService.getToken();
+      final extendedUserData = await ExtendedSessionService.getUserData();
+      
+      if (extendedToken != null && extendedUserData != null) {
+        // Check if extended session is valid
+        final isExtendedValid = await ExtendedSessionService.isSessionValid();
+        
+        if (isExtendedValid) {
+          _token = extendedToken;
+          _user = User.fromJson(json.decode(extendedUserData));
+          _userData = json.decode(extendedUserData);
+          print('Extended session data loaded from storage for user: ${_user?.id}');
+          
+          // Load last visited page from extended session
+          await _loadLastVisitedPageFromExtended();
+          
+          // Validate session in background (non-blocking)
+          _validateExtendedSessionInBackground();
+        } else {
+          print('Extended session expired, falling back to regular session');
+          await _loadRegularSession();
+        }
+      } else {
+        // Fall back to regular session manager
+        await _loadRegularSession();
+      }
+
+      // Load last login time
+      await _loadLastLoginTime();
+    } catch (e) {
+      print('Error initializing session: $e');
+      await _clearStoredData();
+    } finally {
+      _isLoading = false;
+      _isInitialized = true;
+      notifyListeners();
+    }
+  }
+  
+  // Load regular session from SessionManager
+  Future<void> _loadRegularSession() async {
+    try {
       final token = await SessionManager.getToken();
       final userData = await SessionManager.getUserData();
       
@@ -62,7 +106,7 @@ class UserProvider extends ChangeNotifier {
         _token = token;
         _user = User.fromJson(json.decode(userData));
         _userData = json.decode(userData);
-        print('Session data loaded from storage for user: ${_user?.id}');
+        print('Regular session data loaded from storage for user: ${_user?.id}');
         
         // Validate session in background (non-blocking)
         _validateSessionInBackground();
@@ -86,12 +130,36 @@ class UserProvider extends ChangeNotifier {
       // Load last visited page
       await _loadLastVisitedPage();
     } catch (e) {
-      print('Error initializing session: $e');
+      print('Error loading regular session: $e');
       await _clearStoredData();
-    } finally {
-      _isLoading = false;
-      _isInitialized = true;
-      notifyListeners();
+    }
+  }
+  
+  // Load last login time from storage
+  Future<void> _loadLastLoginTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastLoginTimestamp = prefs.getInt('last_login_time');
+      
+      if (lastLoginTimestamp != null) {
+        _lastLoginTime = DateTime.fromMillisecondsSinceEpoch(lastLoginTimestamp);
+        print('Loaded last login time: ${_lastLoginTime}');
+      }
+    } catch (e) {
+      print('Error loading last login time: $e');
+    }
+  }
+  
+  // Save last login time to storage
+  Future<void> _saveLastLoginTime() async {
+    try {
+      if (_lastLoginTime != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('last_login_time', _lastLoginTime!.millisecondsSinceEpoch);
+        print('Saved last login time: ${_lastLoginTime}');
+      }
+    } catch (e) {
+      print('Error saving last login time: $e');
     }
   }
 
@@ -100,6 +168,16 @@ class UserProvider extends ChangeNotifier {
     try {
       // Throttle validation to prevent excessive calls
       final now = DateTime.now();
+      
+      // Skip validation if user just logged in (within last 5 minutes)
+      if (_lastLoginTime != null) {
+        final timeSinceLogin = now.difference(_lastLoginTime!);
+        if (timeSinceLogin.inMinutes < 5) {
+          print('Skipping validation - user just logged in ${timeSinceLogin.inSeconds}s ago');
+          return;
+        }
+      }
+      
       if (_lastValidationTime != null) {
         final timeSinceLastValidation = now.difference(_lastValidationTime!);
         if (timeSinceLastValidation.inMinutes < 2) {
@@ -119,75 +197,32 @@ class UserProvider extends ChangeNotifier {
         return;
       }
       
-      // Try to refresh the session first before validating
-      print('Attempting to refresh session before validation...');
-      final refreshResult = await SessionManager.refreshSession();
-      
-      if (refreshResult.success) {
-        print('Session refreshed successfully');
-        // Update local data with new token
-        if (refreshResult.newToken != null) {
-          _token = refreshResult.newToken;
-          _saveToken(refreshResult.newToken!);
-        }
-        await SessionManager.updateLastActivity();
-        notifyListeners();
-        return;
-      }
-      
-      // If refresh failed, try server validation with more lenient error handling
-      print('Session refresh failed, attempting server validation...');
-      final isValid = await SessionManager.isSessionValid(validateWithServer: true).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          print('Server validation timeout - keeping session for now');
-          return true; // Assume valid to avoid blocking
-        },
-      );
-      
-      if (!isValid) {
-        // Only clear session if we're certain it's invalid
-        // Check if it's a network error vs actual authentication failure
-        print('Server validation failed - checking if it\'s a network issue...');
-        
-        // Try one more quick validation to distinguish network vs auth errors
-        final quickCheck = await SessionManager.isSessionValid(validateWithServer: false);
-        if (quickCheck) {
-          print('Local validation still passes - keeping session despite server validation failure');
-          // Update last activity to keep session alive
-          await SessionManager.updateLastActivity();
-          return;
-        }
-        
-        print('Both local and server validation failed - clearing session');
-        await _clearStoredData();
-        notifyListeners();
-      } else {
-        print('Session validated successfully with server');
-        // Update last activity
-        await SessionManager.updateLastActivity();
-      }
+      // Just update last activity without aggressive validation/refresh
+      // This prevents clearing the session right after login
+      print('Updating last activity for background session monitoring');
+      await SessionManager.updateLastActivity();
+      print('Session background monitoring completed successfully');
     } catch (e) {
-      print('Error validating session in background: $e');
-      // Don't clear session on validation error to avoid false negatives
-      // Only clear if it's a critical error that affects local storage
-      if (e.toString().contains('storage') || e.toString().contains('corrupted')) {
-        print('Critical storage error - clearing session');
-        await _clearStoredData();
-        notifyListeners();
-      }
+      print('Error in background session monitoring: $e');
+      // Don't clear session on monitoring error - just log it
     }
   }
 
   // Clear stored data
   Future<void> _clearStoredData() async {
-    await SessionManager.clearSession();
+    // Clear both regular and extended session data
+    await Future.wait([
+      SessionManager.clearSession(),
+      ExtendedSessionService.clearSession(),
+    ]);
+    
     _token = null;
     _user = null;
     _userData = null;
     _rememberMeToken = null; // Clear remember me token
     _lastVisitedPage = null; // Clear last visited page
     _lastPageData = null; // Clear last page data
+    _lastLoginTime = null; // Clear last login time
     
     // Clear remember me token and last page from storage
     try {
@@ -195,6 +230,7 @@ class UserProvider extends ChangeNotifier {
       await prefs.remove('remember_me_token');
       await prefs.remove('last_visited_page');
       await prefs.remove('last_page_data');
+      await prefs.remove('last_login_time');
     } catch (e) {
       print('Error clearing stored data: $e');
     }
@@ -204,6 +240,11 @@ class UserProvider extends ChangeNotifier {
   void setUser(Map<String, dynamic> userData) {
     _userData = userData;
     _user = User.fromJson(userData);
+    
+    // Record login time to prevent aggressive validation immediately after login
+    _lastLoginTime = DateTime.now();
+    _saveLastLoginTime();
+    
     _saveUserData(userData);
     notifyListeners();
   }
@@ -211,7 +252,65 @@ class UserProvider extends ChangeNotifier {
   // Set token
   void setToken(String token) {
     _token = token;
+    
+    // Record login time to prevent aggressive validation immediately after login
+    _lastLoginTime = DateTime.now();
+    _saveLastLoginTime();
+    
     _saveToken(token);
+    notifyListeners();
+  }
+
+  // Set both user and token together (for Google/Apple sign-in)
+  Future<void> setUserAndTokenTogether(Map<String, dynamic> userData, String token) async {
+    _userData = userData;
+    _user = User.fromJson(userData);
+    _token = token;
+    
+    // Record login time to prevent aggressive validation immediately after login
+    _lastLoginTime = DateTime.now();
+    await _saveLastLoginTime();
+    
+    // Save session with both token and user data
+    await SessionManager.saveSession(
+      token: token,
+      userData: json.encode(userData),
+    );
+    
+    print('User and token saved successfully. Login time recorded.');
+    notifyListeners();
+  }
+  
+  // Set user and token with extended session support
+  Future<void> setUserAndTokenWithExtendedSession(
+    Map<String, dynamic> userData, 
+    String token, {
+    bool rememberMe = false,
+    String? refreshToken,
+  }) async {
+    _userData = userData;
+    _user = User.fromJson(userData);
+    _token = token;
+    
+    // Record login time to prevent aggressive validation immediately after login
+    _lastLoginTime = DateTime.now();
+    await _saveLastLoginTime();
+    
+    // Save to both regular and extended session services
+    await Future.wait([
+      SessionManager.saveSession(
+        token: token,
+        userData: json.encode(userData),
+      ),
+      ExtendedSessionService.saveExtendedSession(
+        token: token,
+        userData: json.encode(userData),
+        refreshToken: refreshToken,
+        rememberMe: rememberMe,
+      ),
+    ]);
+    
+    print('User and token saved with extended session support (Remember Me: $rememberMe)');
     notifyListeners();
   }
 
@@ -236,8 +335,31 @@ class UserProvider extends ChangeNotifier {
       'routeArguments': routeArguments ?? {},
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     };
+    
+    // Save to both regular and extended session storage
     _saveLastPageToStorage();
+    _saveLastPageToExtendedStorage(pageName, pageData, routePath, routeArguments);
+    
     print('Saved last visited page: $pageName (route: ${routePath ?? pageName})');
+  }
+  
+  // Save last page to extended storage
+  Future<void> _saveLastPageToExtendedStorage(
+    String pageName,
+    Map<String, dynamic>? pageData,
+    String? routePath,
+    Map<String, dynamic>? routeArguments,
+  ) async {
+    try {
+      await ExtendedSessionService.saveLastVisitedPage(
+        pageName,
+        pageData: pageData,
+        routePath: routePath,
+        routeArguments: routeArguments,
+      );
+    } catch (e) {
+      print('Error saving last page to extended storage: $e');
+    }
   }
 
   // Clear last visited page
@@ -302,6 +424,66 @@ class UserProvider extends ChangeNotifier {
       print('Error loading last visited page: $e');
     }
   }
+  
+  // Load last visited page from extended session
+  Future<void> _loadLastVisitedPageFromExtended() async {
+    try {
+      final savedPage = await ExtendedSessionService.getLastVisitedPage();
+      final savedPageData = await ExtendedSessionService.getLastPageData();
+      
+      if (savedPage != null) {
+        _lastVisitedPage = savedPage;
+        _lastPageData = savedPageData;
+        print('Loaded last visited page from extended session: $savedPage');
+      }
+    } catch (e) {
+      print('Error loading last visited page from extended session: $e');
+    }
+  }
+  
+  // Validate extended session in background
+  void _validateExtendedSessionInBackground() async {
+    try {
+      // Throttle validation to prevent excessive calls
+      final now = DateTime.now();
+      
+      // Skip validation if user just logged in (within last 5 minutes)
+      if (_lastLoginTime != null) {
+        final timeSinceLogin = now.difference(_lastLoginTime!);
+        if (timeSinceLogin.inMinutes < 5) {
+          print('Skipping extended validation - user just logged in ${timeSinceLogin.inSeconds}s ago');
+          return;
+        }
+      }
+      
+      if (_lastValidationTime != null) {
+        final timeSinceLastValidation = now.difference(_lastValidationTime!);
+        if (timeSinceLastValidation.inMinutes < 10) {
+          print('Skipping extended validation - too soon since last validation (${timeSinceLastValidation.inSeconds}s ago)');
+          return;
+        }
+      }
+      _lastValidationTime = now;
+      
+      // First do local validation (fast)
+      final isLocallyValid = await ExtendedSessionService.isSessionValid(validateWithServer: false);
+      
+      if (!isLocallyValid) {
+        print('Extended session locally invalid - clearing session');
+        await _clearStoredData();
+        notifyListeners();
+        return;
+      }
+      
+      // Just update last activity without aggressive validation/refresh
+      print('Updating last activity for extended session monitoring');
+      await ExtendedSessionService.updateLastActivity();
+      print('Extended session background monitoring completed successfully');
+    } catch (e) {
+      print('Error in extended session background monitoring: $e');
+      // Don't clear session on monitoring error - just log it
+    }
+  }
 
   // Get current route information for restoration
   Map<String, dynamic>? getCurrentRouteInfo() {
@@ -329,6 +511,26 @@ class UserProvider extends ChangeNotifier {
     
     return age <= maxAge;
   }
+  
+  // Check if the saved route is valid with extended timeout (for remember me)
+  Future<bool> isSavedRouteValidExtended({Duration maxAge = const Duration(days: 365)}) async {
+    try {
+      return await ExtendedSessionService.isSavedRouteValid(maxAge: maxAge);
+    } catch (e) {
+      print('Error checking extended route validity: $e');
+      return false;
+    }
+  }
+  
+  // Get current route information from extended session
+  Future<Map<String, dynamic>?> getCurrentRouteInfoFromExtended() async {
+    try {
+      return await ExtendedSessionService.getCurrentRouteInfo();
+    } catch (e) {
+      print('Error getting current route info from extended session: $e');
+      return null;
+    }
+  }
 
   // Save token to storage
   Future<void> _saveToken(String token) async {
@@ -337,6 +539,8 @@ class UserProvider extends ChangeNotifier {
         token: token,
         userData: json.encode(_userData!),
       );
+    } else {
+      print('Warning: Attempting to save token without user data');
     }
   }
 
@@ -357,6 +561,8 @@ class UserProvider extends ChangeNotifier {
         token: _token!,
         userData: json.encode(userData),
       );
+    } else {
+      print('Warning: Attempting to save user data without token');
     }
   }
 
@@ -394,6 +600,12 @@ class UserProvider extends ChangeNotifier {
   void setUserAndToken(User user, String token) {
     _user = user;
     _token = token;
+    _userData = user.toJson();
+    
+    // Record login time to prevent aggressive validation immediately after login
+    _lastLoginTime = DateTime.now();
+    _saveLastLoginTime();
+    
     SessionManager.saveSession(
       token: token,
       userData: json.encode(user.toJson()),
@@ -491,7 +703,14 @@ class UserProvider extends ChangeNotifier {
     if (!isLoggedIn) return false;
     
     try {
-      // Update last activity and check if session is still valid
+      // First try extended session refresh
+      final isExtendedValid = await ExtendedSessionService.isSessionValid();
+      if (isExtendedValid) {
+        await ExtendedSessionService.updateLastActivity();
+        return true;
+      }
+      
+      // Fall back to regular session refresh
       await SessionManager.updateLastActivity();
       final isValid = await SessionManager.isSessionValid();
       

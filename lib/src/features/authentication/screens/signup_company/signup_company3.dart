@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:geolocator/geolocator.dart';
@@ -8,11 +5,9 @@ import 'package:geocoding/geocoding.dart';
 import 'package:country_picker/country_picker.dart';
 import '../custom_header.dart';
 import '../responsive_utils.dart';
-import '../verification_code.dart';
 import '../white_headr.dart';
-import '../welcome_page.dart';
-import '../../../../services/api_service.dart';
 import '../../../../data/global_locations.dart';
+import 'signup_company4.dart';
 
 class SignupCompany3 extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -339,9 +334,6 @@ class _SignupCompany3State extends State<SignupCompany3> {
       await _getCoordinatesFromAddress();
     }
 
-    // Get the logo file if it exists
-    File? logoFile = widget.userData['logo'] is File ? widget.userData['logo'] as File : null;
-
     // Print all user data before proceeding (keeping your debug logs)
     print("========== USER DATA ==========");
     print("Basic Info:");
@@ -357,7 +349,6 @@ class _SignupCompany3State extends State<SignupCompany3> {
     print("Category: ${companyInfo['category']}");
     print("SubCategory: ${companyInfo['subCategory']}");
     print("Referral Code: ${companyInfo['referralCode'] ?? ''}");
-    print("Logo: ${logoFile != null ? logoFile.path : 'Not provided'}");
 
     print("\nLocation Info:");
     print("Country: ${_countryController.text}");
@@ -368,80 +359,24 @@ class _SignupCompany3State extends State<SignupCompany3> {
     print("Longitude: $_longitude");
     print("==============================");
 
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
+    // Navigate directly to map page for location selection
+    // No API call here - only in SignupCompany4
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SignupCompany4(
+          userData: {
+            ...widget.userData,
+            'address': {
+              'country': _countryController.text,
+              'governorate': _governorateController.text,
+              'district': _districtController.text,
+              'city': _cityController.text,
+            }
+          },
+        ),
+      ),
     );
-
-    final phone = widget.userData['fullPhone'] ?? widget.userData['phone'] ?? '';
-    try {
-      // Location data is now included directly in updatedUserData below
-
-      // Create the complete user data object - ensuring all companyInfo keys are consistent
-      final updatedUserData = {
-        ...widget.userData,
-        "country": _countryController.text,
-        "governorate": _governorateController.text,
-        "district": _districtController.text,
-        "city": _cityController.text,
-        "lat": _latitude ?? 0.0,
-        "lng": _longitude ?? 0.0,
-        "userType": "company",
-      };
-
-      final response = await ApiService.signupBusiness(updatedUserData, logoFile);
-      print("API Response: $response"); // Debug the API response
-
-      // Close loading dialog
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-
-      // Check if OTP was sent successfully
-      if (response['success'] == true ||
-          (response['message']?.toString().contains('OTP sent successfully') == true)) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpVerificationScreen(
-              phoneNumber: phone,
-              onVerificationSuccess: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const WelcomePage()),
-                      (route) => false,
-                );
-              },
-            ),
-          ),
-        );
-      } else {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text(response['message'] ?? 'Signup Failed'),
-        //     backgroundColor: Colors.red,
-        //     duration: const Duration(seconds: 5),
-        //   ),
-        // );
-      }
-    } catch (e) {
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text("Error during signup: ${e.toString()}"),
-      //     backgroundColor: Colors.red,
-      //     duration: const Duration(seconds: 5),
-      //   ),
-      // );
-    }
   }
 
   Future<void> _getCoordinatesFromAddress() async {

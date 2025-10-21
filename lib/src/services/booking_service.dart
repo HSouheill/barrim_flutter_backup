@@ -4,12 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
 import '../models/booking.dart';
-import '../utils/token_manager.dart';
+import '../utils/centralized_token_manager.dart';
 
 class BookingService {
   final String baseUrl = ApiService.baseUrl;
   final String token;
-  final TokenManager tokenManager = TokenManager();
 
   // Define valid status constants to ensure consistency
   static const String STATUS_PENDING = 'pending';
@@ -142,6 +141,11 @@ class BookingService {
         requestBody['mediaType'] = mediaType ?? 'image'; // Use provided mediaType or default to image
       }
 
+      print('=== BOOKING SERVICE REQUEST ===');
+      print('URL: $baseUrl/api/bookings');
+      print('Request Body: ${json.encode(requestBody)}');
+      print('===============================');
+
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/bookings'),
@@ -153,11 +157,15 @@ class BookingService {
         body: json.encode(requestBody),
       );
 
+      print('=== BOOKING SERVICE RESPONSE ===');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      print('================================');
+
       if (response.statusCode == 201) {
+        print('Booking created successfully');
         return true;
       } else {
-        print('Response status: ${response.statusCode}');
-        print('Response body: ${response.body}');
         final errorData = json.decode(response.body);
         if (kDebugMode) {
           throw Exception(errorData['message'] ?? 'Failed to create booking. Status: ${response.statusCode}');
@@ -283,7 +291,7 @@ class BookingService {
   // Get all bookings for the logged-in service provider
   Future<List<Booking>> getProviderBookings() async {
     try {
-      final token = await tokenManager.getToken();
+      final token = await CentralizedTokenManager.getToken();
       // Token logging removed for security
 
       final response = await _makeRequest(

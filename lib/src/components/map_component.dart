@@ -42,6 +42,33 @@ class _MapComponentState extends State<MapComponent> {
     _ensureMapReady();
   }
 
+  @override
+  void didUpdateWidget(MapComponent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Check if route coordinates have changed
+    bool routesChanged = oldWidget.primaryRouteCoordinates.length != widget.primaryRouteCoordinates.length ||
+                        oldWidget.alternativeRouteCoordinates.length != widget.alternativeRouteCoordinates.length ||
+                        oldWidget.destinationLocation != widget.destinationLocation ||
+                        oldWidget.usingPrimaryRoute != widget.usingPrimaryRoute;
+    
+    if (routesChanged && _googleMapController != null) {
+      print('MapComponent: Route data changed, updating map...');
+      _updateMapPolylines();
+    }
+  }
+
+  void _updateMapPolylines() {
+    if (_googleMapController == null) return;
+    
+    print('MapComponent: Updating polylines on map...');
+    
+    // Force a rebuild of the widget to show new polylines
+    setState(() {
+      // This will trigger a rebuild with the new polylines
+    });
+  }
+
   Future<void> _ensureMapReady() async {
     try {
       // Wait for Google Maps services to be ready
@@ -73,6 +100,8 @@ class _MapComponentState extends State<MapComponent> {
       
       // Apply custom map style to hide all places
       _applyCustomMapStyle(controller);
+      
+      print('MapComponent: Map created successfully');
       
       // Move to current location if available
       if (widget.currentLocation != null) {
@@ -184,8 +213,15 @@ class _MapComponentState extends State<MapComponent> {
   Set<google_maps.Polyline> _buildGooglePolylines() {
     final Set<google_maps.Polyline> polylines = {};
 
-    // Primary route
+    print('MapComponent: Building polylines...');
+    print('MapComponent: Primary route coordinates: ${widget.primaryRouteCoordinates.length}');
+    print('MapComponent: Alternative route coordinates: ${widget.alternativeRouteCoordinates.length}');
+    print('MapComponent: Using primary route: ${widget.usingPrimaryRoute}');
+    print('MapComponent: Destination location: ${widget.destinationLocation}');
+
+    // Primary route - always show in blue when it exists
     if (widget.primaryRouteCoordinates.isNotEmpty) {
+      print('MapComponent: Creating primary route polyline with ${widget.primaryRouteCoordinates.length} points');
       final googleCoordinates = widget.primaryRouteCoordinates.map((coord) {
         return google_maps.LatLng(coord.latitude, coord.longitude);
       }).toList();
@@ -194,14 +230,22 @@ class _MapComponentState extends State<MapComponent> {
         google_maps.Polyline(
           polylineId: const google_maps.PolylineId('primary_route'),
           points: googleCoordinates,
-          color: widget.usingPrimaryRoute ? Colors.blue : Colors.grey,
-          width: 5,
+          color: Colors.blue, // Always blue for primary route
+          width: 6,
+          geodesic: true, // Makes the line follow the Earth's curvature
+          startCap: google_maps.Cap.roundCap,
+          endCap: google_maps.Cap.roundCap,
+          jointType: google_maps.JointType.round,
         ),
       );
+      print('MapComponent: Primary route polyline added in blue');
+    } else {
+      print('MapComponent: No primary route coordinates available');
     }
 
-    // Alternative route
+    // Alternative route - show in grey/purple if it exists
     if (widget.alternativeRouteCoordinates.isNotEmpty) {
+      print('MapComponent: Creating alternative route polyline with ${widget.alternativeRouteCoordinates.length} points');
       final googleCoordinates = widget.alternativeRouteCoordinates.map((coord) {
         return google_maps.LatLng(coord.latitude, coord.longitude);
       }).toList();
@@ -210,17 +254,31 @@ class _MapComponentState extends State<MapComponent> {
         google_maps.Polyline(
           polylineId: const google_maps.PolylineId('alternative_route'),
           points: googleCoordinates,
-          color: widget.usingPrimaryRoute ? Colors.grey : Colors.purple,
+          color: Colors.grey.withOpacity(0.7), // Grey for alternative route
           width: 5,
+          geodesic: true,
+          startCap: google_maps.Cap.roundCap,
+          endCap: google_maps.Cap.roundCap,
+          jointType: google_maps.JointType.round,
         ),
       );
+      print('MapComponent: Alternative route polyline added in grey');
+    } else {
+      print('MapComponent: No alternative route coordinates available');
     }
 
+    print('MapComponent: Total polylines created: ${polylines.length}');
     return polylines;
   }
 
   @override
   Widget build(BuildContext context) {
+    print('MapComponent: Building with key: ${widget.key}');
+    print('MapComponent: Primary route coordinates: ${widget.primaryRouteCoordinates.length}');
+    print('MapComponent: Alternative route coordinates: ${widget.alternativeRouteCoordinates.length}');
+    print('MapComponent: Destination: ${widget.destinationLocation}');
+    print('MapComponent: Using primary route: ${widget.usingPrimaryRoute}');
+    
     // Show loading indicator while checking map readiness
     if (_isLoading) {
       return Container(

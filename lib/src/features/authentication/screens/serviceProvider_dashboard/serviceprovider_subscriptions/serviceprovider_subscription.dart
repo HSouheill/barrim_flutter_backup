@@ -1409,8 +1409,8 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
            
             child: Column(
               children: [
-                // Check if we have sponsorship subscription data
-                if (_remainingTimeData?.hasActiveSubscription == true)
+                // Check if service provider has sponsorship enabled
+                if (_serviceProvider?.sponsorship == true)
                   _buildActiveSponsorshipStatus()
               
               ],
@@ -2361,29 +2361,123 @@ class _ServiceproviderSubscriptionState extends State<ServiceproviderSubscriptio
         // Show success dialog
         _showSuccessDialog();
       } else {
-        // Show error message
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text(
-        //         response.message ?? 'Failed to create subscription request'),
-        //     backgroundColor: Colors.red,
-        //     duration: const Duration(seconds: 3),
-        //   ),
-        // );
+        // Check if it's a duplicate subscription error
+        final errorMessage = response.message?.toLowerCase() ?? '';
+        if (errorMessage.contains('already have') || 
+            errorMessage.contains('pending subscription') ||
+            errorMessage.contains('active subscription') ||
+            errorMessage.contains('conflict') ||
+            errorMessage.contains('duplicate')) {
+          _showExistingSubscriptionDialog();
+        } else {
+          // Show error message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message ?? 'Failed to create subscription request'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       // Close loading dialog
       Navigator.of(context).pop();
 
-      // Show error message
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('Failed to send subscription request: \\${e.toString()}'),
-      //     backgroundColor: Colors.red,
-      //     duration: const Duration(seconds: 3),
-      //   ),
-      // );
+      // Check if it's a duplicate subscription error
+      final errorString = e.toString().toLowerCase();
+      if (errorString.contains('already have') || 
+          errorString.contains('pending subscription') ||
+          errorString.contains('active subscription') ||
+          errorString.contains('conflict') ||
+          errorString.contains('duplicate')) {
+        _showExistingSubscriptionDialog();
+      } else {
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send subscription request: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
+  }
+
+  void _showExistingSubscriptionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Colors.orange,
+                size: 28,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Subscription Request Already Sent',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You have already sent a subscription request. Please wait for the approval or check your current subscription status.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'What you can do:',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '• Check your subscription status\n• Wait for approval\n• Contact support if needed',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showSuccessDialog() {

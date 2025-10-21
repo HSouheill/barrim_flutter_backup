@@ -110,6 +110,13 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
   // Add a variable to track marker size based on zoom
   double _companyMarkerSize = 40;
+  
+  // Add variables to store active branches for CollapsedSheet
+  List<Map<String, dynamic>> _activeCompanyBranches = [];
+  List<Map<String, dynamic>> _activeWholesalerBranches = [];
+  
+  // Add variable to force map updates
+  int _mapUpdateCounter = 0;
 
 
 
@@ -255,6 +262,9 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
         print('Category data keys: ${_categoryData.keys.toList()}');
         print('===========================================\n');
       });
+
+      // Update active branches data
+      _updateActiveBranches();
 
       // Create markers for filtered branches
       final branchMarkers = await Future.wait(filteredBranches.map((branch) async {
@@ -1056,51 +1066,111 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       return;
     }
 
-    // Otherwise, filter branches - filter existing markers instead of recreating them
-            setState(() {
-      _wayPointMarkers = _wayPointMarkers.where((marker) {
-        if (marker is google_maps.Marker) {
-          final markerId = marker.markerId.value;
-          
-          // Keep company and wholesaler markers always visible
-          if (markerId.startsWith('company_') || markerId.startsWith('wholesaler_') || markerId.startsWith('wholesaler_branch_')) {
-            return true;
-          }
-          
-          // For branch markers, apply filters
-          if (markerId.startsWith('branch_')) {
-            // Apply category filter if specified
-      if (filters['category'] != null && filters['category'] != 'All' && filters['category'] != '') {
-              // This is a simplified filter - in a real implementation, you'd need to store
-              // category information with the marker or look it up from the original data
-              return true; // For now, keep all branch markers
-            }
-            
-            // Apply distance filter if specified
-      if (filters['distance'] != null && filters['distance'] != '') {
-        try {
-          double maxDistance = double.parse(filters['distance'].toString().replaceAll(' km', ''));
-          double distance = _calculateDistance(
-            _userLocation.latitude,
-            _userLocation.longitude,
-                  marker.position.latitude,
-                  marker.position.longitude,
-          );
-                return distance <= maxDistance;
-        } catch (e) {
-          print('Error parsing distance filter: $e');
-                return true;
-        }
-      }
-      
-      return true;
-          }
-          
+    // Filter branches based on category and subcategory
+    String? selectedCategory = filters['category'];
+    String? selectedSubCategory = filters['subcategory'];
+    
+    if (selectedCategory != null && selectedCategory != 'All' && selectedCategory != '') {
+      // Filter branches by category
+      final filteredBranches = _allBranches.where((branch) {
+        // First check if the branch is active
+        final branchStatus = branch['status'];
+        if (branchStatus != 'active') {
           return false;
         }
-        return false;
+        
+        final branchCategory = branch['category']?.toString().toLowerCase() ?? '';
+        final companyCategory = branch['company']?['category']?.toString().toLowerCase() ?? '';
+        final companyIndustryType = branch['company']?['industryType']?.toString().toLowerCase() ?? '';
+        
+        // Check if branch or company category matches the selected category
+        final branchCategoryMatch = branchCategory.contains(selectedCategory.toLowerCase());
+        final companyCategoryMatch = companyCategory.contains(selectedCategory.toLowerCase()) ||
+                                    companyIndustryType.contains(selectedCategory.toLowerCase());
+        
+        // Check subcategory if specified
+        bool subcategoryMatch = true;
+        if (selectedSubCategory != null && selectedSubCategory != 'All' && selectedSubCategory != '') {
+          subcategoryMatch = branchCategory.contains(selectedSubCategory.toLowerCase()) ||
+                            companyCategory.contains(selectedSubCategory.toLowerCase()) ||
+                            companyIndustryType.contains(selectedSubCategory.toLowerCase());
+        }
+        
+        return (branchCategoryMatch || companyCategoryMatch) && subcategoryMatch;
       }).toList();
-    });
+      
+      print('Found ${filteredBranches.length} branches matching category: $selectedCategory');
+      
+      // Filter markers to show only matching branches
+      setState(() {
+        _wayPointMarkers = _wayPointMarkers.where((marker) {
+          if (marker is google_maps.Marker) {
+            final markerId = marker.markerId.value;
+            
+            // Keep branch markers that match the category
+            if (markerId.startsWith('branch_')) {
+              // Extract branch ID from marker ID
+              final branchId = markerId.replaceFirst('branch_', '');
+              
+              // Check if this branch is in the filtered list
+              return filteredBranches.any((branch) => branch['id'] == branchId);
+            }
+            
+            // Keep company markers (show company headquarters too)
+            if (markerId.startsWith('company_')) {
+              return true;
+            }
+            
+            // Keep wholesaler markers
+            if (markerId.startsWith('wholesaler_') || markerId.startsWith('wholesaler_branch_')) {
+              return true;
+            }
+            
+            // Hide other markers
+            return false;
+          }
+          return false;
+        }).toList();
+      });
+    } else {
+      // No category filter - show all markers but apply distance filter
+      setState(() {
+        _wayPointMarkers = _wayPointMarkers.where((marker) {
+          if (marker is google_maps.Marker) {
+            final markerId = marker.markerId.value;
+            
+            // Keep all branch, company, and wholesaler markers
+            if (markerId.startsWith('branch_') || 
+                markerId.startsWith('company_') || 
+                markerId.startsWith('wholesaler_') || 
+                markerId.startsWith('wholesaler_branch_')) {
+              
+              // Apply distance filter if specified
+              if (filters['distance'] != null && filters['distance'] != '') {
+                try {
+                  double maxDistance = double.parse(filters['distance'].toString().replaceAll(' km', ''));
+                  double distance = _calculateDistance(
+                    _userLocation.latitude,
+                    _userLocation.longitude,
+                    marker.position.latitude,
+                    marker.position.longitude,
+                  );
+                  return distance <= maxDistance;
+                } catch (e) {
+                  print('Error parsing distance filter: $e');
+                  return true;
+                }
+              }
+              
+              return true;
+            }
+            
+            return false;
+          }
+          return false;
+        }).toList();
+      });
+    }
 
     print('Final filtered markers: ${_wayPointMarkers.length}');
   }
@@ -1194,12 +1264,15 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     
     _fetchUserData(); // Add this line to fetch user data
     
-    // Fetch category data first, then fetch branches and companies
-    _fetchCategoryData().then((_) {
-      print('Category data loaded, now fetching branches and companies');
-      
-      // Test color conversion
-      _testColorConversion();
+      // Fetch category data first, then fetch branches and companies
+      _fetchCategoryData().then((_) {
+        print('Category data loaded, now fetching branches and companies');
+        
+        // Test color conversion
+        _testColorConversion();
+        
+        // Test wholesaler icon loading
+        _testWholesalerIcon();
       
       // Fetch categories from API
       _fetchCategories().then((_) {
@@ -2017,35 +2090,76 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   }
 
   Future<void> _getRouteDirections() async {
-    if (_currentLocation == null || _destinationLocation == null) return;
+    print('=== GETTING ROUTE DIRECTIONS ===');
+    print('Current location: $_currentLocation');
+    print('Destination location: $_destinationLocation');
+    
+    if (_destinationLocation == null) {
+      print('ERROR: Missing destination location');
+      return;
+    }
+    
+    // Use current location or default to Beirut if not available
+    final currentLoc = _currentLocation ?? _defaultLocation;
+    print('Current location status:');
+    print('- _currentLocation: $_currentLocation');
+    print('- _defaultLocation: $_defaultLocation');
+    print('- Using location: ${currentLoc.latitude}, ${currentLoc.longitude}');
+    print('- Is using default location: ${_currentLocation == null}');
 
     try {
-      final response = await http.get(Uri.parse(
-          'https://router.project-osrm.org/route/v1/driving/'
-              '${_currentLocation!.longitude},${_currentLocation!.latitude};'
-              '${_destinationLocation!.longitude},${_destinationLocation!.latitude}'
-              '?overview=full&geometries=polyline&steps=true&alternatives=true'
-      ));
+      final url = 'https://router.project-osrm.org/route/v1/driving/'
+          '${currentLoc.longitude},${currentLoc.latitude};'
+          '${_destinationLocation!.longitude},${_destinationLocation!.latitude}'
+          '?overview=full&geometries=polyline&steps=true&alternatives=true';
+      
+      print('Making request to: $url');
+      
+      final response = await http.get(Uri.parse(url));
 
+      print('Response status code: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        print('Response data keys: ${data.keys.toList()}');
+        print('Routes in response: ${data['routes']?.length ?? 'null'}');
+        
         if (data['routes'] == null || data['routes'].isEmpty) {
+          print('ERROR: No routes found in response');
           throw Exception('No route found');
         }
 
         final List<dynamic> routes = data['routes'];
+        print('Number of routes received: ${routes.length}');
 
         if (routes.isNotEmpty) {
           final primaryRoute = routes[0];
           final String polyline = primaryRoute['geometry'];
 
+          print('=== ROUTE CALCULATION DEBUG ===');
+          print('Primary route distance: ${primaryRoute['distance']} meters');
+          print('Primary route duration: ${primaryRoute['duration']} seconds');
+          print('Polyline string length: ${polyline.length}');
+
           final primaryPoints = _polylinePoints.decodePolyline(polyline);
+          print('Decoded polyline points: ${primaryPoints.length}');
+          
           _primaryRouteCoordinates = primaryPoints
               .map((point) => latlong.LatLng(point.latitude, point.longitude))
               .toList();
 
+          print('Primary route coordinates set: ${_primaryRouteCoordinates.length}');
+          if (_primaryRouteCoordinates.isNotEmpty) {
+            print('First coordinate: ${_primaryRouteCoordinates.first}');
+            print('Last coordinate: ${_primaryRouteCoordinates.last}');
+          }
+
           _primaryDistance = primaryRoute['distance'] / 1000;
           _primaryDuration = primaryRoute['duration'] / 60;
+
+          print('Primary distance: ${_primaryDistance} km');
+          print('Primary duration: ${_primaryDuration} minutes');
+          print('===============================');
 
           _steps = [];
           if (primaryRoute['legs'] != null && primaryRoute['legs'].isNotEmpty &&
@@ -2072,13 +2186,55 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         }
 
         _usingPrimaryRoute = true;
-        _fitBounds();
+        
+        // Force map to update with new route
+        print('Forcing map update with new route data...');
+        print('Route data summary:');
+        print('- Primary route: ${_primaryRouteCoordinates.length} coordinates');
+        print('- Alternative route: ${_alternativeRouteCoordinates.length} coordinates');
+        print('- Destination: $_destinationLocation');
+        print('- Is navigating: $_isNavigating');
+        
+        // Try to fit bounds to the route, but if no route coordinates, move to destination
+        if (_primaryRouteCoordinates.isNotEmpty || _alternativeRouteCoordinates.isNotEmpty) {
+          _fitBounds();
+        } else {
+          // No route coordinates available, just move to destination
+          print('No route coordinates available, moving map to destination');
+          if (_destinationLocation != null) {
+            _mapController.move(_destinationLocation!, 15.0);
+          }
+        }
+        
+        setState(() {
+          _mapUpdateCounter++;
+          // This will trigger a rebuild of the MapComponent
+        });
+        
+        // Add a small delay to ensure the route data is processed
+        await Future.delayed(Duration(milliseconds: 100));
+        setState(() {
+          _mapUpdateCounter++;
+          // Trigger another rebuild to ensure polylines are updated
+        });
+        
+        print('Map update counter incremented to: $_mapUpdateCounter');
 
       } else {
+        print('ERROR: Failed to load route. Status code: ${response.statusCode}');
+        print('Response body: ${response.body}');
         throw Exception('Failed to load route: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error getting route: $e');
+      print('ERROR getting route: $e');
+      print('Error type: ${e.runtimeType}');
+      
+      // Even if route calculation fails, move map to destination
+      if (_destinationLocation != null) {
+        print('Route calculation failed, but moving map to destination: $_destinationLocation');
+        _mapController.move(_destinationLocation!, 15.0);
+      }
+      
       // ScaffoldMessenger.of(context).showSnackBar(
       //   SnackBar(content: Text('Could not calculate route: $e')),
       // );
@@ -2086,11 +2242,16 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         _isNavigating = false;
       });
     }
+    
+    print('=== END GETTING ROUTE DIRECTIONS ===');
   }
 
   void _processRouteSteps(List<dynamic> steps) {
     _steps = [];
-    _wayPointMarkers = [];
+    // Only clear waypoint markers, preserve business/wholesaler markers
+    _wayPointMarkers.removeWhere((marker) => 
+      marker is google_maps.Marker && 
+      marker.markerId.value.startsWith('waypoint_'));
 
     for (var step in steps) {
       _steps.add({
@@ -2099,19 +2260,22 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         'duration': step['duration'],
       });
 
-      if (step['distance'] > 100) {
-        final location = step['maneuver']['location'];
-        if (location != null && location.length >= 2) {
-          _wayPointMarkers.add(
-            google_maps.Marker(
-              markerId: google_maps.MarkerId('waypoint_${_wayPointMarkers.length}'),
-              position: google_maps.LatLng(location[1], location[0]),
-              icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
-            ),
-          );
-        }
-      }
+      // Remove the waypoint marker creation - we don't want green markers at every turn
+      // if (step['distance'] > 100) {
+      //   final location = step['maneuver']['location'];
+      //   if (location != null && location.length >= 2) {
+      //     _wayPointMarkers.add(
+      //       google_maps.Marker(
+      //         markerId: google_maps.MarkerId('waypoint_${_wayPointMarkers.length}'),
+      //         position: google_maps.LatLng(location[1], location[0]),
+      //         icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
+      //       ),
+      //     );
+      //   }
+      // }
     }
+    
+    print('Route steps processed: ${_steps.length} steps, no waypoint markers created');
   }
 
   void _fitBounds() {
@@ -2156,12 +2320,20 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   void _clearRoute() {
     setState(() {
       _destinationLocation = null;
-      _primaryRouteCoordinates = [];
-      _alternativeRouteCoordinates = [];
+      _primaryRouteCoordinates.clear();
+      _alternativeRouteCoordinates.clear();
       _routeInstructions = '';
       _isNavigating = false;
-      _wayPointMarkers = [];
-      _steps = [];
+      _primaryDistance = 0;
+      _primaryDuration = 0;
+      _alternativeDistance = 0;
+      _alternativeDuration = 0;
+      _steps.clear();
+      _usingPrimaryRoute = true;
+      // Only remove waypoint markers, preserve business/wholesaler markers
+      _wayPointMarkers.removeWhere((marker) => 
+        marker is google_maps.Marker && 
+        marker.markerId.value.startsWith('waypoint_'));
     });
   }
 
@@ -2171,8 +2343,172 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     });
   }
 
+  // Helper method to get active company branches
+  List<Map<String, dynamic>> _getActiveCompanyBranches() {
+    return _activeCompanyBranches;
+  }
 
+  // Helper method to get active wholesaler branches
+  List<Map<String, dynamic>> _getActiveWholesalerBranches() {
+    print('Home - _getActiveWholesalerBranches called, returning ${_activeWholesalerBranches.length} branches');
+    return _activeWholesalerBranches;
+  }
 
+  // Method to update active branches data
+  void _updateActiveBranches() {
+    List<Map<String, dynamic>> activeBranches = [];
+    
+    // Extract active branches from _allBranches
+    for (var branch in _allBranches) {
+      if (branch['status'] == 'active') {
+        final location = branch['location'];
+        final company = branch['company'];
+        
+        // Only include branches with valid coordinates
+        if (location != null && 
+            location['lat'] != null && 
+            location['lng'] != null &&
+            location['lat'] != 0.0 && 
+            location['lng'] != 0.0) {
+          
+          activeBranches.add({
+            'id': branch['id'],
+            '_id': branch['id'],
+            'name': branch['name'] ?? 'Unnamed Branch',
+            'description': branch['description'] ?? '',
+            'phone': branch['phone'] ?? '',
+            'category': branch['category'] ?? company?['category'] ?? 'Unknown Category',
+            'latitude': location['lat'].toDouble(),
+            'longitude': location['lng'].toDouble(),
+            'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+            'images': branch['images'] ?? [],
+            'logoUrl': company?['logoUrl'],
+            'companyName': company?['businessName'] ?? 'Unknown Company',
+            'companyId': company?['id'],
+            'company': company,
+            'status': 'active',
+            'socialMedia': _getValidSocialMedia(branch['socialMedia'], company?['socialMedia']),
+            'type': 'Branch',
+          });
+        }
+      }
+    }
+    
+    // Also extract branches from _allCompanies
+    for (var company in _allCompanies) {
+      if (company['branches'] != null && company['branches'] is List) {
+        for (var branch in company['branches']) {
+          if (branch['status'] == 'active') {
+            final branchLocation = branch['location'];
+            final companyInfo = company['companyInfo'];
+            
+            // Only include branches with valid coordinates
+            if (branchLocation != null && 
+                branchLocation['lat'] != null && 
+                branchLocation['lng'] != null &&
+                branchLocation['lat'] != 0.0 && 
+                branchLocation['lng'] != 0.0) {
+              
+              activeBranches.add({
+                'id': branch['id'] ?? branch['_id'],
+                '_id': branch['id'] ?? branch['_id'],
+                'name': branch['name'] ?? 'Unnamed Branch',
+                'description': branch['description'] ?? '',
+                'phone': branch['phone'] ?? '',
+                'category': branch['category'] ?? companyInfo?['category'] ?? 'Unknown Category',
+                'latitude': branchLocation['lat'].toDouble(),
+                'longitude': branchLocation['lng'].toDouble(),
+                'address': '${branchLocation['street'] ?? ''}, ${branchLocation['city'] ?? ''}',
+                'images': branch['images'] ?? [],
+                'logoUrl': companyInfo?['logo'],
+                'companyName': companyInfo?['name'] ?? 'Unknown Company',
+                'companyId': company['_id'],
+                'company': companyInfo,
+                'status': 'active',
+                'socialMedia': _getValidSocialMedia(branch['socialMedia'], companyInfo?['socialMedia']),
+                'type': 'Branch',
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    setState(() {
+      _activeCompanyBranches = activeBranches;
+    });
+  }
+
+  // Method to update active wholesaler branches data
+  Future<void> _updateActiveWholesalerBranches() async {
+    print('Home - _updateActiveWholesalerBranches called');
+    List<Map<String, dynamic>> activeWholesalerBranches = [];
+    
+    try {
+      // Get actual wholesaler data from the service
+      final wholesalers = await _wholesalerService.getAllWholesalers();
+      print('Home - Retrieved ${wholesalers.length} wholesalers for active branches update');
+      
+      for (var wholesaler in wholesalers) {
+        // Get only active branches
+        final activeBranches = wholesaler.branches.where((b) => b.status == 'active');
+        print('Home - Processing wholesaler ${wholesaler.businessName} with ${activeBranches.length} active branches');
+        
+        for (var branch in activeBranches) {
+          print('Home - Processing branch: ${branch.name}, coordinates: ${branch.location.lat}, ${branch.location.lng}');
+          // Only include branches with valid coordinates
+          if (branch.location.lat != 0.0 && branch.location.lng != 0.0) {
+            print('Home - Adding branch ${branch.name} to active wholesaler branches');
+            activeWholesalerBranches.add({
+              'id': branch.id,
+              '_id': branch.id,
+              'name': branch.name,
+              'description': branch.description,
+              'phone': branch.phone,
+              'category': branch.category,
+              'latitude': branch.location.lat,
+              'longitude': branch.location.lng,
+              'address': '${branch.location.street}, ${branch.location.city}',
+              'images': branch.images,
+              'logoUrl': wholesaler.logoUrl,
+              'companyName': wholesaler.businessName,
+              'companyId': wholesaler.id,
+              'company': {
+                'businessName': wholesaler.businessName,
+                'logoUrl': wholesaler.logoUrl,
+                'id': wholesaler.id,
+              },
+              'status': 'active',
+              'socialMedia': {
+                'instagram': branch.socialMedia.instagram,
+                'facebook': branch.socialMedia.facebook,
+              },
+              'type': 'Wholesaler Branch',
+            });
+          } else {
+            print('Home - Skipping branch ${branch.name} due to invalid coordinates (${branch.location.lat}, ${branch.location.lng})');
+          }
+        }
+      }
+      
+      print('Updated active wholesaler branches: ${activeWholesalerBranches.length}');
+      if (activeWholesalerBranches.isNotEmpty) {
+        print('First wholesaler branch: ${activeWholesalerBranches.first}');
+      }
+    } catch (e) {
+      print('Error updating active wholesaler branches: $e');
+    }
+    
+    if (mounted) {
+      print('Home - Calling setState to update _activeWholesalerBranches with ${activeWholesalerBranches.length} branches');
+      setState(() {
+        _activeWholesalerBranches = activeWholesalerBranches;
+      });
+      print('Home - setState completed, _activeWholesalerBranches now has ${_activeWholesalerBranches.length} branches');
+    } else {
+      print('Home - Widget not mounted, skipping setState');
+    }
+  }
 
   void _searchPlace(String query) {
     if (query.isEmpty) return;
@@ -2475,6 +2811,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                   child: Stack(
                     children: [
                       MapComponent(
+                        key: ValueKey('map_${_primaryRouteCoordinates.length}_${_alternativeRouteCoordinates.length}_${_destinationLocation?.hashCode ?? 0}_${_isNavigating ? 'nav' : 'no_nav'}_$_mapUpdateCounter'),
                         mapController: _mapController,
                         currentLocation: _currentLocation,
                         destinationLocation: _destinationLocation,
@@ -2604,7 +2941,8 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                     });
                   },
                   onNavigate: (latlong.LatLng destination) {
-                    _setDestination(destination);
+                    print('Home: onNavigate called with destination: ${destination.latitude}, ${destination.longitude}');
+                    _startNavigation(destination);
                     if (!_isTracking) {
                       _startLocationTracking();
                     }
@@ -2650,6 +2988,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
               ),
             if (!_isMapExpanded)
               CollapsedSheet(
+                key: ValueKey('collapsed_sheet_${_activeCompanyBranches.length}_${_activeWholesalerBranches.length}'),
                 controller: null,
                 onLocationCardTap: () {
                   // Handle location card tap
@@ -2666,6 +3005,8 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                     _isMapExpanded = true;
                   });
                 },
+                activeBranches: _getActiveCompanyBranches(),
+                activeWholesalerBranches: _getActiveWholesalerBranches(),
               ),
             // Semi-transparent overlay when sidebar is open
             if (_isSidebarOpen)
@@ -2698,13 +3039,19 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
 
   Future<void> _fetchAllWholesalers() async {
     try {
+      print('Home - _fetchAllWholesalers called');
       final wholesalers = await _wholesalerService.getAllWholesalers();
+      print('Home - Retrieved ${wholesalers.length} wholesalers from service');
+      
       // Filter wholesalers and their active branches
       final filteredWholesalers = wholesalers.where((wholesaler) {
         // Check if wholesaler has any active branches
         final hasActiveBranches = wholesaler.branches.any((branch) => branch.status == 'active');
+        print('Home - Wholesaler ${wholesaler.businessName} has ${wholesaler.branches.length} branches, active: ${wholesaler.branches.where((b) => b.status == 'active').length}');
         return hasActiveBranches;
       }).toList();
+      
+      print('Home - Filtered to ${filteredWholesalers.length} wholesalers with active branches');
       
       // Print detailed wholesaler data for debugging
       print('\n=== WHOLESALER DATA DEBUG ===');
@@ -2785,9 +3132,9 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
             }
             
             print('Creating icon for wholesaler marker...');
-            // Use a simple orange marker for now to test visibility
-            final customIcon = google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueOrange);
-            print('Using orange marker for wholesaler');
+            // Use the custom wholesaler icon
+            final customIcon = await _createWholesalerMarkerIcon();
+            print('Using custom wholesaler icon');
             
             final markerId = 'wholesaler_branch_${wholesaler.id}_${branch.id}_${DateTime.now().millisecondsSinceEpoch}';
             print('Creating marker with ID: $markerId');
@@ -2818,6 +3165,20 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                       'businessName': wholesaler.businessName,
                       'logoUrl': wholesaler.logoUrl,
                       'id': wholesaler.id,
+                      'logo': wholesaler.logoUrl,
+                      'socialMedia': {
+                        'instagram': wholesaler.socialMedia.instagram,
+                        'facebook': wholesaler.socialMedia.facebook,
+                      },
+                    },
+                    'companyInfo': {
+                      'name': wholesaler.businessName,
+                      'logo': wholesaler.logoUrl,
+                      'id': wholesaler.id,
+                      'socialMedia': {
+                        'instagram': wholesaler.socialMedia.instagram,
+                        'facebook': wholesaler.socialMedia.facebook,
+                      },
                     },
                     'type': 'Wholesaler Branch', // Use Wholesaler Branch type
                     'status': branch.status, // Use branch status
@@ -2825,26 +3186,21 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                       'instagram': branch.socialMedia.instagram,
                       'facebook': branch.socialMedia.facebook,
                     },
-                    'branches': wholesaler.branches.map((branch) => {
-                      'id': branch.id,
-                      '_id': branch.id,
-                      'name': branch.name,
-                      'description': branch.description,
-                      'phone': branch.phone,
-                      'location': {
-                        'street': branch.location.street,
-                        'city': branch.location.city,
-                        'district': branch.location.district,
-                        'country': branch.location.country,
-                        'lat': branch.location.lat,
-                        'lng': branch.location.lng,
-                      },
-                      'images': branch.images,
-                      'category': branch.category,
-                      'status': branch.status,
+                    'branches': wholesaler.branches.map((b) => {
+                      'id': b.id,
+                      '_id': b.id,
+                      'name': b.name,
+                      'description': b.description,
+                      'phone': b.phone,
+                      'latitude': b.location.lat,
+                      'longitude': b.location.lng,
+                      'location': '${b.location.street}, ${b.location.city}',
+                      'images': b.images,
+                      'category': b.category,
+                      'status': b.status,
                       'socialMedia': {
-                        'instagram': branch.socialMedia.instagram,
-                        'facebook': branch.socialMedia.facebook,
+                        'instagram': b.socialMedia.instagram,
+                        'facebook': b.socialMedia.facebook,
                       },
                     }).toList(),
                     'contactInfo': {
@@ -2853,6 +3209,8 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                     },
                     'email': wholesaler.email,
                     'subCategory': wholesaler.subCategory,
+                    'rating': 5.0,
+                    'price': '0',
                   };
                 });
                 print('Wholesaler place data set: ${_selectedPlace?['name']}');
@@ -2896,6 +3254,9 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
             });
           }
         });
+
+        // Update active wholesaler branches data
+        await _updateActiveWholesalerBranches();
 
         // Move camera to the first marker if no other markers are present
         if (_wayPointMarkers.isNotEmpty && _mapController != null) {
@@ -3030,12 +3391,12 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   // Helper method to create custom wholesaler marker icon
   Future<google_maps.BitmapDescriptor> _createWholesalerMarkerIcon() async {
     try {
-      print('Loading wholesaler icon from assets...');
+      print('Loading wholesaler icon from assets/icons/wholesaler.png...');
       final ByteData data = await rootBundle.load('assets/icons/wholesaler.png');
       final Uint8List bytes = data.buffer.asUint8List();
       print('Successfully loaded wholesaler icon, size: ${bytes.length} bytes');
       
-      // Try to create the bitmap descriptor
+      // Create the bitmap descriptor from the image bytes
       final bitmapDescriptor = await google_maps.BitmapDescriptor.fromBytes(bytes);
       print('Successfully created BitmapDescriptor from wholesaler icon');
       return bitmapDescriptor;
@@ -3143,6 +3504,19 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       print('---');
     }
     print('=== End Color Conversion Test ===');
+  }
+
+  // Test function to verify wholesaler icon loading
+  void _testWholesalerIcon() async {
+    print('=== Testing Wholesaler Icon Loading ===');
+    try {
+      final icon = await _createWholesalerMarkerIcon();
+      print('Wholesaler icon loaded successfully: $icon');
+      print('Icon type: ${icon.runtimeType}');
+    } catch (e) {
+      print('Error loading wholesaler icon: $e');
+    }
+    print('=== End Wholesaler Icon Test ===');
   }
 
   // Helper method to find category name regardless of case
@@ -3527,18 +3901,69 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   }
 
   Future<void> _setDestination(latlong.LatLng destination) async {
+    print('=== SETTING DESTINATION ===');
+    print('Destination: ${destination.latitude}, ${destination.longitude}');
+    print('Current location: ${_currentLocation?.latitude}, ${_currentLocation?.longitude}');
+    print('Currently navigating: $_isNavigating');
+    print('Selected place: ${_selectedPlace?['name']}');
+
+    // Close PlaceDetailsOverlay if it's open when map is tapped
+    if (_selectedPlace != null) {
+      setState(() {
+        _selectedPlace = null;
+      });
+      print('Closed PlaceDetailsOverlay due to map tap');
+      return; // Don't set destination if just closing the overlay
+    }
+
+    await _startNavigation(destination);
+  }
+
+  Future<void> _startNavigation(latlong.LatLng destination) async {
+    print('=== STARTING NAVIGATION ===');
+    print('Destination: ${destination.latitude}, ${destination.longitude}');
+    print('Current location: ${_currentLocation?.latitude}, ${_currentLocation?.longitude}');
+
     if (_isNavigating) {
       // If already navigating, ask user if they want to change destination
       final shouldChange = await _showChangeDestinationDialog();
       if (!shouldChange) return;
     }
 
+    print('Setting new destination and clearing old routes...');
     setState(() {
       _destinationLocation = destination;
       _isNavigating = true;
+      // Clear old routes before setting new destination
+      _primaryRouteCoordinates.clear();
+      _alternativeRouteCoordinates.clear();
+      _routeInstructions = '';
+      _primaryDistance = 0;
+      _primaryDuration = 0;
+      _alternativeDistance = 0;
+      _alternativeDuration = 0;
+      _steps.clear();
+      _usingPrimaryRoute = true;
+      // Remove old route waypoint markers
+      _wayPointMarkers.removeWhere((marker) => 
+        marker is google_maps.Marker && 
+        marker.markerId.value.startsWith('waypoint_'));
+      
+      // Increment map update counter to force rebuild
+      _mapUpdateCounter++;
     });
 
+    // Immediately move map to destination while route calculation is happening
+    print('Moving map to destination immediately: ${destination.latitude}, ${destination.longitude}');
+    _mapController.move(destination, 15.0);
+
+    print('About to call _getRouteDirections...');
     await _getRouteDirections();
+    print('_getRouteDirections completed');
+    print('Route coordinates after calculation:');
+    print('Primary route: ${_primaryRouteCoordinates.length} points');
+    print('Alternative route: ${_alternativeRouteCoordinates.length} points');
+    print('==============================');
   }
 
 

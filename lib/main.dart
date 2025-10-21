@@ -3,9 +3,12 @@ import 'package:barrim/src/services/notification_service.dart';
 import 'package:barrim/src/services/notification_provider.dart';
 import 'package:barrim/src/services/user_provider.dart';
 import 'package:barrim/src/services/google_maps_service.dart';
+import 'package:barrim/src/services/extended_session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
@@ -44,6 +47,10 @@ Future<void> main() async {
     // Initialize centralized token manager
     await CentralizedTokenManager.initialize();
     print("Centralized token manager initialized");
+    
+    // Initialize extended session service
+    await ExtendedSessionService.initialize();
+    print("Extended session service initialized");
 
     // Initialize notification service with timeout
     final notificationService = NotificationService();
@@ -138,11 +145,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   // Store provider references to avoid context access during lifecycle changes
   NotificationProvider? _notificationProvider;
   UserProvider? _userProvider;
+  
+  // Global navigation key for handling back button
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // Hardware back button handling is done via WillPopScope in the builder
   }
 
   @override
@@ -194,9 +206,56 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       print('UserProvider.user: ${userProvider.user != null ? 'User exists' : 'No user'}');
     }
     
+    // First check extended session
+    try {
+      final isExtendedValid = await ExtendedSessionService.isSessionValid();
+      if (isExtendedValid) {
+        if (kDebugMode) {
+          print('Extended session found and valid - updating activity');
+        }
+        await ExtendedSessionService.updateLastActivity();
+        
+        // If user provider doesn't have session data, try to load from extended session
+        if (!userProvider.isLoggedIn) {
+          final extendedToken = await ExtendedSessionService.getToken();
+          final extendedUserData = await ExtendedSessionService.getUserData();
+          
+          if (extendedToken != null && extendedUserData != null) {
+            // Load user data from extended session
+            userProvider.setUserAndTokenWithExtendedSession(
+              json.decode(extendedUserData),
+              extendedToken,
+              rememberMe: true,
+            );
+            
+            if (kDebugMode) {
+              print('User data loaded from extended session');
+            }
+          }
+        }
+        
+        // Reconnect WebSocket if user is logged in
+        if (userProvider.isLoggedIn && userProvider.token != null && userProvider.user != null) {
+          notificationProvider.initWebSocket(
+            userProvider.token!,
+            userProvider.user!.id,
+          );
+          if (kDebugMode) {
+            print('WebSocket reconnected from extended session');
+          }
+        }
+        return;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error checking extended session: $e');
+      }
+    }
+    
+    // Fall back to regular session handling
     if (userProvider.isLoggedIn && userProvider.token != null && userProvider.user != null) {
       if (kDebugMode) {
-        print('App resumed - validating session and reconnecting WebSocket');
+        print('App resumed - validating regular session and reconnecting WebSocket');
       }
       
       // Use the new comprehensive session check
@@ -208,11 +267,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           userProvider.user!.id,
         );
         if (kDebugMode) {
-          print('Session validated and WebSocket reconnected');
+          print('Regular session validated and WebSocket reconnected');
         }
       } else {
         if (kDebugMode) {
-          print('Session expired or refresh failed, user will need to login again');
+          print('Regular session expired or refresh failed, user will need to login again');
         }
         // Optionally show a message to the user about session expiration
       }
@@ -228,6 +287,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     create: (context) => GCPGoogleSignInProvider(),
     child: MaterialApp(
       title: 'Barrim',
+      navigatorKey: _navigatorKey,
       home: const SplashScreen(),
       theme: ThemeData.light().copyWith(
         pageTransitionsTheme: const PageTransitionsTheme(
@@ -241,10 +301,113 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // Configure system UI overlay for edge-to-edge support
         // Using modern approach without deprecated APIs
         EdgeToEdgeHelper.configureSystemUIOverlayForLightTheme();
+        
+        // Wrap with WillPopScope for Android back button handling
+        if (Platform.isAndroid) {
+          return WillPopScope(
+            onWillPop: () async {
+              _handleHardwareBackButton();
+              return false; // Prevent default back behavior
+            },
+            child: child!,
+          );
+        }
+        
         return child!;
       },
     ),
   );
+
+  // Handle hardware back button press
+  void _handleHardwareBackButton() {
+    print('🔙 Hardware back button pressed!');
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) {
+      print('❌ Navigator is null');
+      return;
+    }
+    
+    // Check if we can pop normally
+    if (navigator.canPop()) {
+      print('✅ Can pop - navigating back');
+      navigator.pop();
+      return;
+    }
+    
+    print('❌ Cannot pop - checking current route');
+    
+    // If we can't pop, check the current route
+    final currentRoute = ModalRoute.of(navigator.context);
+    if (currentRoute != null) {
+      final routeName = currentRoute.settings.name ?? '';
+      print('📍 Current route: $routeName');
+      
+      // Check if we're on a main app screen (not splash or login)
+      if (routeName.contains('Dashboard') ||
+          routeName.contains('Home') ||
+          routeName.contains('Categories') ||
+          routeName.contains('Settings') ||
+          routeName.contains('UserDashboard') ||
+          routeName.contains('CompanyDashboard') ||
+          routeName.contains('ServiceproviderDashboard') ||
+          routeName.contains('WholesalerDashboard')) {
+        // Navigate to login page instead of exiting
+        print('🏠 Navigating to login from dashboard screen');
+        navigator.pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const LoginPage(),
+          ),
+        );
+        return;
+      }
+    }
+    
+    // If we're at the root or on login page, show exit confirmation
+    print('🚪 Showing exit confirmation dialog');
+    _handleAppExit(navigator.context);
+  }
+
+  // Handle app exit when at root screen
+  void _handleAppExit(BuildContext context) {
+    // Show a dialog with more options
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Exit App'),
+          content: Text('What would you like to do?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+              },
+              child: Text('Stay'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                // Navigate to login page
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => const LoginPage(),
+                  ),
+                );
+              },
+              child: Text('Go to Login'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                // Exit the app
+                SystemNavigator.pop();
+              },
+              child: Text('Exit App'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class MyHomePage extends StatefulWidget {
@@ -551,7 +714,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-// Add this class at the end of the file to disable swipe back on iOS
+// Custom page transition builders that work with our back navigation handling
 class NoSwipeCupertinoPageTransitionsBuilder extends PageTransitionsBuilder {
   const NoSwipeCupertinoPageTransitionsBuilder();
 
@@ -563,15 +726,21 @@ class NoSwipeCupertinoPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    // CupertinoPageTransition is not public API, so use FadeTransition as a safe fallback
-    return FadeTransition(
-      opacity: animation,
+    // Use SlideTransition for a smooth slide effect
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(1.0, 0.0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeInOut,
+      )),
       child: child,
     );
   }
 }
 
-// Add this class at the end of the file to disable swipe back on Android
+// Custom page transition builders that work with our back navigation handling
 class NoSwipeMaterialPageTransitionsBuilder extends PageTransitionsBuilder {
   const NoSwipeMaterialPageTransitionsBuilder();
 
@@ -583,8 +752,15 @@ class NoSwipeMaterialPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    return FadeTransition(
-      opacity: animation,
+    // Use SlideTransition for a smooth slide effect
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(1.0, 0.0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeInOut,
+      )),
       child: child,
     );
   }

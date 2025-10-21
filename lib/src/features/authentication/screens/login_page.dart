@@ -9,12 +9,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
 import 'package:barrim/src/features/authentication/screens/signup_user/signup_user1.dart';
 import 'package:barrim/src/services/api_service.dart';
-import 'package:barrim/src/services/apple_auth_service.dart';
 import './forgot_password/forgot_password.dart';
 import 'package:provider/provider.dart';
 import 'package:barrim/src/features/authentication/screens/company_dashboard/company_dashboard.dart';
 import 'package:barrim/src/services/user_provider.dart'; // Import UserProvider
-import 'package:barrim/src/features/authentication/screens/apple_signin.dart';
 import '../../../services/gcp_google_auth_service.dart';
 import './countrycode_dropdown.dart';
 
@@ -40,6 +38,7 @@ class _LoginPageState extends State<LoginPage> {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _hasLoginError = false;
+        _errorMessage = 'Incorrect credentials or password!'; // Reset to default error message
       });
 
       try {
@@ -66,26 +65,44 @@ class _LoginPageState extends State<LoginPage> {
           final user = userData['user'] ?? {};
           final userType = user['userType'] ?? 'user';
 
-          // Update UserProvider
+          // Update UserProvider with extended session support
           final userProvider = Provider.of<UserProvider>(context, listen: false);
-          userProvider.setUser(user);
-          userProvider.setToken(userData['token']);
-
-          // Store remember me token if available
-          if (_rememberMe && userData['rememberMeToken'] != null) {
-            userProvider.setRememberMeToken(userData['rememberMeToken']);
-          }
-
-          // Save credentials if Remember Me is checked
+          
           if (_rememberMe) {
+            // Use extended session for remember me
+            await userProvider.setUserAndTokenWithExtendedSession(
+              user,
+              userData['token'],
+              rememberMe: true,
+              refreshToken: userData['refreshToken'],
+            );
+            
+            // Store remember me token if available
+            if (userData['rememberMeToken'] != null) {
+              userProvider.setRememberMeToken(userData['rememberMeToken']);
+            }
+            
+            // Save credentials for remember me
             await userProvider.saveCredentials(
               loginIdentifier,
               _passwordController.text,
             );
           } else {
+            // Use regular session
+            userProvider.setUser(user);
+            userProvider.setToken(userData['token']);
+            
             // Clear saved credentials if Remember Me is unchecked
             await userProvider.clearCredentials();
           }
+
+          // Save the last visited page for session restoration
+          final dashboardPageName = _getDashboardPageName(userType);
+          userProvider.saveLastVisitedPage(
+            dashboardPageName,
+            pageData: userData,
+            routePath: dashboardPageName,
+          );
 
           print("User type detected: $userType");
           
@@ -128,7 +145,22 @@ class _LoginPageState extends State<LoginPage> {
     
     setState(() {
       _isPhoneNumber = !isEmail && isPhone;
+      // Reset error state when user starts typing
+      if (_hasLoginError) {
+        _hasLoginError = false;
+        _errorMessage = 'Incorrect credentials or password!';
+      }
     });
+  }
+
+  void _onPasswordChanged() {
+    // Reset error state when user starts typing in password field
+    if (_hasLoginError) {
+      setState(() {
+        _hasLoginError = false;
+        _errorMessage = 'Incorrect credentials or password!';
+      });
+    }
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -141,8 +173,8 @@ class _LoginPageState extends State<LoginPage> {
         if (result['needsSignup'] == true) {
           print("User needs to complete signup, navigating to signup form");
           
-          // Navigate to signup with pre-filled Google data
-          Navigator.pushReplacement(
+          // Navigate to signup with pre-filled Google data (use push instead of pushReplacement)
+          Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => SignupUserPage1(
@@ -155,13 +187,23 @@ class _LoginPageState extends State<LoginPage> {
 
         print("Google sign-in successful, navigating to dashboard");
 
-        // Update UserProvider
+        // Update UserProvider - use setUserAndTokenTogether for proper session persistence
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-        userProvider.setUser(result['user']);
-        userProvider.setToken(result['token']);
-
         final userData = result['user'] ?? {};
+        final token = result['token'] ?? '';
+        
+        // Set user and token together to ensure session is saved properly
+        await userProvider.setUserAndTokenTogether(userData, token);
+
         final userType = userData['userType'] ?? 'user';
+
+        // Save the last visited page for session restoration
+        final dashboardPageName = _getDashboardPageName(userType);
+        userProvider.saveLastVisitedPage(
+          dashboardPageName,
+          pageData: userData,
+          routePath: dashboardPageName,
+        );
 
         // Add a small delay to ensure Google Maps services are ready
         await Future.delayed(const Duration(milliseconds: 500));
@@ -173,6 +215,22 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       print("Unexpected error during Google sign-in: $e");
+    }
+  }
+
+  // Helper method to get dashboard page name for session restoration
+  String _getDashboardPageName(String userType) {
+    switch (userType) {
+      case 'user':
+        return 'UserDashboard';
+      case 'company':
+        return 'CompanyDashboard';
+      case 'serviceProvider':
+        return 'ServiceproviderDashboard';
+      case 'wholesaler':
+        return 'WholesalerDashboard';
+      default:
+        return 'UserDashboard';
     }
   }
 
@@ -235,6 +293,7 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _emailOrPhoneController.addListener(_onEmailOrPhoneChanged);
+    _passwordController.addListener(_onPasswordChanged);
     _loadSavedCredentials();
   }
 
@@ -735,67 +794,6 @@ class _LoginPageState extends State<LoginPage> {
                                 constraints.maxWidth * 0.11,
                                 onPressed: _handleGoogleSignIn,
                               ),
-                              SizedBox(width: constraints.maxWidth * 0.05),
-                              // Apple Login Button
-                              _buildSocialLoginButton(
-                                context,
-                                'assets/icons/apple.png',
-                                constraints.maxWidth * 0.11,
-                                onPressed: () async {
-                                  try {
-                                    final appleSignin = AppleSignin();
-                                    final credential = await appleSignin.getAppleCredential();
-                                    
-                                    if (credential != null && credential['identityToken'] != null) {
-                                      // Send the idToken to your backend
-                                      final backendResponse = await AppleAuthService.appleLogin(credential['identityToken']!);
-                                      if (backendResponse['status'] == 200) {
-                                        final data = backendResponse['data'];
-                                        final userProvider = Provider.of<UserProvider>(context, listen: false);
-                                        userProvider.setUser(data['user']);
-                                        userProvider.setToken(data['token']);
-                                        final userType = data['user']['userType'] ?? 'user';
-                                        
-                                        // Add a small delay to ensure Google Maps services are ready
-                                        // This prevents the crash that occurs when navigating immediately after Apple Sign-In
-                                        await Future.delayed(const Duration(milliseconds: 500));
-                                        
-                                        // Navigate after the delay
-                                        _navigateAfterLogin(userType, data);
-                                      } else {
-                                        setState(() {
-                                          _hasLoginError = true;
-                                          if (backendResponse['message']?.contains('Invalid or expired token') == true) {
-                                            _errorMessage = 'Unable to sign in with Apple';
-                                          } else {
-                                            _errorMessage = backendResponse['message'] ?? 'Apple login failed';
-                                          }
-                                        });
-                                      }
-                                    } else {
-                                      setState(() {
-                                        _hasLoginError = true;
-                                        _errorMessage = 'Apple sign-in failed: No ID token received.';
-                                      });
-                                    }
-                                  } catch (e) {
-                                    print("Apple sign-in error: $e");
-                                    // Suppress error display if user canceled the Apple sign-in
-                                    if (e.toString().contains('AuthorizationErrorCode.canceled')) {
-                                      // Do not set _hasLoginError or _errorMessage
-                                      return;
-                                    }
-                                    setState(() {
-                                      _hasLoginError = true;
-                                      if (e.toString().contains('Invalid or expired token')) {
-                                        _errorMessage = 'Unable to sign in with Apple';
-                                      } else {
-                                        _errorMessage = 'Apple sign-in error: $e';
-                                      }
-                                    });
-                                  }
-                                },
-                              ),
                             ],
                           ),
                         ],
@@ -839,6 +837,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void dispose() {
     _emailOrPhoneController.removeListener(_onEmailOrPhoneChanged);
+    _passwordController.removeListener(_onPasswordChanged);
     _emailOrPhoneController.dispose();
     _passwordController.dispose();
     super.dispose();

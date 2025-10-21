@@ -21,6 +21,8 @@ class CollapsedSheet extends StatefulWidget {
   final VoidCallback onLocationCardTap;
   final Function(Map<String, dynamic>)? onPlaceTap;
   final VoidCallback? onCloseSheet;
+  final List<Map<String, dynamic>>? activeBranches;
+  final List<Map<String, dynamic>>? activeWholesalerBranches;
 
   const CollapsedSheet({
     Key? key,
@@ -28,6 +30,8 @@ class CollapsedSheet extends StatefulWidget {
     required this.onLocationCardTap,
     this.onPlaceTap,
     this.onCloseSheet,
+    this.activeBranches,
+    this.activeWholesalerBranches,
   }) : super(key: key);
 
   @override
@@ -45,6 +49,10 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
   VideoPlayerController? _videoController; // Add this line
   bool _isVideoPlaying = false;
   String _selectedTab = 'companies';
+  
+  // Active branches data from parent
+  List<Map<String, dynamic>> _activeBranches = [];
+  List<Map<String, dynamic>> _activeWholesalerBranches = [];
 
   // Top Listed section state variables
   List<Map<String, dynamic>> _sponsoredCompanies = [];
@@ -57,6 +65,15 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize active branches data from parent
+    _activeBranches = widget.activeBranches ?? [];
+    _activeWholesalerBranches = widget.activeWholesalerBranches ?? [];
+    
+    // Debug logging
+    print('CollapsedSheet initState - Active branches received: ${_activeBranches.length}');
+    print('CollapsedSheet initState - Active wholesaler branches received: ${_activeWholesalerBranches.length}');
+    
     _loadData();
     _getUserLocation();
     _loadSponsoredEntities(); // Add this line to load sponsored entities
@@ -313,43 +330,25 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         return status == 'active';
       }).toList();
       
-      // Filter companies by distance if user location is available
+      // Show all companies regardless of distance
       List<Map<String, dynamic>> nearbyCompanies = [];
+      
+      // Convert all filtered companies to the required format
+      nearbyCompanies = filteredCompanies.map((company) => company as Map<String, dynamic>).toList();
+      
+      // Sort companies by distance if user location is available (closest first)
       if (_currentUserLocation != null) {
-        const double maxDistance = 20.0; // 20 km radius
-        
-        nearbyCompanies = filteredCompanies.where((company) {
-          // Safely cast company to Map<String, dynamic>
-          if (company is! Map<String, dynamic>) {
-            return false;
-          }
-          
-          final location = company['location'];
-          if (location == null || location['lat'] == null || location['lng'] == null) {
-            return false;
-          }
-          
-          final companyLocation = LatLng(
-            location['lat'].toDouble(),
-            location['lng'].toDouble(),
-          );
-          
-          final distance = _calculateDistance(
-            _currentUserLocation!.latitude,
-            _currentUserLocation!.longitude,
-            companyLocation.latitude,
-            companyLocation.longitude,
-          );
-          
-          return distance <= maxDistance;
-        }).map((company) => company as Map<String, dynamic>).toList();
-        
-        // Sort companies by distance (closest first)
         nearbyCompanies.sort((a, b) {
           final locationA = a['location'];
           final locationB = b['location'];
           
           if (locationA == null || locationB == null) return 0;
+          
+          // Check if both locations have valid coordinates
+          if (locationA['lat'] == null || locationA['lng'] == null || 
+              locationB['lat'] == null || locationB['lng'] == null) {
+            return 0;
+          }
           
           final distanceA = _calculateDistance(
             _currentUserLocation!.latitude,
@@ -367,9 +366,6 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
           
           return distanceA.compareTo(distanceB);
         });
-      } else {
-        // If no user location, show all active companies
-        nearbyCompanies = filteredCompanies.map((company) => company as Map<String, dynamic>).toList();
       }
       
       setState(() {
@@ -449,28 +445,14 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         print('Total branches loaded: ${allBranches.length}');
       }
 
-      // Filter branches by distance if user location is available
+      // Show all branches regardless of distance
       List<company_model.Branch> nearbyBranches = [];
+      
+      // Use all branches
+      nearbyBranches = allBranches;
+      
+      // Sort branches by distance if user location is available (closest first)
       if (_currentUserLocation != null) {
-        const double maxDistance = 10.0; // 10 km radius
-        
-        nearbyBranches = allBranches.where((branch) {
-          final branchLocation = LatLng(
-            branch.location.lat,
-            branch.location.lng,
-          );
-          
-          final distance = _calculateDistance(
-            _currentUserLocation!.latitude,
-            _currentUserLocation!.longitude,
-            branchLocation.latitude,
-            branchLocation.longitude,
-          );
-          
-          return distance <= maxDistance;
-        }).toList();
-        
-        // Sort branches by distance (closest first)
         nearbyBranches.sort((a, b) {
           final distanceA = _calculateDistance(
             _currentUserLocation!.latitude,
@@ -488,9 +470,6 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
           
           return distanceA.compareTo(distanceB);
         });
-      } else {
-        // If no user location, show all branches
-        nearbyBranches = allBranches;
       }
 
       setState(() {
@@ -944,6 +923,9 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                                   ),
                                 ),
                               
+                              // Active Branches section
+                              _buildActiveBranchesSection(),
+                              
                               Padding(
                                 padding: const EdgeInsets.all(16.0),
                                 child: Text(
@@ -952,9 +934,9 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                                       : _errorMessage != null
                                           ? ''
                                           : (_companies.isNotEmpty
-                                              ? 'Companies Near You (${_companies.length})'
+                                              ? 'All Companies (${_companies.length})'
                                               : (_branches.isNotEmpty
-                                                  ? 'Branches Near You (${_branches.length})'
+                                                  ? 'All Branches (${_branches.length})'
                                                   : '')),
                                   style: TextStyle(
                                     fontSize: 20,
@@ -966,21 +948,21 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                               ),
                               if (_isLoading)
                                 _buildLoadingIndicator()
-                              else if (_errorMessage != null)
-                                Padding(
-                                  padding: const EdgeInsets.all(32.0),
-                                  child: Center(
-                                    child: Text(
-                                      'No companies found nearby',
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.normal,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                )
+                              // else if (_errorMessage != null)
+                              //   Padding(
+                              //     padding: const EdgeInsets.all(32.0),
+                              //     child: Center(
+                              //       child: Text(
+                              //         'No companies found',
+                              //         style: TextStyle(
+                              //           color: Colors.black,
+                              //           fontSize: 18,
+                              //           fontWeight: FontWeight.normal,
+                              //         ),
+                              //         textAlign: TextAlign.center,
+                              //       ),
+                              //     ),
+                              //   )
                               else if (_companies.isNotEmpty)
                                 _buildCompaniesList()
                               else if (_branches.isNotEmpty)
@@ -990,7 +972,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
                                   child: Padding(
                                     padding: const EdgeInsets.all(16.0),
                                     child: Text(
-                                      'No companies or branches found within 10km.',
+                                      '',
                                       textAlign: TextAlign.center,
                                     ),
                                   ),
@@ -1037,7 +1019,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'No companies found within 10km.',
+            'No companies found.',
             textAlign: TextAlign.center,
           ),
         ),
@@ -1064,7 +1046,7 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'No branches found within 10km.',
+            'No branches found.',
             textAlign: TextAlign.center,
           ),
         ),
@@ -1258,6 +1240,100 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
           ],
         ),
       ),
+    );
+  }
+
+  // Build Active Branches section
+  Widget _buildActiveBranchesSection() {
+    final totalActiveBranches = _activeBranches.length + _activeWholesalerBranches.length;
+    
+    // Debug logging
+    print('CollapsedSheet - Active branches: ${_activeBranches.length}');
+    print('CollapsedSheet - Active wholesaler branches: ${_activeWholesalerBranches.length}');
+    print('CollapsedSheet - Total active branches: $totalActiveBranches');
+    
+    if (totalActiveBranches == 0) {
+      return SizedBox.shrink(); // Don't show section if no active branches
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Active Branches title
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Icon(Icons.location_on, color: Colors.blue, size: 24),
+              SizedBox(width: 8),
+              Text(
+                'Active Branches (${totalActiveBranches})',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[700],
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Company Branches
+        if (_activeBranches.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text(
+              'Company Branches (${_activeBranches.length})',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[700],
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (var branch in _activeBranches) ...[
+                  _buildActiveBranchCard(branch, _currentUserLocation, 'company'),
+                  SizedBox(width: 16),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+        
+        // Wholesaler Branches
+        if (_activeWholesalerBranches.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text(
+              'Wholesaler Branches (${_activeWholesalerBranches.length})',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.orange[700],
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (var branch in _activeWholesalerBranches) ...[
+                  _buildActiveBranchCard(branch, _currentUserLocation, 'wholesaler'),
+                  SizedBox(width: 16),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+      ],
     );
   }
 
@@ -2020,6 +2096,247 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
     );
   }
 
+  // Build active branch card
+  Widget _buildActiveBranchCard(Map<String, dynamic> branch, LatLng? userLocation, String type) {
+    // Get branch logo/image
+    String? branchLogoUrl;
+    String branchName = branch['name'] ?? 'Unknown Branch';
+    String companyName = branch['companyName'] ?? branch['company']?['businessName'] ?? 'Unknown Company';
+    
+    // Try to get logo from different sources
+    if (branch['logoUrl'] != null && branch['logoUrl'].toString().isNotEmpty) {
+      branchLogoUrl = branch['logoUrl'];
+    } else if (branch['company'] != null && branch['company']['logoUrl'] != null && branch['company']['logoUrl'].toString().isNotEmpty) {
+      branchLogoUrl = branch['company']['logoUrl'];
+    } else if (branch['images'] != null && branch['images'] is List && branch['images'].isNotEmpty) {
+      final firstImage = branch['images'].first;
+      if (firstImage != null && firstImage.toString().isNotEmpty) {
+        if (firstImage.toString().startsWith('http')) {
+          branchLogoUrl = firstImage.toString();
+        } else {
+          branchLogoUrl = '${ApiConstants.baseUrl}/$firstImage';
+        }
+      }
+    }
+    
+    // Calculate distance if user location is available
+    String distanceText = 'Distance not available';
+    if (userLocation != null && branch['latitude'] != null && branch['longitude'] != null) {
+      final branchLocation = LatLng(
+        branch['latitude'].toDouble(),
+        branch['longitude'].toDouble(),
+      );
+      final distance = _calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        branchLocation.latitude,
+        branchLocation.longitude,
+      );
+      distanceText = '${distance.toStringAsFixed(1)} km away';
+    }
+
+    // Determine card color based on type
+    Color cardColor = type == 'wholesaler' ? Colors.orange : Colors.blue;
+    Color borderColor = type == 'wholesaler' ? Colors.orange : Colors.blue;
+
+    return GestureDetector(
+      onTap: () {
+        if (widget.onPlaceTap != null) {
+          // Close the sheet first
+          if (widget.onCloseSheet != null) {
+            widget.onCloseSheet!();
+          }
+          
+          // Prepare place data for PlaceDetailsOverlay
+          final placeData = {
+            'name': branchName,
+            '_id': branch['id'] ?? branch['_id'],
+            'latitude': branch['latitude'] ?? 0.0,
+            'longitude': branch['longitude'] ?? 0.0,
+            'address': branch['address'] ?? '',
+            'phone': branch['phone'] ?? '',
+            'description': branch['description'] ?? '',
+            'image': branchLogoUrl ?? 'assets/images/company_placeholder.png',
+            'logoUrl': branchLogoUrl,
+            'companyName': companyName,
+            'companyId': branch['companyId'] ?? branch['company']?['id'],
+            'images': branch['images'] ?? [],
+            'type': type == 'wholesaler' ? 'Wholesaler Branch' : 'Branch',
+            'category': branch['category'] ?? 'Unknown Category',
+            'company': branch['company'] ?? {},
+            'status': 'active',
+            'socialMedia': branch['socialMedia'] ?? {},
+          };
+          widget.onPlaceTap!(placeData);
+        } else {
+          widget.onLocationCardTap();
+        }
+      },
+      child: Container(
+        width: 200,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: cardColor.withOpacity(0.3),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: borderColor, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Branch logo section
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              child: Container(
+                height: 120,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: cardColor.withOpacity(0.1),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (branchLogoUrl != null && branchLogoUrl.isNotEmpty)
+                      SecureNetworkImage(
+                        imageUrl: branchLogoUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: 120,
+                        errorWidget: (context, url, error) {
+                          return _buildActiveBranchPlaceholder(type);
+                        },
+                        placeholder: Center(child: CircularProgressIndicator()),
+                      )
+                    else
+                      _buildActiveBranchPlaceholder(type),
+                    
+                    // Active badge
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.white, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'ACTIVE',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    // Type indicator
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          type.toUpperCase(),
+                          style: TextStyle(
+                            color: cardColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Branch name and distance
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          branchName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        distanceText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  // Company name
+                  Text(
+                    companyName,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4),
+                  // Category
+                  if (branch['category'] != null)
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: cardColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        branch['category'] as String,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cardColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Build sponsored branch card
   Widget _buildSponsoredBranchCard(Map<String, dynamic> branch, LatLng? userLocation) {
     // Get branch logo/image
@@ -2315,6 +2632,32 @@ class _CollapsedSheetState extends State<CollapsedSheet> {
               'Branch',
               style: TextStyle(
                 color: Colors.orange[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveBranchPlaceholder(String type) {
+    Color color = type == 'wholesaler' ? Colors.orange : Colors.blue;
+    IconData icon = type == 'wholesaler' ? Icons.store : Icons.business;
+    String label = type == 'wholesaler' ? 'Wholesaler Branch' : 'Company Branch';
+    
+    return Container(
+      color: color.withOpacity(0.1),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 40, color: color),
+            SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
                 fontWeight: FontWeight.bold,
               ),
             ),

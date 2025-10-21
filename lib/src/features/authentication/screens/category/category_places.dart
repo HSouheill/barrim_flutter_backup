@@ -29,7 +29,7 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
   // Add filter options
   FilterOptions _filterOptions = FilterOptions(
     priceSort: 'none',
-    priceRange: const RangeValues(0, 10000), // Increased from 1000 to 10000 to include more branches
+    priceRange: const RangeValues(0, 1000), // Match the RangeSlider max value
     ratingSort: 'none',
     openNow: false,
     closest: false,
@@ -160,17 +160,21 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
       // Start with all branches
       List<Map<String, dynamic>> filtered = List.from(_branches);
 
-      // Apply price range filter (if branches have price data)
+      // Apply price range filter based on costPerPerson
       filtered = filtered.where((branch) {
-        // Extract price from branch data, default to 0 if not available
-        double branchPrice = 0.0;
-        if (branch['price'] != null && branch['price'] is num) {
-          branchPrice = (branch['price'] as num).toDouble();
+        // Extract costPerPerson from branch data, default to 0 if not available
+        double branchCostPerPerson = 0.0;
+        if (branch['costPerPerson'] != null && branch['costPerPerson'] is num) {
+          branchCostPerPerson = (branch['costPerPerson'] as num).toDouble();
+        } else if (branch['price'] != null && branch['price'] is num) {
+          // Fallback to price if costPerPerson is not available
+          branchCostPerPerson = (branch['price'] as num).toDouble();
         } else if (branch['averagePrice'] != null && branch['averagePrice'] is num) {
-          branchPrice = (branch['averagePrice'] as num).toDouble();
+          // Fallback to averagePrice if costPerPerson is not available
+          branchCostPerPerson = (branch['averagePrice'] as num).toDouble();
         }
         
-        return branchPrice >= filters.priceRange.start && branchPrice <= filters.priceRange.end;
+        return branchCostPerPerson >= filters.priceRange.start && branchCostPerPerson <= filters.priceRange.end;
       }).toList();
 
       // Apply "Open Now" filter if enabled
@@ -226,9 +230,11 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
     });
   }
 
-  // Helper method to extract price from branch data
+  // Helper method to extract price from branch data (prioritizing costPerPerson)
   double _extractPrice(Map<String, dynamic> branch) {
-    if (branch['price'] != null && branch['price'] is num) {
+    if (branch['costPerPerson'] != null && branch['costPerPerson'] is num) {
+      return (branch['costPerPerson'] as num).toDouble();
+    } else if (branch['price'] != null && branch['price'] is num) {
       return (branch['price'] as num).toDouble();
     } else if (branch['averagePrice'] != null && branch['averagePrice'] is num) {
       return (branch['averagePrice'] as num).toDouble();
@@ -662,36 +668,6 @@ class _CategoryPlacesState extends State<CategoryPlaces> {
     return categoryNames[categoryId] ?? categoryId.replaceAll('_', ' ');
   }
 
-  bool _hasActiveFilters() {
-    return _filterOptions.priceSort != 'none' ||
-           _filterOptions.priceRange.start != 0 ||
-           _filterOptions.priceRange.end != 1000 ||
-           _filterOptions.ratingSort != 'none' ||
-           _filterOptions.openNow ||
-           _filterOptions.closest;
-  }
-
-  String _getFilterSummary() {
-    List<String> summaryParts = [];
-
-    if (_filterOptions.priceSort != 'none') {
-      summaryParts.add('Price: ${_filterOptions.priceSort}');
-    }
-    if (_filterOptions.priceRange.start != 0 || _filterOptions.priceRange.end != 1000) {
-      summaryParts.add('Price Range: ${_filterOptions.priceRange.start.toInt()} - ${_filterOptions.priceRange.end.toInt()}');
-    }
-    if (_filterOptions.ratingSort != 'none') {
-      summaryParts.add('Rating: ${_filterOptions.ratingSort}');
-    }
-    if (_filterOptions.openNow) {
-      summaryParts.add('Open Now');
-    }
-    if (_filterOptions.closest) {
-      summaryParts.add('Closest to you');
-    }
-
-    return summaryParts.join(', ');
-  }
 }
 
 class CategorySection extends StatelessWidget {

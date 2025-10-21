@@ -123,25 +123,35 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
     });
   }
 
-  // Apply first month weekday pattern to the current month
+  // Apply first month day pattern to the current month
   void _applyFirstMonthPatternToCurrentMonth() {
     final monthKey = _getMonthKey(_currentDate);
     final daysInMonth = _getDaysInMonth();
+    final firstMonthKey = _getMonthKey(DateTime.now());
+    final firstMonthSelectedDays = _selectedDaysPerMonth[firstMonthKey] ?? [];
+
+    print('=== APPLY FIRST MONTH PATTERN DEBUG ===');
+    print('Current month key: $monthKey');
+    print('Days in month: $daysInMonth');
+    print('First month key: $firstMonthKey');
+    print('First month selected days: $firstMonthSelectedDays');
 
     // Clear current month selection
     _selectedDaysPerMonth[monthKey] = [];
 
-    // Select all days in the current month that match the selected pattern from first month
-    // but exclude past days
-    for (int day = 1; day <= daysInMonth; day++) {
-      final date = DateTime(_currentDate.year, _currentDate.month, day);
-      if (_firstMonthWeekdayPattern[date.weekday] == true && !_isPastDay(day)) {
+    // Apply the same day numbers from first month to current month
+    // but only if they exist in the current month and are not past days
+    for (int day in firstMonthSelectedDays) {
+      if (day <= daysInMonth && !_isPastDay(day)) {
         _selectedDaysPerMonth[monthKey]!.add(day);
       }
     }
+    
+    print('Applied days to $monthKey: ${_selectedDaysPerMonth[monthKey]}');
+    print('=====================================');
   }
 
-  // Update the first month weekday pattern based on selections
+  // Update the first month weekday pattern based on selections (kept for compatibility)
   void _updateFirstMonthPattern() {
     // Get the first month in our data
     final firstMonthKey = _getMonthKey(DateTime.now());
@@ -162,6 +172,14 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
   // Check if a day is in the past
   bool _isPastDay(int day) {
     final date = DateTime(_currentDate.year, _currentDate.month, day);
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    return date.isBefore(todayDate);
+  }
+
+  // Check if a day is in the past for a specific month
+  bool _isPastDayForMonth(int day, DateTime monthDate) {
+    final date = DateTime(monthDate.year, monthDate.month, day);
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
     return date.isBefore(todayDate);
@@ -222,6 +240,13 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
   void _applyPatternToAllMonths() {
     // Apply to 12 months starting from current month
     final now = DateTime.now();
+    final firstMonthKey = _getMonthKey(now);
+    final firstMonthSelectedDays = _selectedDaysPerMonth[firstMonthKey] ?? [];
+    
+    print('=== APPLY PATTERN TO ALL MONTHS DEBUG ===');
+    print('First month key: $firstMonthKey');
+    print('First month selected days: $firstMonthSelectedDays');
+    
     for (int i = 0; i < 12; i++) {
       final monthDate = DateTime(now.year, now.month + i, 1);
       final monthKey = _getMonthKey(monthDate);
@@ -233,15 +258,19 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
       // Initialize empty list for this month
       _selectedDaysPerMonth[monthKey] = [];
 
-      // Select all days that match the first month pattern
-      // but exclude past days
-      for (int day = 1; day <= daysInMonth; day++) {
-        final date = DateTime(monthDate.year, monthDate.month, day);
-        if (_firstMonthWeekdayPattern[date.weekday] == true && !_isPastDay(day)) {
+      // Apply the same day numbers from first month to this month
+      // but only if they exist in this month and are not past days
+      for (int day in firstMonthSelectedDays) {
+        if (day <= daysInMonth && !_isPastDayForMonth(day, monthDate)) {
           _selectedDaysPerMonth[monthKey]!.add(day);
         }
       }
+      
+      print('Month $monthKey: ${_selectedDaysPerMonth[monthKey]}');
     }
+    
+    print('Final selected days per month: $_selectedDaysPerMonth');
+    print('==========================================');
   }
 
   // Toggle apply to all months
@@ -334,12 +363,12 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
 
         // Format as ISO date string: YYYY-MM-DD
         final dateStr = '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
-        availableDays.add(dateStr);
-
         return dateStr;
       }).toList();
 
       availabilityCalendar[monthKey] = formattedDays;
+      // Add formatted days to availableDays list
+      availableDays.addAll(formattedDays);
     });
 
     return {
@@ -1017,6 +1046,15 @@ class _SignupServiceprovider4State extends State<SignupServiceprovider4> {
 
                 // Get formatted availability data
                 final availabilityData = _formatAvailabilityData();
+                
+                // Debug: Print availability data to see what's being sent
+                print('=== AVAILABILITY DATA DEBUG ===');
+                print('Selected Days Per Month: $_selectedDaysPerMonth');
+                print('Apply to All Months: ${availabilityData['applyToAllMonths']}');
+                print('Available Days: ${availabilityData['availableDays']}');
+                print('Available Weekdays: ${availabilityData['availableWeekdays']}');
+                print('Availability Calendar: ${availabilityData['availabilityCalendar']}');
+                print('================================');
 
                 // Extract logo file from userData
                 final logoFile = widget.userData['logo'] as File?;

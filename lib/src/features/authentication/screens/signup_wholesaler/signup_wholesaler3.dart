@@ -1,18 +1,12 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:country_picker/country_picker.dart';
-import '../../../../services/api_service.dart';
 import '../custom_header.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../login_page.dart';
-import '../welcome_page.dart';
 import '../../../../data/global_locations.dart';
-import '../verification_code.dart';
 import 'package:barrim/src/features/authentication/screens/white_headr.dart';
+import 'signup_wholesaler4.dart';
 
 
 class SignupWholesaler3 extends StatefulWidget {
@@ -32,8 +26,6 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
   final TextEditingController _cityController = TextEditingController();
   bool _agreeToTerms = false;
   bool _isLoadingLocation = false;
-  double? _latitude;
-  double? _longitude;
   List<String> _availableCities = [];
 
   void _submitWholesaler(BuildContext context) async {
@@ -63,203 +55,24 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
       return;
     }
 
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
+    // Navigate directly to map page for location selection
+    // No API call here - only in SignupWholesaler4
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SignupWholesaler4(
+          userData: {
+            ...widget.userData,
+            'address': {
+              'country': _countryController.text,
+              'governorate': _governorateController.text,
+              'district': _districtController.text,
+              'city': _cityController.text,
+            }
+          },
+        ),
+      ),
     );
-
-    try {
-      // Format phone number if needed
-      String phone = widget.userData['phone'].toString();
-      if (!phone.startsWith('+')) {
-        // For Lebanese numbers, preserve the leading zero
-        phone = '+961$phone';
-      }
-
-      // Prepare phones array - include main phone and any additional phones
-      List<String> phones = [phone];
-      if (widget.userData['additionalPhones'] != null) {
-        List<String> additionalPhones = List<String>.from(widget.userData['additionalPhones']);
-        // Format additional phones
-        additionalPhones = additionalPhones.map((p) {
-          if (!p.startsWith('+')) {
-            return '+961${p.startsWith('0') ? p.substring(1) : p}';
-          }
-          return p;
-        }).toList();
-        phones.addAll(additionalPhones);
-      }
-
-      // Prepare emails array - include main email and any additional emails
-      List<String> emails = [widget.userData['email']];
-      if (widget.userData['additionalEmails'] != null) {
-        List<String> additionalEmails = List<String>.from(widget.userData['additionalEmails']);
-        emails.addAll(additionalEmails);
-      }
-
-      final Map<String, dynamic> requestData = {
-        "email": widget.userData['email'],
-        "password": widget.userData['password'],
-        "fullName": widget.userData['fullName'],
-        "userType": "wholesaler",
-        "phone": phone,
-        "location": {
-          "country": _countryController.text.isNotEmpty ? _countryController.text : "Unknown",
-          "governorate": _governorateController.text.isNotEmpty ? _governorateController.text : "Unknown",
-          "district": _districtController.text.isNotEmpty ? _districtController.text : "Unknown",
-          "city": _cityController.text.isNotEmpty ? _cityController.text : "Unknown",
-          "coordinates": {
-            "lat": _latitude ?? 0.0,
-            "lng": _longitude ?? 0.0
-          },
-          "allowed": true
-        },
-        "wholesalerInfo": {
-          "businessName": widget.userData['business_name'],
-          "category": widget.userData['category'],
-          "subCategory": widget.userData['sub_category'] ?? '',
-          "phones": phones,
-          "emails": emails,
-          "address": {
-            "country": _countryController.text.isNotEmpty ? _countryController.text : "Unknown",
-            "governorate": _governorateController.text.isNotEmpty ? _governorateController.text : "Unknown",
-            "district": _districtController.text.isNotEmpty ? _districtController.text : "Unknown",
-            "city": _cityController.text.isNotEmpty ? _cityController.text : "Unknown",
-            "lat": _latitude ?? 0.0,
-            "lng": _longitude ?? 0.0
-          },
-          "referralCode": widget.userData['referralCode'] ?? '',
-          "socialMedia": widget.userData['socialMedia'] != null ? {
-            "facebook": widget.userData['socialMedia']['facebook'] ?? '',
-            "instagram": widget.userData['socialMedia']['instagram'] ?? '',
-          } : null,
-          "contactInfo": widget.userData['contactInfo'] != null ? {
-            "whatsapp": widget.userData['contactInfo']['whatsapp'] ?? '',
-            "website": widget.userData['contactInfo']['website'] ?? '',
-            "facebook": widget.userData['contactInfo']['facebook'] ?? '',
-          } : null,
-        }
-      };
-
-      // Detailed logging of the request data
-      print("\n========== WHOLESALER SIGNUP REQUEST DATA ==========");
-      print("Basic Info:");
-      print("Email: ${requestData['email']}");
-      print("Full Name: ${requestData['fullName']}");
-      print("Phone: ${requestData['phone']}");
-      print("User Type: ${requestData['userType']}");
-      
-      print("\nLocation Info:");
-      print("Country: ${requestData['location']['country']}");
-      print("Governorate: ${requestData['location']['governorate']}");
-      print("District: ${requestData['location']['district']}");
-      print("City: ${requestData['location']['city']}");
-      print("Coordinates: ${requestData['location']['coordinates']}");
-      
-      print("\nWholesaler Info:");
-      print("Business Name: ${requestData['wholesalerInfo']['businessName']}");
-      print("Category: ${requestData['wholesalerInfo']['category']}");
-      print("Sub Category: ${requestData['wholesalerInfo']['subCategory']}");
-      print("Phones: ${requestData['wholesalerInfo']['phones']}");
-      print("Emails: ${requestData['wholesalerInfo']['emails']}");
-      
-      print("\nWholesaler Address:");
-      print("Country: ${requestData['wholesalerInfo']['address']['country']}");
-      print("Governorate: ${requestData['wholesalerInfo']['address']['governorate']}");
-      print("District: ${requestData['wholesalerInfo']['address']['district']}");
-      print("City: ${requestData['wholesalerInfo']['address']['city']}");
-      print("Coordinates: lat=${requestData['wholesalerInfo']['address']['lat']}, lng=${requestData['wholesalerInfo']['address']['lng']}");
-      
-      if (requestData['wholesalerInfo']['socialMedia'] != null) {
-        print("\nSocial Media:");
-        print("Facebook: ${requestData['wholesalerInfo']['socialMedia']['facebook']}");
-        print("Instagram: ${requestData['wholesalerInfo']['socialMedia']['instagram']}");
-      }
-      
-      if (requestData['wholesalerInfo']['contactInfo'] != null) {
-        print("\nContact Info:");
-        print("WhatsApp: ${requestData['wholesalerInfo']['contactInfo']['whatsapp']}");
-        print("Website: ${requestData['wholesalerInfo']['contactInfo']['website']}");
-        print("Facebook: ${requestData['wholesalerInfo']['contactInfo']['facebook']}");
-      }
-      
-      print("\nRaw JSON Request:");
-      print(jsonEncode(requestData));
-      print("===============================================\n");
-
-      final response = await ApiService.signupWholesaler(requestData);
-      print("API Response: $response"); // Debug the API response
-
-      // Close loading dialog
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-
-      // Check for success in various possible response formats
-      bool isSuccess = false;
-      String? phoneNumber;
-      bool needsVerification = false;
-
-      if (response is Map<String, dynamic>) {
-        // Check different possible success indicators
-        isSuccess = response['success'] == true || 
-                   response['status'] == 200 || 
-                   response['status'] == 201 ||
-                   response['message']?.toString().contains('success') == true;
-        
-        phoneNumber = response['phone'] ?? phone;
-        needsVerification = response['needsVerification'] == true || 
-                          response['message']?.toString().contains('OTP') == true;
-      }
-
-      if (isSuccess) {
-        // Navigate to OTP verification screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpVerificationScreen(
-              phoneNumber: phoneNumber ?? phone,
-              onVerificationSuccess: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const WelcomePage()),
-                  (route) => false,
-                );
-              },
-            ),
-          ),
-        );
-      } else {
-        // Show error message
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text(response['message'] ?? 'Signup Failed'),
-        //     backgroundColor: Colors.red,
-        //     duration: const Duration(seconds: 5),
-        //   ),
-        // );
-      }
-    } catch (e) {
-      // Close loading dialog if it's still showing
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-      
-      print("Signup Error: $e");
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text("Signup Failed: ${e.toString().replaceAll('Exception: ', '')}"),
-      //     backgroundColor: Colors.red,
-      //     duration: const Duration(seconds: 5),
-      //   ),
-      // );
-    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -298,9 +111,6 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
       // Get current position
       Position position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
-
-      _latitude = position.latitude;
-      _longitude = position.longitude;
 
       // Get address from coordinates
       List<Placemark> placemarks = await placemarkFromCoordinates(
@@ -573,11 +383,6 @@ class _SignupWholesaler3State extends State<SignupWholesaler3> {
         final isMediumScreen = constraints.maxWidth >= 360 && constraints.maxWidth < 600;
 
         // Responsive font sizes
-        double getTitleFontSize() {
-          if (isSmallScreen) return 28;
-          if (isMediumScreen) return 40;
-          return 38;
-        }
 
         double getInputFontSize(Size size) {
           if (size.width < 360) return 16;

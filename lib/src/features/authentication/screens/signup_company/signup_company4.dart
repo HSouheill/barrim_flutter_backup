@@ -15,16 +15,16 @@ import '../company_dashboard/company_dashboard.dart';
 import '../serviceProvider_dashboard/serviceprovider_dashboard.dart';
 import '../wholesaler_dashboard/wholesaler_dashboard.dart';
 
-class SignupUserPage5 extends StatefulWidget {
+class SignupCompany4 extends StatefulWidget {
   final Map<String, dynamic> userData;
 
-  const SignupUserPage5({super.key, required this.userData});
+  const SignupCompany4({super.key, required this.userData});
 
   @override
-  State<SignupUserPage5> createState() => _SignupUserPage5State();
+  State<SignupCompany4> createState() => _SignupCompany4State();
 }
 
-class _SignupUserPage5State extends State<SignupUserPage5> {
+class _SignupCompany4State extends State<SignupCompany4> {
   GoogleMapController? mapController;
   final LatLng _center = const LatLng(33.8, 35.8); // Center of Lebanon
   Set<Marker> markers = {};
@@ -40,9 +40,6 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
 
   Future<void> _completeGoogleSignup(BuildContext context) async {
     try {
-      // Get the Google user data
-      final googleUserData = widget.userData['googleUserData'] as Map<String, dynamic>;
-      
       // Now authenticate with Google to get the proper tokens
       final provider = Provider.of<GCPGoogleSignInProvider>(context, listen: false);
       final result = await provider.googleLogin();
@@ -54,7 +51,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
         userProvider.setToken(result['token']);
         
         final userData = result['user'] ?? {};
-        final userType = userData['userType'] ?? 'user';
+        final userType = userData['userType'] ?? 'company';
         
         // Save the last visited page for session restoration
         final dashboardPageName = _getDashboardPageName(userType);
@@ -103,7 +100,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
       case 'wholesaler':
         return 'WholesalerDashboard';
       default:
-        return 'UserDashboard';
+        return 'CompanyDashboard';
     }
   }
 
@@ -145,7 +142,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => UserDashboard(userData: userData),
+            builder: (context) => CompanyDashboard(userData: userData),
           ),
         );
     }
@@ -159,22 +156,22 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     while (attempt < maxRetries) {
       try {
         attempt++;
-        print('Signup attempt $attempt of $maxRetries');
+        print('Company signup attempt $attempt of $maxRetries');
         
         // Increase timeout for real devices (60 seconds)
-        final response = await ApiService.signupUser(userData).timeout(
+        final response = await ApiService.signupBusiness(userData, null).timeout(
           const Duration(seconds: 60),
           onTimeout: () {
             throw Exception('Request timed out after 60 seconds');
           },
         );
         
-        print('Signup successful on attempt $attempt');
+        print('Company signup successful on attempt $attempt');
         return response;
         
       } catch (e) {
         lastException = e is Exception ? e : Exception(e.toString());
-        print('Signup attempt $attempt failed: $e');
+        print('Company signup attempt $attempt failed: $e');
         
         // If this is the last attempt, don't wait
         if (attempt < maxRetries) {
@@ -187,7 +184,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     }
     
     // All attempts failed
-    throw lastException ?? Exception('Signup failed after $maxRetries attempts');
+    throw lastException ?? Exception('Company signup failed after $maxRetries attempts');
   }
 
   void _submitSignup(BuildContext context) async {
@@ -207,28 +204,23 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     });
 
     try {
-      // Get address data from SignupUserPage4 as fallback
+      // Get address data from SignupCompany3 as fallback
       final addressData = widget.userData['address'] as Map<String, dynamic>?;
       
       // Add location data to the existing user data
-      // The API service expects location data to be flattened at the top level
       final Map<String, dynamic> updatedUserData = {
         ...widget.userData,
-        'location': {
-          'lat': selectedLocation!.latitude,
-          'lng': selectedLocation!.longitude,
-          'address': {
-            'country': (country?.isNotEmpty == true) ? country : addressData?['country'],
-            'governorate': (governorate?.isNotEmpty == true) ? governorate : addressData?['governorate'],
-            'district': (district?.isNotEmpty == true) ? district : addressData?['district'],
-            'city': (city?.isNotEmpty == true) ? city : addressData?['city'],
-            'fullAddress': fullAddress,
-          }
-        }
+        'country': (country?.isNotEmpty == true) ? country : addressData?['country'] ?? 'Unknown',
+        'governorate': (governorate?.isNotEmpty == true) ? governorate : addressData?['governorate'] ?? 'Unknown',
+        'district': (district?.isNotEmpty == true) ? district : addressData?['district'] ?? 'Unknown',
+        'city': (city?.isNotEmpty == true) ? city : addressData?['city'] ?? 'Unknown',
+        'lat': selectedLocation!.latitude,
+        'lng': selectedLocation!.longitude,
+        'userType': 'company',
       };
       
       // Debug print to verify final location data
-      print('=== SIGNUP USER PAGE 5 FINAL LOCATION DEBUG ===');
+      print('=== SIGNUP COMPANY 4 FINAL LOCATION DEBUG ===');
       print('Selected location lat: ${selectedLocation!.latitude}');
       print('Selected location lng: ${selectedLocation!.longitude}');
       print('Geocoded country: $country');
@@ -454,8 +446,8 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     // Check for permissions on startup
     _checkLocationPermission();
     
-    // Debug print to verify address data from SignupUserPage4
-    print('=== SIGNUP USER PAGE 5 DEBUG ===');
+    // Debug print to verify address data from SignupCompany3
+    print('=== SIGNUP COMPANY 4 DEBUG ===');
     print('Received userData: ${widget.userData}');
     print('Address data: ${widget.userData['address']}');
     print('=====================================');
@@ -677,14 +669,14 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
         position.longitude,
       );
 
-      // Get address data from SignupUserPage4 as fallback
+      // Get address data from SignupCompany3 as fallback
       final addressData = widget.userData['address'] as Map<String, dynamic>?;
       
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         
         setState(() {
-          // Use geocoded values if available and not empty, otherwise fallback to SignupUserPage4 data
+          // Use geocoded values if available and not empty, otherwise fallback to SignupCompany3 data
           country = (place.country?.isNotEmpty == true) ? place.country : addressData?['country'];
           governorate = (place.administrativeArea?.isNotEmpty == true) ? place.administrativeArea : addressData?['governorate'];
           district = (place.subAdministrativeArea?.isNotEmpty == true) ? place.subAdministrativeArea : addressData?['district'];
@@ -719,7 +711,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
           fullAddress = addressParts.join(', ');
         });
       } else {
-        // If no placemarks found, use data from SignupUserPage4
+        // If no placemarks found, use data from SignupCompany3
         if (addressData != null) {
           setState(() {
             country = addressData['country'];
@@ -744,7 +736,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
     } catch (e) {
       print('Error getting address: $e');
       
-      // If geocoding fails completely, use data from SignupUserPage4
+      // If geocoding fails completely, use data from SignupCompany3
       final addressData = widget.userData['address'] as Map<String, dynamic>?;
       if (addressData != null) {
         setState(() {
@@ -837,7 +829,7 @@ class _SignupUserPage5State extends State<SignupUserPage5> {
                 child: CustomHeader(
                   currentPageIndex: 4, // Same page index as manual entry
                   totalPages: 4,
-                  subtitle: 'User',
+                  subtitle: 'Company',
                   onBackPressed: () => Navigator.of(context).pop(),
                 ),
               ),

@@ -477,6 +477,16 @@ class SubscriptionProvider with ChangeNotifier {
         print('SubscriptionProvider - Service error: $serviceError');
         print('SubscriptionProvider - Service error type: ${serviceError.runtimeType}');
         
+        // Check if it's a ConflictException (409 error)
+        print('SubscriptionProvider - Checking for ConflictException in: ${serviceError.toString()}');
+        if (serviceError.toString().contains('ConflictException') || 
+            serviceError.toString().contains('Conflict')) {
+          print('SubscriptionProvider - Detected ConflictException, setting error message');
+          _isRequestingSubscription = false;
+          _setError('A subscription request has already been sent for this branch. Please wait for approval.');
+          return false;
+        }
+        
         // Check if it's a type conversion error
         if (serviceError.toString().contains("type 'String' is not a subtype of type 'bool'") ||
             serviceError.toString().contains("Data type mismatch")) {

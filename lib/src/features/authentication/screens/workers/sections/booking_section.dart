@@ -147,15 +147,15 @@ class _BookingSectionState extends State<BookingSection> {
         // Load available time slots after initializing service
         await _loadAvailableTimeSlots();
       } else {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(content: Text('Please log in to book a service')),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please log in to book a service')),
+        );
       }
     } catch (e) {
       print("Error initializing booking service: $e");
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Error initializing booking service: $e')),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error initializing booking service: $e')),
+      );
     }
   }
 
@@ -170,24 +170,36 @@ class _BookingSectionState extends State<BookingSection> {
         _isLoading = true;
       });
 
+      print("=== LOADING TIME SLOTS ===");
       print("Loading time slots for provider: ${widget.serviceProvider.id}");
       print("Selected date: $_selectedDate");
       print("Provider available hours: ${widget.serviceProvider.serviceProviderInfo?.availableHours}");
       print("Provider available days: ${widget.serviceProvider.serviceProviderInfo?.availableDays}");
+      print("Provider available days length: ${widget.serviceProvider.serviceProviderInfo?.availableDays?.length}");
 
       final slots = await _bookingService!.getAvailableTimeSlots(
         widget.serviceProvider.id,
         _selectedDate,
       );
 
-      print("Received time slots: $slots");
+      print("Received time slots from API: $slots");
 
-      // If no slots returned from API, generate them locally based on provider availability
+      // If no slots returned from API or API returns incomplete slots, generate them locally based on provider availability
       List<String> finalSlots = slots;
       if (slots.isEmpty) {
         print("No slots from API, generating locally...");
         finalSlots = _generateLocalTimeSlots();
         print("Generated local time slots: $finalSlots");
+      } else {
+        // Check if API returned complete time slots (should be 8 slots for 9 AM to 5 PM)
+        final expectedSlots = _generateLocalTimeSlots();
+        if (slots.length < expectedSlots.length) {
+          print("API returned incomplete slots (${slots.length}), expected ${expectedSlots.length}, generating locally...");
+          finalSlots = expectedSlots;
+          print("Generated local time slots: $finalSlots");
+        } else {
+          print("Using API time slots: $finalSlots");
+        }
       }
 
       setState(() {
@@ -206,35 +218,64 @@ class _BookingSectionState extends State<BookingSection> {
       setState(() {
         _isLoading = false;
         _availableTimeSlots = localSlots;
+        _selectedTimeSlot = null;
       });
     }
   }
 
   // Generate time slots locally based on provider's available hours
   List<String> _generateLocalTimeSlots() {
-    // First check if the selected date is actually available
+    // Check if date is in the past
+    final today = DateTime.now();
+    final currentDate = DateTime(today.year, today.month, today.day);
+    final isPastDate = _selectedDate.isBefore(currentDate);
+    
+    // If the date is in the past, don't generate time slots
+    if (isPastDate) {
+      print("Selected date is in the past - no time slots generated");
+      return [];
+    }
+    
+    // Get available days and hours
     final availableDays = widget.serviceProvider.serviceProviderInfo?.availableDays ?? [];
-    final selectedDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    final selectedWeekday = DateFormat('EEEE').format(_selectedDate);
+    final availableHours = widget.serviceProvider.serviceProviderInfo?.availableHours;
     
-    print("Checking availability for date: $selectedDateStr ($selectedWeekday)");
-    print("Available days: $availableDays");
+    print("=== BOOKING SECTION DEBUG ===");
+    print("Provider availableDays length: ${availableDays.length}");
+    print("Provider availability hours: $availableHours");
+    print("Selected date: ${DateFormat('yyyy-MM-dd').format(_selectedDate)}");
     
-    // Check if the selected date is available (either as specific date or weekday)
-    final isDateAvailable = availableDays.contains(selectedDateStr) || 
-                           availableDays.contains(selectedWeekday);
-    
-    if (!isDateAvailable && availableDays.isNotEmpty) {
-      print("Selected date $selectedDateStr is not available - no time slots generated");
-      return []; // Return empty list if date is not available
+    // If we have available days, check if the selected date is available
+    if (availableDays.isNotEmpty) {
+      final selectedDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final selectedWeekday = DateFormat('EEEE').format(_selectedDate);
+      
+      // Check if the selected date is available (prioritize specific dates over weekdays)
+      final isDateAvailable = availableDays.contains(selectedDateStr);
+      final isWeekdayAvailable = availableDays.contains(selectedWeekday);
+      
+      // If we have specific dates, only use those. Otherwise, use weekdays.
+      final hasSpecificDates = availableDays.any((day) => day.contains('-'));
+      final isAvailable = hasSpecificDates ? isDateAvailable : isWeekdayAvailable;
+      
+      print("isDateAvailable: $isDateAvailable");
+      print("isWeekdayAvailable: $isWeekdayAvailable");
+      print("hasSpecificDates: $hasSpecificDates");
+      print("isAvailable: $isAvailable");
+      
+      // For now, let's be more permissive - if we have 366 days (full year), assume all future dates are available
+      if (availableDays.length >= 365 && !isPastDate) {
+        print("Provider has full year availability - allowing all future dates");
+      } else if (!isAvailable) {
+        print("Selected date $selectedDateStr is not available - no time slots generated");
+        return []; // Return empty list if date is not available
+      }
     }
     
     // If no available days are set, assume all days are available (legacy behavior)
     if (availableDays.isEmpty) {
       print("No available days set - assuming all days are available");
     }
-    
-    final availableHours = widget.serviceProvider.serviceProviderInfo?.availableHours;
     if (availableHours == null || availableHours.isEmpty) {
       print("No available hours found, using default 9 AM to 5 PM");
       return _generateTimeSlotsFromRange('09:00', '17:00');
@@ -244,11 +285,23 @@ class _BookingSectionState extends State<BookingSection> {
       final startTime = availableHours[0];
       final endTime = availableHours[1];
       print("Generating slots from $startTime to $endTime");
-      return _generateTimeSlotsFromRange(startTime, endTime);
+      final slots = _generateTimeSlotsFromRange(startTime, endTime);
+      print("Generated ${slots.length} time slots for date ${DateFormat('yyyy-MM-dd').format(_selectedDate)}: $slots");
+      return slots;
     }
 
     // Fallback to default hours
-    return _generateTimeSlotsFromRange('09:00', '17:00');
+    print("Using fallback hours 09:00 to 17:00");
+    final slots = _generateTimeSlotsFromRange('09:00', '17:00');
+    print("Generated ${slots.length} fallback time slots for date ${DateFormat('yyyy-MM-dd').format(_selectedDate)}: $slots");
+    return slots;
+  }
+
+  // Format time slot to 12-hour format with AM/PM
+  String _formatTimeSlot(int hour, int minute) {
+    String period = hour >= 12 ? 'PM' : 'AM';
+    int displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    return '${displayHour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} $period';
   }
 
   // Generate time slots in 1-hour intervals from start to end time
@@ -278,11 +331,11 @@ class _BookingSectionState extends State<BookingSection> {
       for (int minutes = startMinutes; minutes < endMinutes; minutes += 60) {
         int hour = minutes ~/ 60;
         int minute = minutes % 60;
-        String timeSlot = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+        String timeSlot = _formatTimeSlot(hour, minute);
         slots.add(timeSlot);
       }
       
-      print("Generated $slots.length time slots: $slots");
+      print("Generated ${slots.length} time slots: $slots");
       return slots;
     } catch (e) {
       print("Error generating time slots: $e");
@@ -493,29 +546,34 @@ class _BookingSectionState extends State<BookingSection> {
 
   Future<void> _bookAppointment() async {
     if (_bookingService == null) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Please log in to book a service')),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to book a service')),
+      );
       return;
     }
 
     if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all required fields')),
+      );
       return;
     }
 
     if (_selectedTimeSlot == null) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Please select a time slot')),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a time slot')),
+      );
       return;
     }
 
     try {
+      print('=== STARTING BOOKING PROCESS ===');
       setState(() {
         _isBookingInProgress = true;
       });
 
       final userId = await AuthManager.getUserId();
+      print('User ID: $userId');
 
       if (userId == null) {
         throw Exception('User ID not found');
@@ -554,14 +612,17 @@ class _BookingSectionState extends State<BookingSection> {
         mediaType = _mediaTypes[0];
       }
 
+      print('=== CALLING BOOKING SERVICE ===');
       final success = await _bookingService!.createBooking(
         booking,
         mediaBase64: mediaBase64,
         mediaFileName: mediaFileName,
         mediaType: mediaType,
       );
+      print('Booking service result: $success');
 
       if (success) {
+        print('=== BOOKING SUCCESSFUL ===');
         // Store the selected time slot before clearing the form
         final selectedTimeSlot = _selectedTimeSlot;
         final selectedDate = _selectedDate;
@@ -582,18 +643,19 @@ class _BookingSectionState extends State<BookingSection> {
         _showBookingSuccessDialog(selectedDate, selectedTimeSlot);
       }
     } catch (e) {
+      print('Booking error: $e');
       String errorMsg = e.toString();
       if (errorMsg.contains('not available') || errorMsg.contains('unavailable') || errorMsg.contains('Provider is not available')) {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(
-        //     content: Text('The service provider is not available at this time. Please choose another time slot.'),
-        //     backgroundColor: Colors.orange,
-        //   ),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('The service provider is not available at this time. Please choose another time slot.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       } else {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(content: Text('Failed to book appointment: $e')),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to book appointment: $e')),
+        );
       }
     } finally {
       setState(() {
@@ -1184,18 +1246,30 @@ class _BookingSectionState extends State<BookingSection> {
       final isPastDate = date.isBefore(currentDate);
 
       // Check if service provider is available on this day
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
       final weekdayName = DateFormat('EEEE').format(date);
+      
+      // Check if specific date is available (prioritize specific dates over weekdays)
+      final isDateAvailable = widget.serviceProvider.serviceProviderInfo?.availableDays
+          ?.contains(dateStr) ??
+          false;
+      
+      // Check if weekday is available (fallback if no specific dates)
       final isWeekdayAvailable = widget.serviceProvider.serviceProviderInfo?.availableDays
           ?.contains(weekdayName) ??
           false;
 
-      // Check if specific date is available
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final isDateAvailable = widget.serviceProvider.serviceProviderInfo?.availableDays
-          ?.contains(dateStr) ??
-          false;
-
-      final isUnavailable = isPastDate || (!isWeekdayAvailable && !isDateAvailable);
+      // If we have specific dates, only use those. Otherwise, use weekdays.
+      final hasSpecificDates = widget.serviceProvider.serviceProviderInfo?.availableDays
+          ?.any((day) => day.contains('-')) ?? false;
+      
+      final isAvailable = isPastDate ? false : (hasSpecificDates ? isDateAvailable : isWeekdayAvailable);
+      final isUnavailable = !isAvailable;
+      
+      // Debug logging for calendar
+      if (day <= 5) { // Only log first few days to avoid spam
+        print("Calendar - Date: $dateStr, isDateAvailable: $isDateAvailable, isWeekdayAvailable: $isWeekdayAvailable, hasSpecificDates: $hasSpecificDates, isAvailable: $isAvailable, isUnavailable: $isUnavailable");
+      }
 
       dayWidgets.add(
         GestureDetector(
