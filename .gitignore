@@ -73,6 +73,12 @@ android/app/upload-keystore.jks
 **/build/
 **/XCBuildData/
 
+# Flutter build artifacts
+**/flutter_assets/
+**/kernel_blob.bin
+**/base.zip
+**/flutter-apk/
+
 # Build outputs
 *.apk
 *.aab
