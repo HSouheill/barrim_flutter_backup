@@ -68,6 +68,11 @@ android/app/upload-keystore.jks
 /ios/ServiceDefinitions.json
 /ios/Runner/GeneratedPluginRegistrant.*
 
+# Additional build directories
+/build/
+**/build/
+**/XCBuildData/
+
 # Build outputs
 *.apk
 *.aab
