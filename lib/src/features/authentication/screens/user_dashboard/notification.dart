@@ -9,6 +9,8 @@ import '../booking/myboooking.dart';
 import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
+import '../../screens/category/wholesaler_categories.dart';
+
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -164,8 +166,20 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   },
                 ),
                 ListTile(
+                  leading: Icon(Icons.store, color: Colors.white),
+                  title: Text('Wholesalers', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    _toggleSidebar();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const WholesalerCategoriesPage()),
+                      );
+                    });
+                  },
+                ),
+                ListTile(
                   leading: Icon(Icons.people, color: Colors.white),
-                  title: Text('Workers', style: TextStyle(color: Colors.white)),
+                  title: Text('Service Providers', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {

@@ -8,6 +8,7 @@ import '../settings/settings.dart';
 import '../login_page.dart';
 import '../../../../models/booking.dart';
 import 'package:barrim/src/utils/authService.dart';
+import '../../screens/category/wholesaler_categories.dart';
 
 class MyBookingsPage extends StatefulWidget {
   const MyBookingsPage({Key? key}) : super(key: key);
@@ -103,8 +104,20 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                   },
                 ),
                 ListTile(
+                  leading: Icon(Icons.store, color: Colors.white),
+                  title: Text('Wholesalers', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    _toggleSidebar();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const WholesalerCategoriesPage()),
+                      );
+                    });
+                  },
+                ),
+                ListTile(
                   leading: Icon(Icons.people, color: Colors.white),
-                  title: Text('Workers', style: TextStyle(color: Colors.white)),
+                  title: Text('Service Providers', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {

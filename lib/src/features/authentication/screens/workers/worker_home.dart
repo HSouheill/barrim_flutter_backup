@@ -6,7 +6,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import '../../screens/category/wholesaler_categories.dart';  
 import 'package:barrim/src/services/api_service.dart';
 import '../user_dashboard/notification.dart' as notification;
 import '../user_dashboard/home.dart';
@@ -351,8 +351,20 @@ class _DriversGuidesPageState extends State<DriversGuidesPage> {
                   },
                 ),
                 ListTile(
+                  leading: Icon(Icons.store, color: Colors.white),
+                  title: Text('Wholesalers', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    _toggleSidebar();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const WholesalerCategoriesPage()),
+                      );
+                    });
+                  },
+                ),
+                ListTile(
                   leading: Icon(Icons.people, color: Colors.white),
-                  title: Text('Workers', style: TextStyle(color: Colors.white)),
+                  title: Text('Service Providers', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                   },

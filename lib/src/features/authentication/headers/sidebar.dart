@@ -3,13 +3,14 @@ import 'package:provider/provider.dart';
 import '../../../utils/authService.dart';
 import '../../../services/user_provider.dart';
 import '../../../services/notification_provider.dart';
-import '../screens/booking/myboooking.dart';
 import '../screens/login_page.dart';
 import '../screens/referrals/user_referral.dart';
 import '../screens/settings/settings.dart';
 import '../screens/category/categories.dart';
+import '../screens/category/wholesaler_categories.dart';
 import '../screens/workers/worker_home.dart';
 import '../screens/user_dashboard/home.dart';
+import '../screens/service_providers/service_provider_categories.dart';
 
 class Sidebar extends StatelessWidget {
   final VoidCallback onCollapse;
@@ -155,13 +156,26 @@ class Sidebar extends StatelessWidget {
                 ),
 
                 _buildMenuItem(
-                  Icons.people,
-                  'Workers',
+                  Icons.store,
+                  'Wholesalers',
                   onTap: () {
                     onCollapse();
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(parentContext).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const DriversGuidesPage()),
+                        MaterialPageRoute(builder: (context) => const WholesalerCategoriesPage()),
+                      );
+                    });
+                  },
+                ),
+
+                _buildMenuItem(
+                  Icons.people,
+                  'Service Providers',
+                  onTap: () {
+                    onCollapse();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(parentContext).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const ServiceProviderCategoriesPage()),
                       );
                     });
                   },

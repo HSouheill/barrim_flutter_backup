@@ -19,6 +19,7 @@ import '../settings/settings.dart';
 import '../login_page.dart';
 import 'package:barrim/src/utils/authService.dart';
 import 'worker_home.dart';
+import '../../screens/category/wholesaler_categories.dart';
 
 class ServiceProviderProfile extends StatefulWidget {
   final dynamic provider;
@@ -628,8 +629,17 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
                   },
                 ),
                 ListTile(
+                  leading: Icon(Icons.store, color: Colors.white),
+                  title: Text('Wholesalers', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  onTap: () {
+                    setState(() {
+                      _isSidebarOpen = false;
+                    });
+                  },
+                ),
+                ListTile(
                   leading: Icon(Icons.people, color: Colors.white),
-                  title: Text('Workers', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  title: Text('Service Providers', style: TextStyle(color: Colors.white, fontSize: 14)),
                   onTap: () {
                     setState(() {
                       _isSidebarOpen = false;

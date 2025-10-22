@@ -415,7 +415,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
               // Service Providers Section - new section
               if (_favoriteServiceProviders.isNotEmpty) ...[
                 const Text(
-                  'Workers',
+                  'Service Providers',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,

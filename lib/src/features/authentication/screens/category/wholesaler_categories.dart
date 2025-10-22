@@ -3,19 +3,18 @@ import 'package:flutter/material.dart';
 import '../user_dashboard/notification.dart';
 import 'category_filter.dart';
 import 'category_places.dart';
-import 'category_subcategories.dart';
+import 'categories.dart';
+import 'wholesaler_subcategories.dart';
 import '../user_dashboard/home.dart';
 import '../workers/worker_home.dart';
 import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
-import '../service_providers/service_provider_categories.dart';
 import '../../../../services/api_service.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 import 'package:barrim/src/utils/authService.dart';
-import '../../screens/category/wholesaler_categories.dart';
 
-class CategoryData {
+class WholesalerCategoryData {
   final String id;
   final String? logoUrl; // Changed from iconPath to logoUrl
   final String title;
@@ -26,7 +25,7 @@ class CategoryData {
   final double distance; // For "Closest to" filtering
   final List<String> subcategories; // Add subcategories
 
-  CategoryData({
+  WholesalerCategoryData({
     required this.id,
     this.logoUrl, // Made optional since it might not be available
     required this.title,
@@ -39,23 +38,23 @@ class CategoryData {
   });
 }
 
-class CategoriesPage extends StatefulWidget {
-  const CategoriesPage({Key? key}) : super(key: key);
+class WholesalerCategoriesPage extends StatefulWidget {
+  const WholesalerCategoriesPage({Key? key}) : super(key: key);
 
   @override
-  _CategoriesPageState createState() => _CategoriesPageState();
+  _WholesalerCategoriesPageState createState() => _WholesalerCategoriesPageState();
 }
 
-class _CategoriesPageState extends State<CategoriesPage> {
+class _WholesalerCategoriesPageState extends State<WholesalerCategoriesPage> {
   bool _isSidebarOpen = false;
   String? _profileImagePath;
   bool _isLoadingCategories = true;
   String? _categoriesError;
 
   // Dynamic categories loaded from backend
-  List<CategoryData> _allCategories = [];
-  List<CategoryData> _filteredCategories = [];
-  List<CategoryData> _featuredCategories = [];
+  List<WholesalerCategoryData> _allCategories = [];
+  List<WholesalerCategoryData> _filteredCategories = [];
+  List<WholesalerCategoryData> _featuredCategories = [];
 
   // Search functionality
   final TextEditingController _searchController = TextEditingController();
@@ -98,13 +97,13 @@ class _CategoriesPageState extends State<CategoriesPage> {
         _categoriesError = null;
       });
 
-      print('CategoriesPage: Loading categories from backend...');
-      final categoriesData = await ApiService.getAllCategoriesWithLogos();
-      print('CategoriesPage: Received categories: $categoriesData');
+      print('WholesalerCategoriesPage: Loading categories from backend...');
+      final categoriesData = await ApiService.getAllWholesalerCategoriesWithLogos();
+      print('WholesalerCategoriesPage: Received categories: $categoriesData');
       
       if (mounted) {
-        // Convert backend categories to CategoryData objects
-        final List<CategoryData> backendCategories = [];
+        // Convert backend categories to WholesalerCategoryData objects
+        final List<WholesalerCategoryData> backendCategories = [];
         
         for (var entry in categoriesData.entries) {
           final categoryName = entry.key;
@@ -127,8 +126,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
             final subcategoriesData = categoryData['subcategories'] as List<dynamic>;
             subcategories = subcategoriesData.map((sub) => sub.toString()).toList();
           }
-          
-          final category = CategoryData(
+
+          final category = WholesalerCategoryData(
             id: categoryName.toLowerCase().replaceAll(' ', '_'),
             logoUrl: categoryData['logo'],
             title: categoryName,
@@ -147,14 +146,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
           _isLoadingCategories = false;
         });
         
-        print('CategoriesPage: Categories loaded successfully. Count: ${_allCategories.length}');
-        print('CategoriesPage: Categories: ${_allCategories.map((c) => c.title).toList()}');
+        print('WholesalerCategoriesPage: Categories loaded successfully. Count: ${_allCategories.length}');
+        print('WholesalerCategoriesPage: Categories: ${_allCategories.map((c) => c.title).toList()}');
         
         // Apply initial filters after categories are loaded
         _applyFilters(_filterOptions);
       }
     } catch (e) {
-      print('CategoriesPage: Error loading categories: $e');
+      print('WholesalerCategoriesPage: Error loading categories: $e');
       if (mounted) {
         setState(() {
           _isLoadingCategories = false;
@@ -221,7 +220,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
       }
 
       // Start with all categories
-      List<CategoryData> filtered = List.from(_allCategories);
+      List<WholesalerCategoryData> filtered = List.from(_allCategories);
 
       // Apply search filter if searching
       if (_isSearching && _searchQuery.isNotEmpty) {
@@ -287,13 +286,13 @@ class _CategoriesPageState extends State<CategoriesPage> {
     });
   }
 
-  void _navigateToCategoryPlaces(CategoryData category) {
+  void _navigateToCategoryPlaces(WholesalerCategoryData category) {
     // Navigate to subcategories page if subcategories exist, otherwise to places
     if (category.subcategories.isNotEmpty) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => CategorySubcategoriesPage(
+          builder: (context) => WholesalerSubcategoriesPage(
             categoryName: category.title,
             subcategories: category.subcategories,
           ),
@@ -396,33 +395,32 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   title: Text('Categories', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const CategoriesPage()),
+                      );
+                    });
                   },
                 ),
                 ListTile(
                   leading: Icon(Icons.store, color: Colors.white),
-                  title: Text('Wholesalers', style: TextStyle(color: Colors.white)),
+                  title: Text('Wholesaler Categories', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const WholesalerCategoriesPage()),
-                      );
-                    });
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.business_center, color: Colors.white),
+                  leading: Icon(Icons.people, color: Colors.white),
                   title: Text('Service Providers', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
                     Future.delayed(const Duration(milliseconds: 300), () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const ServiceProviderCategoriesPage()),
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const DriversGuidesPage()),
                       );
                     });
                   },
                 ),
-                
                 // ListTile(
                 //   leading: Icon(Icons.book_online, color: Colors.white),
                 //   title: Text('Bookings', style: TextStyle(color: Colors.white)),
@@ -497,7 +495,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
           // Custom header with categories title and search bar
           Column(
             children: [
-              CategoriesHeader(
+              WholesalerCategoriesHeader(
                 onBackPressed: () => Navigator.pop(context),
                 onMenuTap: _toggleSidebar,
                 onFilterTap: () {
@@ -576,7 +574,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                             ),
                             SizedBox(height: 16),
                             Text(
-                              'Loading categories...',
+                              'Loading wholesaler categories...',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey[600],
@@ -687,7 +685,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                         itemCount: _filteredCategories.length,
                         itemBuilder: (context, index) {
                           final category = _filteredCategories[index];
-                          return CategoryItem(
+                          return WholesalerCategoryItem(
                             logoUrl: category.logoUrl, // Pass logoUrl
                             title: category.title,
                             color: category.color,
@@ -720,7 +718,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: _featuredCategories.map((category) =>
-                          CategoryItem(
+                          WholesalerCategoryItem(
                             logoUrl: category.logoUrl, // Pass logoUrl
                             title: category.title,
                             color: category.color,
@@ -762,7 +760,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
   }
 }
 
-class CategoriesHeader extends StatelessWidget {
+class WholesalerCategoriesHeader extends StatelessWidget {
   final VoidCallback? onBackPressed;
   final VoidCallback? onMenuTap;
   final VoidCallback? onFilterTap;
@@ -774,7 +772,7 @@ class CategoriesHeader extends StatelessWidget {
   final bool isSearching;
   final VoidCallback? onClearSearch;
 
-  const CategoriesHeader({
+  const WholesalerCategoriesHeader({
     Key? key,
     this.onBackPressed,
     this.onMenuTap,
@@ -869,7 +867,7 @@ class CategoriesHeader extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Text(
-              'Categories',
+              'Wholesaler Categories',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 26,
@@ -898,7 +896,7 @@ class CategoriesHeader extends StatelessWidget {
                         child: TextField(
                           controller: searchController,
                           decoration: InputDecoration(
-                            hintText: 'Search for places, categories...',
+                            hintText: 'Search for wholesaler categories...',
                             border: InputBorder.none,
                             hintStyle: TextStyle(fontSize: 16, color: Colors.white),
                             contentPadding: EdgeInsets.symmetric(vertical: 9.5),
@@ -946,14 +944,14 @@ class CategoriesHeader extends StatelessWidget {
   }
 }
 
-class CategoryItem extends StatelessWidget {
+class WholesalerCategoryItem extends StatelessWidget {
   final String? logoUrl; // Changed from iconPath to logoUrl
   final String title;
   final Color color;
   final VoidCallback onTap;
   final double width;
 
-  const CategoryItem({
+  const WholesalerCategoryItem({
     Key? key,
     this.logoUrl, // Made optional since it might not be available
     required this.title,
@@ -1043,7 +1041,7 @@ class CategoryItem extends StatelessWidget {
 
   Widget _buildFallbackIcon() {
     return Icon(
-      Icons.category,
+      Icons.store,
       size: width * 0.4,
       color: color,
     );

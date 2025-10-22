@@ -1,61 +1,49 @@
 import 'package:flutter/material.dart';
-
+import '../../../../services/api_service.dart';
+import '../../../../components/secure_network_image.dart';
+import '../../../../utils/authService.dart';
 import '../user_dashboard/notification.dart';
-import 'category_filter.dart';
-import 'category_places.dart';
-import 'category_subcategories.dart';
 import '../user_dashboard/home.dart';
-import '../workers/worker_home.dart';
 import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
-import '../service_providers/service_provider_categories.dart';
-import '../../../../services/api_service.dart';
-import 'package:barrim/src/components/secure_network_image.dart';
-import 'package:barrim/src/utils/authService.dart';
+import 'service_providers_list.dart';
 import '../../screens/category/wholesaler_categories.dart';
 
-class CategoryData {
+class ServiceProviderCategoryData {
   final String id;
-  final String? logoUrl; // Changed from iconPath to logoUrl
-  final String title;
+  final String? logoUrl;
+  final String name;
   final Color color;
-  final double price; // For price filtering
-  final double rating; // For rating filtering
-  final bool isOpen; // For "Open Now" filtering
-  final double distance; // For "Closest to" filtering
-  final List<String> subcategories; // Add subcategories
+  final String? description;
+  final bool isActive;
 
-  CategoryData({
+  ServiceProviderCategoryData({
     required this.id,
-    this.logoUrl, // Made optional since it might not be available
-    required this.title,
+    this.logoUrl,
+    required this.name,
     required this.color,
-    required this.price,
-    required this.rating,
-    this.isOpen = true,
-    this.distance = 0.0,
-    this.subcategories = const [], // Default to empty list
+    this.description,
+    this.isActive = true,
   });
 }
 
-class CategoriesPage extends StatefulWidget {
-  const CategoriesPage({Key? key}) : super(key: key);
+class ServiceProviderCategoriesPage extends StatefulWidget {
+  const ServiceProviderCategoriesPage({Key? key}) : super(key: key);
 
   @override
-  _CategoriesPageState createState() => _CategoriesPageState();
+  _ServiceProviderCategoriesPageState createState() => _ServiceProviderCategoriesPageState();
 }
 
-class _CategoriesPageState extends State<CategoriesPage> {
+class _ServiceProviderCategoriesPageState extends State<ServiceProviderCategoriesPage> {
   bool _isSidebarOpen = false;
   String? _profileImagePath;
   bool _isLoadingCategories = true;
   String? _categoriesError;
 
   // Dynamic categories loaded from backend
-  List<CategoryData> _allCategories = [];
-  List<CategoryData> _filteredCategories = [];
-  List<CategoryData> _featuredCategories = [];
+  List<ServiceProviderCategoryData> _allCategories = [];
+  List<ServiceProviderCategoryData> _filteredCategories = [];
 
   // Search functionality
   final TextEditingController _searchController = TextEditingController();
@@ -98,108 +86,63 @@ class _CategoriesPageState extends State<CategoriesPage> {
         _categoriesError = null;
       });
 
-      print('CategoriesPage: Loading categories from backend...');
-      final categoriesData = await ApiService.getAllCategoriesWithLogos();
-      print('CategoriesPage: Received categories: $categoriesData');
+      print('ServiceProviderCategoriesPage: Loading categories from backend...');
+      final categoriesData = await ApiService.getAllServiceProviderCategories();
+      print('ServiceProviderCategoriesPage: Received categories: $categoriesData');
       
       if (mounted) {
-        // Convert backend categories to CategoryData objects
-        final List<CategoryData> backendCategories = [];
+        // Convert backend categories to ServiceProviderCategoryData objects
+        final List<ServiceProviderCategoryData> backendCategories = [];
         
-        for (var entry in categoriesData.entries) {
-          final categoryName = entry.key;
-          final categoryData = entry.value;
-          
-          // Parse color from hex string or use default
-          Color categoryColor = Colors.blue;
-          if (categoryData['color'] != null) {
-            try {
-              categoryColor = Color(int.parse(categoryData['color'].toString().replaceFirst('#', '0xFF')));
-            } catch (e) {
-              print('Error parsing color for category $categoryName: $e');
-              categoryColor = Colors.blue;
+        for (var category in categoriesData) {
+          final categoryName = category['name'] ?? '';
+          if (categoryName.isNotEmpty) {
+            // Parse color from hex string or use default
+            Color categoryColor = Colors.blue;
+            if (category['color'] != null) {
+              try {
+                String colorString = category['color'].toString();
+                if (colorString.startsWith('#')) {
+                  categoryColor = Color(int.parse(colorString.replaceFirst('#', '0xFF')));
+                }
+              } catch (e) {
+                print('Error parsing color for category $categoryName: $e');
+                categoryColor = Colors.blue;
+              }
             }
+            
+            final serviceProviderCategory = ServiceProviderCategoryData(
+              id: categoryName.toLowerCase().replaceAll(' ', '_'),
+              logoUrl: category['logo'],
+              name: categoryName,
+              color: categoryColor,
+              description: category['description'],
+              isActive: category['isActive'] ?? true,
+            );
+            backendCategories.add(serviceProviderCategory);
           }
-          
-          // Parse subcategories from the backend response
-          List<String> subcategories = [];
-          if (categoryData['subcategories'] != null) {
-            final subcategoriesData = categoryData['subcategories'] as List<dynamic>;
-            subcategories = subcategoriesData.map((sub) => sub.toString()).toList();
-          }
-          
-          final category = CategoryData(
-            id: categoryName.toLowerCase().replaceAll(' ', '_'),
-            logoUrl: categoryData['logo'],
-            title: categoryName,
-            color: categoryColor,
-            price: _getDefaultPriceForCategory(categoryName),
-            rating: _getDefaultRatingForCategory(categoryName),
-            isOpen: true,
-            distance: _getDefaultDistanceForCategory(categoryName),
-            subcategories: subcategories,
-          );
-          backendCategories.add(category);
         }
 
         setState(() {
           _allCategories = backendCategories;
+          _filteredCategories = List.from(backendCategories);
           _isLoadingCategories = false;
         });
         
-        print('CategoriesPage: Categories loaded successfully. Count: ${_allCategories.length}');
-        print('CategoriesPage: Categories: ${_allCategories.map((c) => c.title).toList()}');
-        
-        // Apply initial filters after categories are loaded
-        _applyFilters(_filterOptions);
+        print('ServiceProviderCategoriesPage: Categories loaded successfully. Count: ${_allCategories.length}');
+        print('ServiceProviderCategoriesPage: Categories: ${_allCategories.map((c) => c.name).toList()}');
       }
     } catch (e) {
-      print('CategoriesPage: Error loading categories: $e');
+      print('ServiceProviderCategoriesPage: Error loading categories: $e');
       if (mounted) {
         setState(() {
           _isLoadingCategories = false;
           _categoriesError = 'Failed to load categories: $e';
           _allCategories = [];
           _filteredCategories = [];
-          _featuredCategories = [];
         });
       }
     }
-  }
-
-  // Helper method to get default price for a category
-  double _getDefaultPriceForCategory(String categoryName) {
-    final categoryLower = categoryName.toLowerCase();
-    
-    if (categoryLower.contains('food') || categoryLower.contains('restaurant')) {
-      return 300.0;
-    } else if (categoryLower.contains('night') || categoryLower.contains('bar')) {
-      return 500.0;
-    } else if (categoryLower.contains('shop') || categoryLower.contains('retail')) {
-      return 200.0;
-    } else if (categoryLower.contains('health') || categoryLower.contains('medical')) {
-      return 400.0;
-    } else if (categoryLower.contains('education') || categoryLower.contains('university')) {
-      return 800.0;
-    } else if (categoryLower.contains('transport') || categoryLower.contains('car')) {
-      return 50.0;
-    } else if (categoryLower.contains('emergency') || categoryLower.contains('urgent')) {
-      return 200.0;
-    } else {
-      return 400.0; // Default price
-    }
-  }
-
-  // Helper method to get default rating for a category
-  double _getDefaultRatingForCategory(String categoryName) {
-    // Most categories get a good default rating
-    return 4.5;
-  }
-
-  // Helper method to get default distance for a category
-  double _getDefaultDistanceForCategory(String categoryName) {
-    // Random distance between 1-10 km for variety
-    return 2.0 + (categoryName.length % 8);
   }
 
   // Search functionality methods
@@ -208,65 +151,17 @@ class _CategoriesPageState extends State<CategoriesPage> {
       _searchQuery = _searchController.text.toLowerCase().trim();
       _isSearching = _searchQuery.isNotEmpty;
     });
-    _applySearchAndFilters();
+    _applySearch();
   }
 
-  void _applySearchAndFilters() {
+  void _applySearch() {
     setState(() {
-      // Check if categories are available
-      if (_allCategories.isEmpty) {
-        _featuredCategories = [];
-        _filteredCategories = [];
-        return;
-      }
-
-      // Start with all categories
-      List<CategoryData> filtered = List.from(_allCategories);
-
-      // Apply search filter if searching
-      if (_isSearching && _searchQuery.isNotEmpty) {
-        filtered = filtered.where((category) =>
-          category.title.toLowerCase().contains(_searchQuery)
-        ).toList();
-      }
-
-      // Apply price range filter
-      filtered = filtered.where((category) =>
-        category.price >= _filterOptions.priceRange.start &&
-        category.price <= _filterOptions.priceRange.end
-      ).toList();
-
-      // Apply "Open Now" filter if enabled
-      if (_filterOptions.openNow) {
-        filtered = filtered.where((category) => category.isOpen).toList();
-      }
-
-      // Apply sorting
-      if (_filterOptions.priceSort == 'highToLow') {
-        filtered.sort((a, b) => b.price.compareTo(a.price));
-      } else if (_filterOptions.priceSort == 'lowToHigh') {
-        filtered.sort((a, b) => a.price.compareTo(b.price));
-      }
-
-      if (_filterOptions.ratingSort == 'highToLow') {
-        filtered.sort((a, b) => b.rating.compareTo(a.rating));
-      } else if (_filterOptions.ratingSort == 'lowToHigh') {
-        filtered.sort((a, b) => a.rating.compareTo(b.rating));
-      }
-
-      // Apply "Closest to" filter if enabled
-      if (_filterOptions.closest) {
-        filtered.sort((a, b) => a.distance.compareTo(b.distance));
-      }
-
-      // When searching, show all results in the grid (no featured categories)
-      if (_isSearching) {
-        _featuredCategories = [];
-        _filteredCategories = filtered;
+      if (_searchQuery.isEmpty) {
+        _filteredCategories = List.from(_allCategories);
       } else {
-        // Separate featured categories (first 3) and regular grid categories
-        _featuredCategories = filtered.take(3).toList();
-        _filteredCategories = filtered.skip(3).toList();
+        _filteredCategories = _allCategories.where((category) =>
+          category.name.toLowerCase().contains(_searchQuery)
+        ).toList();
       }
     });
   }
@@ -277,9 +172,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
       _searchQuery = '';
       _isSearching = false;
     });
-    _applySearchAndFilters();
+    _applySearch();
   }
-
 
   void _toggleSidebar() {
     setState(() {
@@ -287,43 +181,16 @@ class _CategoriesPageState extends State<CategoriesPage> {
     });
   }
 
-  void _navigateToCategoryPlaces(CategoryData category) {
-    // Navigate to subcategories page if subcategories exist, otherwise to places
-    if (category.subcategories.isNotEmpty) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CategorySubcategoriesPage(
-            categoryName: category.title,
-            subcategories: category.subcategories,
-          ),
+  void _navigateToServiceProviders(ServiceProviderCategoryData category) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ServiceProvidersListPage(
+          categoryName: category.name,
+          categoryId: category.id,
         ),
-      );
-    } else {
-      // Fallback to places page if no subcategories
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CategoryPlaces(categoryId: category.id),
-        ),
-      );
-    }
-  }
-
-  FilterOptions _filterOptions = FilterOptions(
-    priceSort: 'none',
-    priceRange: const RangeValues(0, 1000),
-    ratingSort: 'none',
-    openNow: false,
-    closest: false,
-  );
-
-  // Method to apply filters
-  void _applyFilters(FilterOptions filters) {
-    setState(() {
-      _filterOptions = filters;
-    });
-    _applySearchAndFilters();
+      ),
+    );
   }
 
   Widget _buildSidebar() {
@@ -411,30 +278,12 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.business_center, color: Colors.white),
+                  leading: Icon(Icons.people, color: Colors.white),
                   title: Text('Service Providers', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     _toggleSidebar();
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const ServiceProviderCategoriesPage()),
-                      );
-                    });
                   },
                 ),
-                
-                // ListTile(
-                //   leading: Icon(Icons.book_online, color: Colors.white),
-                //   title: Text('Bookings', style: TextStyle(color: Colors.white)),
-                //   onTap: () {
-                //     _toggleSidebar();
-                //     Future.delayed(const Duration(milliseconds: 300), () {
-                //       Navigator.of(context).pushReplacement(
-                //         MaterialPageRoute(builder: (context) => const MyBookingsPage()),
-                //       );
-                //     });
-                //   },
-                // ),
                 ListTile(
                   leading: Icon(Icons.share, color: Colors.white),
                   title: Text('Referral', style: TextStyle(color: Colors.white)),
@@ -494,31 +343,17 @@ class _CategoriesPageState extends State<CategoriesPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // Custom header with categories title and search bar
+          // Custom header
           Column(
             children: [
-              CategoriesHeader(
+              ServiceProviderCategoriesHeader(
                 onBackPressed: () => Navigator.pop(context),
                 onMenuTap: _toggleSidebar,
-                onFilterTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => FiltersPage(
-                        initialFilters: _filterOptions,
-                        onApplyFilters: _applyFilters,
-                      ),
-                    ),
-                  );
-                },
-                filterOptions: _filterOptions,
-                applyFilters: _applyFilters,
                 profileImagePath: _profileImagePath,
                 searchController: _searchController,
                 isSearching: _isSearching,
                 onClearSearch: _clearSearch,
               ),
-
 
               // Search results indicator
               if (_isSearching)
@@ -562,9 +397,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     double screenWidth = constraints.maxWidth;
-                    // Use 150 for iPad/large screens, 80 for phones
                     double itemWidth = screenWidth >= 700 ? 150 : 80;
-                    int crossAxisCount = screenWidth < 600 ? 3 : 4; // Responsive: 3 for phones, 4 for larger screens
+                    int crossAxisCount = screenWidth < 600 ? 3 : 4;
                     
                     if (_isLoadingCategories) {
                       return Center(
@@ -576,7 +410,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                             ),
                             SizedBox(height: 16),
                             Text(
-                              'Loading categories...',
+                              'Loading service provider categories...',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey[600],
@@ -673,7 +507,6 @@ class _CategoriesPageState extends State<CategoriesPage> {
                       );
                     }
                     
-                    
                     return RefreshIndicator(
                       onRefresh: _loadCategories,
                       child: GridView.builder(
@@ -681,18 +514,18 @@ class _CategoriesPageState extends State<CategoriesPage> {
                           crossAxisCount: crossAxisCount,
                           mainAxisSpacing: 16,
                           crossAxisSpacing: 12,
-                          childAspectRatio: 0.9, // Increased from 0.85 to 0.9
+                          childAspectRatio: 0.9,
                         ),
                         padding: const EdgeInsets.all(16),
                         itemCount: _filteredCategories.length,
                         itemBuilder: (context, index) {
                           final category = _filteredCategories[index];
-                          return CategoryItem(
-                            logoUrl: category.logoUrl, // Pass logoUrl
-                            title: category.title,
+                          return ServiceProviderCategoryItem(
+                            logoUrl: category.logoUrl,
+                            name: category.name,
                             color: category.color,
                             onTap: () {
-                              _navigateToCategoryPlaces(category);
+                              _navigateToServiceProviders(category);
                             },
                             width: itemWidth,
                           );
@@ -704,37 +537,6 @@ class _CategoriesPageState extends State<CategoriesPage> {
               ),
             ],
           ),
-
-          // First row of featured categories overlapping the header (hide when searching)
-          if (!_isLoadingCategories && _categoriesError == null && _featuredCategories.isNotEmpty && !_isSearching)
-            Positioned(
-              top: 280,
-              left: 12,
-              right: 12,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  double screenWidth = constraints.maxWidth;
-                  double itemWidth = screenWidth >= 700 ? 150 : 80;
-                  return Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: _featuredCategories.map((category) =>
-                          CategoryItem(
-                            logoUrl: category.logoUrl, // Pass logoUrl
-                            title: category.title,
-                            color: category.color,
-                            onTap: () {
-                              _navigateToCategoryPlaces(category);
-                            },
-                            width: itemWidth,
-                          )
-                      ).toList(),
-                    ),
-                  );
-                },
-              ),
-            ),
 
           // Semi-transparent overlay when sidebar is open
           if (_isSidebarOpen)
@@ -762,25 +564,18 @@ class _CategoriesPageState extends State<CategoriesPage> {
   }
 }
 
-class CategoriesHeader extends StatelessWidget {
+class ServiceProviderCategoriesHeader extends StatelessWidget {
   final VoidCallback? onBackPressed;
   final VoidCallback? onMenuTap;
-  final VoidCallback? onFilterTap;
-  // Add these parameters to pass from parent
-  final FilterOptions filterOptions;
-  final Function(FilterOptions) applyFilters;
   final String? profileImagePath;
   final TextEditingController? searchController;
   final bool isSearching;
   final VoidCallback? onClearSearch;
 
-  const CategoriesHeader({
+  const ServiceProviderCategoriesHeader({
     Key? key,
     this.onBackPressed,
     this.onMenuTap,
-    this.onFilterTap,
-    required this.filterOptions,  // Add this required parameter
-    required this.applyFilters,  // Add this required parameter
     this.profileImagePath,
     this.searchController,
     this.isSearching = false,
@@ -795,9 +590,9 @@ class CategoriesHeader extends StatelessWidget {
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            Color(0xFF2079C2), // #2079C2
-            Color(0xFF1F4889), // #1F4889
-            Color(0xFF10105D), // #10105D
+            Color(0xFF2079C2),
+            Color(0xFF1F4889),
+            Color(0xFF10105D),
           ],
           stops: [0.0, 0.5, 1.0],
         ),
@@ -806,9 +601,9 @@ class CategoriesHeader extends StatelessWidget {
         top: MediaQuery.of(context).padding.top,
         left: 16,
         right: 16,
-        bottom: 50, // Increased bottom padding to make room for overlapping tiles
+        bottom: 50,
       ),
-      height: 332, // Keep the original height
+      height: 332,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -839,7 +634,6 @@ class CategoriesHeader extends StatelessWidget {
               SizedBox(width: 12),
               InkWell(
                 onTap: () {
-                  // Navigate to Categories page when menu icon is clicked
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -860,16 +654,16 @@ class CategoriesHeader extends StatelessWidget {
                   color: Colors.white,
                   size: 32,
                 ),
-                onPressed: onMenuTap, // Use the callback here
+                onPressed: onMenuTap,
               ),
             ],
           ),
 
-          // Categories text
+          // Service Provider Categories text
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Text(
-              'Categories',
+              'Service Provider Categories',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 26,
@@ -879,10 +673,9 @@ class CategoriesHeader extends StatelessWidget {
             ),
           ),
 
-          // Search bar and filter button
+          // Search bar
           Row(
             children: [
-              // Search bar
               Expanded(
                 child: Container(
                   height: 40,
@@ -898,7 +691,7 @@ class CategoriesHeader extends StatelessWidget {
                         child: TextField(
                           controller: searchController,
                           decoration: InputDecoration(
-                            hintText: 'Search for places, categories...',
+                            hintText: 'Search service provider categories...',
                             border: InputBorder.none,
                             hintStyle: TextStyle(fontSize: 16, color: Colors.white),
                             contentPadding: EdgeInsets.symmetric(vertical: 9.5),
@@ -922,22 +715,6 @@ class CategoriesHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(width: 8),
-              // Filter button with navigation to FiltersPage
-              GestureDetector(
-                onTap: onFilterTap, // Use the callback directly
-                child: Container(
-                  height: 40,
-                  width: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Icon(Icons.filter_list, color: Colors.blue, size: 30),
-                  ),
-                ),
-              ),
             ],
           ),
         ],
@@ -946,17 +723,17 @@ class CategoriesHeader extends StatelessWidget {
   }
 }
 
-class CategoryItem extends StatelessWidget {
-  final String? logoUrl; // Changed from iconPath to logoUrl
-  final String title;
+class ServiceProviderCategoryItem extends StatelessWidget {
+  final String? logoUrl;
+  final String name;
   final Color color;
   final VoidCallback onTap;
   final double width;
 
-  const CategoryItem({
+  const ServiceProviderCategoryItem({
     Key? key,
-    this.logoUrl, // Made optional since it might not be available
-    required this.title,
+    this.logoUrl,
+    required this.name,
     required this.color,
     required this.onTap,
     required this.width,
@@ -988,16 +765,16 @@ class CategoryItem extends StatelessWidget {
               child: _buildLogoWidget(),
             ),
           ),
-          SizedBox(height: 6), // Reduced from 8 to 6
-          // Category title - use Flexible to prevent overflow
+          SizedBox(height: 6),
+          // Category title
           Flexible(
             child: Container(
               width: width,
               child: Text(
-                title,
+                name,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 11, // Reduced from 12 to 11
+                  fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 3,
@@ -1011,10 +788,8 @@ class CategoryItem extends StatelessWidget {
   }
 
   Widget _buildLogoWidget() {
-    // If we have a logo URL, try to load it as a network image
     if (logoUrl != null && logoUrl!.isNotEmpty) {
       if (logoUrl!.startsWith('http')) {
-        // Network image
         return ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: SecureNetworkImage(
@@ -1027,7 +802,6 @@ class CategoryItem extends StatelessWidget {
           ),
         );
       } else if (logoUrl!.startsWith('assets/')) {
-        // Asset image
         return Image.asset(
           logoUrl!,
           width: width * 0.5,
@@ -1037,13 +811,12 @@ class CategoryItem extends StatelessWidget {
       }
     }
     
-    // Fallback to default icon
     return _buildFallbackIcon();
   }
 
   Widget _buildFallbackIcon() {
     return Icon(
-      Icons.category,
+      Icons.business,
       size: width * 0.4,
       color: color,
     );
