@@ -10,7 +10,7 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
-class MyFirebaseMessagingServiceNew : FirebaseMessagingService() {
+class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
@@ -52,7 +52,7 @@ class MyFirebaseMessagingServiceNew : FirebaseMessagingService() {
 
         val channelId = "barrim_fcm_channel"
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.notification_icon)
             .setContentTitle(title)
             .setContentText(messageBody)
             .setAutoCancel(true)
