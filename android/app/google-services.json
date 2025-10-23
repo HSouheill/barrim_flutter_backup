@@ -12,7 +12,12 @@
           "package_name": "com.Barrim.AppBarrim"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC_d-k4srUwr9UYcRwXQOzKCIBG2AIo-r4"
@@ -20,7 +25,20 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "598124535901-7eubbcoj5nni6sdj74f1op38r7updnov.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.barrim.barrim",
+                "app_store_id": "6746642468"
+              }
+            }
+          ]
         }
       }
     }
