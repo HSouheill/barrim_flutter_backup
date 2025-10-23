@@ -209,7 +209,7 @@ class ApiService {
         formattedInput = sanitizedEmailOrPhone.replaceAll(RegExp(r'[\s-]'), '');
         // Add country code if not present and number starts with 0
         if (formattedInput.startsWith('0')) {
-          formattedInput = '+961${formattedInput.substring(1)}';
+          formattedInput = '+961$formattedInput';
         }
         // Add country code if not present and number doesn't start with +
         else if (!formattedInput.startsWith('+')) {
@@ -2225,6 +2225,105 @@ class ApiService {
     return await CentralizedTokenManager.getToken() ?? '';
   }
 
+  // Send notification to service provider
+  static Future<bool> sendNotificationToServiceProvider({
+    required String serviceProviderId,
+    required String title,
+    required String message,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/notifications/send-to-service-provider'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'serviceProviderId': serviceProviderId,
+          'title': title,
+          'message': message,
+          'data': data,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('Notification sent successfully to service provider: $serviceProviderId');
+        return true;
+      } else {
+        print('Failed to send notification. Status: ${response.statusCode}, Body: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error sending notification to service provider: $e');
+      return false;
+    }
+  }
+
+  // Send FCM token to server for users
+  static Future<bool> sendFCMTokenToServer(String fcmToken, String userId) async {
+    try {
+      final token = await getAuthToken();
+      if (token.isEmpty) {
+        print('No auth token available for sending FCM token');
+        return false;
+      }
+
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/users/fcm-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'fcmToken': fcmToken}),
+      );
+
+      if (response.statusCode == 200) {
+        print('FCM token sent successfully to server');
+        return true;
+      } else {
+        print('Failed to send FCM token. Status: ${response.statusCode}, Body: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error sending FCM token: $e');
+      return false;
+    }
+  }
+
+  // Send FCM token to server for service providers
+  static Future<bool> sendServiceProviderFCMTokenToServer(String fcmToken) async {
+    try {
+      final token = await getAuthToken();
+      if (token.isEmpty) {
+        print('No auth token available for sending FCM token');
+        return false;
+      }
+
+      final response = await _makeRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/service-provider/fcm-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'fcmToken': fcmToken}),
+      );
+
+      if (response.statusCode == 200) {
+        print('Service provider FCM token sent successfully to server');
+        return true;
+      } else {
+        print('Failed to send service provider FCM token. Status: ${response.statusCode}, Body: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error sending service provider FCM token: $e');
+      return false;
+    }
+  }
+
   //api_service.dart
   static Future<Map<String, dynamic>> addToFavorites(String branchId,
       String token) async {
@@ -2721,7 +2820,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
     // Format phone number if needed
     String phone = userData['phone'].toString();
     if (!phone.startsWith('+')) {
-      phone = '+961${phone.startsWith('0') ? phone.substring(1) : phone}';
+      phone = '+961$phone';
     }
 
     // Build the request data according to backend expectations
@@ -2839,7 +2938,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
       // Ensure it starts with country code
       if (!normalizedPhone.startsWith('+')) {
         if (normalizedPhone.startsWith('0')) {
-          normalizedPhone = '+961${normalizedPhone.substring(1)}';
+          normalizedPhone = '+961$normalizedPhone';
         } else if (normalizedPhone.startsWith('961')) {
           normalizedPhone = '+$normalizedPhone';
         } else {
@@ -2946,7 +3045,7 @@ static Future<Map<String, dynamic>> signupWholesaler(
       // Ensure it starts with country code
       if (!normalizedPhone.startsWith('+')) {
         if (normalizedPhone.startsWith('0')) {
-          normalizedPhone = '+961${normalizedPhone.substring(1)}';
+          normalizedPhone = '+961$normalizedPhone';
         } else if (normalizedPhone.startsWith('961')) {
           normalizedPhone = '+$normalizedPhone';
         } else {

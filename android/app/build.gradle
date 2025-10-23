@@ -6,7 +6,8 @@ plugins {
     id 'kotlin-android'
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id 'dev.flutter.flutter-gradle-plugin'
-    // Removed Firebase Google services plugin - using GCP OAuth instead
+    // Firebase Google services plugin
+    id 'com.google.gms.google-services'
 }
 
 def keystoreProperties = new Properties()
@@ -16,14 +17,13 @@ if (keystorePropertiesFile.exists()) {
 }
 
 dependencies {
-    // GCP OAuth 2.0 dependencies
+    // Google Sign-In dependencies
     implementation 'com.google.android.gms:play-services-auth:21.0.0'
     
-    // Removed Firebase dependencies - using GCP OAuth instead
-    // implementation platform('com.google.firebase:firebase-bom:33.10.0')
-    // implementation 'com.google.firebase:firebase-auth'
-    // implementation 'com.google.firebase:firebase-firestore'
-    // implementation 'com.google.firebase:firebase-messaging'
+    // Firebase dependencies
+    implementation platform('com.google.firebase:firebase-bom:33.10.0')
+    implementation 'com.google.firebase:firebase-messaging'
+    implementation 'com.google.firebase:firebase-analytics'
 
     // AndroidX Core for edge-to-edge support
     implementation 'androidx.core:core-ktx:1.12.0'
@@ -59,8 +59,8 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdkVersion flutter.minSdkVersion
         targetSdk 36
-        versionCode 8
-        versionName '1.0.10'
+        versionCode 25
+        versionName '1.0.25'
         multiDexEnabled true
         
         // Security: Use environment variables for sensitive data
@@ -88,6 +88,22 @@ android {
 
             minifyEnabled false
             shrinkResources false
+        }
+    }
+
+    // Add this task to get certificate fingerprints
+    task getCertFingerprints {
+        doLast {
+            if (keystorePropertiesFile.exists()) {
+                println "Release Certificate Fingerprints:"
+                exec {
+                    commandLine 'keytool', '-list', '-v', '-keystore', keystoreProperties['storeFile'], '-alias', keystoreProperties['keyAlias'], '-storepass', keystoreProperties['storePassword'], '-keypass', keystoreProperties['keyPassword']
+                }
+            }
+            println "\nDebug Certificate Fingerprints:"
+            exec {
+                commandLine 'keytool', '-list', '-v', '-keystore', "${System.getProperty('user.home')}/.android/debug.keystore", '-alias', 'androiddebugkey', '-storepass', 'android', '-keypass', 'android'
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
+// Temporarily disabled Firebase messaging
+// import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -45,19 +46,20 @@ class _SPMyBookingsPageState extends State<SPMyBookingsPage> {
   }
 
   void _setupNotificationListener() {
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.data['type'] == 'new_booking') {
-        // Refresh bookings when new booking arrives
-        _loadBookings();
+    // Temporarily disabled Firebase messaging
+    // FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    //   if (message.data['type'] == 'new_booking') {
+    //     // Refresh bookings when new booking arrives
+    //     _loadBookings();
 
-        // Show local notification
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message.notification?.title ?? 'New booking'),
-          ),
-        );
-      }
-    });
+    //     // Show local notification
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       SnackBar(
+    //         content: Text(message.notification?.title ?? 'New booking'),
+    //       ),
+    //     );
+    //   }
+    // });
   }
 
   Future<void> _initializeBookingService() async {

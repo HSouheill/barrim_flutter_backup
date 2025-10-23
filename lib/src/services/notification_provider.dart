@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'dart:convert';
@@ -43,6 +44,9 @@ class NotificationProvider with ChangeNotifier {
 
     _userId = userId;
     _currentToken = token;
+
+          // Send FCM token to server when initializing WebSocket
+          sendFCMTokenToServer(userId);
 
     _establishConnection();
   }
@@ -156,6 +160,48 @@ class NotificationProvider with ChangeNotifier {
   void clearNotifications() {
     _notifications.clear();
     notifyListeners();
+  }
+
+  /// Send FCM token to server for users
+  Future<void> sendFCMTokenToServer(String userId) async {
+    try {
+      await _notificationService.sendTokenToServer(userId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error sending FCM token to server: $e');
+      }
+    }
+  }
+
+  /// Send FCM token to server for service providers
+  Future<void> sendServiceProviderFCMTokenToServer() async {
+    try {
+      await _notificationService.sendServiceProviderTokenToServer();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error sending service provider FCM token to server: $e');
+      }
+    }
+  }
+
+  /// Subscribe to FCM topic
+  Future<void> subscribeToTopic(String topic) async {
+    await _notificationService.subscribeToTopic(topic);
+  }
+
+  /// Unsubscribe from FCM topic
+  Future<void> unsubscribeFromTopic(String topic) async {
+    await _notificationService.unsubscribeFromTopic(topic);
+  }
+
+  /// Get background notifications
+  Future<List<Map<String, dynamic>>> getBackgroundNotifications() async {
+    return await _notificationService.getBackgroundNotifications();
+  }
+
+  /// Clear background notifications
+  Future<void> clearBackgroundNotifications() async {
+    await _notificationService.clearBackgroundNotifications();
   }
 
   @override

@@ -10,16 +10,21 @@ import 'package:barrim/src/services/api_service.dart';
 import 'package:barrim/src/utils/api_constants.dart';
 
 class GoogleSignInProvider extends ChangeNotifier {
-  final googleSignIn = GoogleSignIn(
-    scopes: [
-      'email',
-      'profile',
-    ],
-    // Configure client ID for Android
-    clientId: Platform.isAndroid 
-        ? '307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com'
-        : null, // iOS will use the default from GoogleService-Info.plist
-  );
+  GoogleSignIn? _googleSignIn;
+  
+  GoogleSignIn get googleSignIn {
+    _googleSignIn ??= GoogleSignIn(
+      scopes: [
+        'email',
+        'profile',
+      ],
+      // Configure client ID for both platforms
+      clientId: Platform.isAndroid 
+          ? '307776183600-p4ra4n80v0tajt573n8q5t4a684c0sn6.apps.googleusercontent.com'
+          : '307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com', // iOS client ID
+    );
+    return _googleSignIn!;
+  }
   GoogleSignInAccount? _user;
   GoogleSignInAccount get user => _user!;
   bool _isLoading = false;

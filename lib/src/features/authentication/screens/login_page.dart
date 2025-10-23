@@ -13,7 +13,8 @@ import './forgot_password/forgot_password.dart';
 import 'package:provider/provider.dart';
 import 'package:barrim/src/features/authentication/screens/company_dashboard/company_dashboard.dart';
 import 'package:barrim/src/services/user_provider.dart'; // Import UserProvider
-import '../../../services/gcp_google_auth_service.dart';
+import '../../../services/google_auth_service.dart';
+import 'package:barrim/src/services/notification_provider.dart';
 import './countrycode_dropdown.dart';
 
 class LoginPage extends StatefulWidget {
@@ -106,6 +107,20 @@ class _LoginPageState extends State<LoginPage> {
 
           print("User type detected: $userType");
           
+          // Send FCM token to server after successful login
+          try {
+            final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+            if (userType == 'serviceProvider') {
+              await notificationProvider.sendServiceProviderFCMTokenToServer();
+            } else {
+              await notificationProvider.sendFCMTokenToServer(user['_id'] ?? user['id'] ?? '');
+            }
+            print('FCM token sent to server for user type: $userType');
+          } catch (e) {
+            print('Error sending FCM token after login: $e');
+            // Don't block login if FCM token sending fails
+          }
+          
           // Add a small delay to ensure Google Maps services are ready
           // This prevents the crash that occurs when navigating immediately after login
           await Future.delayed(const Duration(milliseconds: 500));
@@ -165,7 +180,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleGoogleSignIn() async {
     try {
-      final provider = Provider.of<GCPGoogleSignInProvider>(context, listen: false);
+      final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
       final result = await provider.googleLogin();
 
       if (result != null) {
@@ -204,6 +219,20 @@ class _LoginPageState extends State<LoginPage> {
           pageData: userData,
           routePath: dashboardPageName,
         );
+
+        // Send FCM token to server after successful Google login
+        try {
+          final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+          if (userType == 'serviceProvider') {
+            await notificationProvider.sendServiceProviderFCMTokenToServer();
+          } else {
+            await notificationProvider.sendFCMTokenToServer(userData['_id'] ?? userData['id'] ?? '');
+          }
+          print('FCM token sent to server for Google login user type: $userType');
+        } catch (e) {
+          print('Error sending FCM token after Google login: $e');
+          // Don't block login if FCM token sending fails
+        }
 
         // Add a small delay to ensure Google Maps services are ready
         await Future.delayed(const Duration(milliseconds: 500));

@@ -5,10 +5,12 @@ import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
 import '../models/booking.dart';
 import '../utils/centralized_token_manager.dart';
+import 'notification_service.dart';
 
 class BookingService {
   final String baseUrl = ApiService.baseUrl;
   final String token;
+  final NotificationService _notificationService = NotificationService();
 
   // Define valid status constants to ensure consistency
   static const String STATUS_PENDING = 'pending';
@@ -164,6 +166,10 @@ class BookingService {
 
       if (response.statusCode == 201) {
         print('Booking created successfully');
+        
+        // Send notification to service provider
+        await _sendBookingNotificationToServiceProvider(booking);
+        
         return true;
       } else {
         final errorData = json.decode(response.body);
@@ -385,6 +391,39 @@ class BookingService {
     } catch (e) {
       print('Error responding to booking: $e');
       throw Exception('Failed to respond to booking: $e');
+    }
+  }
+
+  // Send booking notification to service provider
+  Future<void> _sendBookingNotificationToServiceProvider(Booking booking) async {
+    try {
+      // Get user information for the notification
+      final userData = await ApiService.getUserData();
+      final customerName = userData['fullName'] ?? 'Customer';
+      final serviceType = 'Service'; // You might want to get this from the service provider data
+      
+      // Format the booking date
+      final formattedDate = DateFormat('EEEE, MMM d, yyyy').format(booking.bookingDate);
+      
+      // Send the notification
+      final success = await _notificationService.sendBookingNotification(
+        serviceProviderId: booking.serviceProviderId,
+        customerName: customerName,
+        serviceType: serviceType,
+        bookingDate: formattedDate,
+        timeSlot: booking.timeSlot,
+        bookingId: booking.id ?? 'unknown',
+        isEmergency: booking.isEmergency,
+      );
+      
+      if (success) {
+        print('Booking notification sent successfully to service provider');
+      } else {
+        print('Failed to send booking notification to service provider');
+      }
+    } catch (e) {
+      print('Error sending booking notification: $e');
+      // Don't throw here - notification failure shouldn't break the booking process
     }
   }
 }

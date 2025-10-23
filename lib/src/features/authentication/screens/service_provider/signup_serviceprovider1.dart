@@ -198,7 +198,7 @@ class _SignupServiceprovider1State extends State<SignupServiceprovider1> {
               fontSize: ResponsiveUtils.getInputTextFontSize(context),
             ),
             decoration: InputDecoration(
-              labelText: 'Phone',
+              labelText: 'Phone (Optional)',
               labelStyle: GoogleFonts.nunito(
                 color: Colors.white,
                 fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -241,14 +241,14 @@ class _SignupServiceprovider1State extends State<SignupServiceprovider1> {
               ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your phone number';
-              }
-              if (!_isValidPhoneFormat(value)) {
-                return 'Please enter a valid phone number';
-              }
-              if (!_isPhoneValid && _phoneValidationMessage != null) {
-                return _phoneValidationMessage;
+              // Phone number is now optional
+              if (value != null && value.isNotEmpty) {
+                if (!_isValidPhoneFormat(value)) {
+                  return 'Please enter a valid phone number';
+                }
+                if (!_isPhoneValid && _phoneValidationMessage != null) {
+                  return _phoneValidationMessage;
+                }
               }
               return null;
             },

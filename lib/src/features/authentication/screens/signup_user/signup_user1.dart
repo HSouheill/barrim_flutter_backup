@@ -6,7 +6,7 @@ import '../signup_user/signup_user2.dart';
 import '../responsive_utils.dart';
 import '../../../../services/api_service.dart';
 import 'package:provider/provider.dart';
-import '../../../../services/gcp_google_auth_service.dart';
+import '../../../../services/google_auth_service.dart';
 import '../../../../services/user_provider.dart';
 import '../user_dashboard/home.dart';
 import '../company_dashboard/company_dashboard.dart';
@@ -138,7 +138,7 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
     
     try {
       print('Starting Google sign-in process...');
-      final provider = Provider.of<GCPGoogleSignInProvider>(context, listen: false);
+      final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
       final result = await provider.googleLogin();
       
       setState(() {

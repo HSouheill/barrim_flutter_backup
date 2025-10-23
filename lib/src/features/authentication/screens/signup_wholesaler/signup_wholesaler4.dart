@@ -7,7 +7,7 @@ import '../custom_header.dart';
 import '../../../../services/api_service.dart';
 import '../verification_code.dart';
 import '../white_headr.dart';
-import '../../../../services/gcp_google_auth_service.dart';
+import '../../../../services/google_auth_service.dart';
 import '../../../../services/user_provider.dart';
 import 'package:provider/provider.dart';
 import '../user_dashboard/home.dart';
@@ -41,7 +41,7 @@ class _SignupWholesaler4State extends State<SignupWholesaler4> {
   Future<void> _completeGoogleSignup(BuildContext context) async {
     try {
       // Now authenticate with Google to get the proper tokens
-      final provider = Provider.of<GCPGoogleSignInProvider>(context, listen: false);
+      final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
       final result = await provider.googleLogin();
       
       if (result != null && result['needsSignup'] != true) {
@@ -218,7 +218,8 @@ class _SignupWholesaler4State extends State<SignupWholesaler4> {
         // Format additional phones
         additionalPhones = additionalPhones.map((p) {
           if (!p.startsWith('+')) {
-            return '+961${p.startsWith('0') ? p.substring(1) : p}';
+            // For Lebanese numbers, preserve the leading zero
+            return '+961$p';
           }
           return p;
         }).toList();

@@ -1,84 +1,84 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-	<dict>
-		<key>CADisableMinimumFrameDurationOnPhone</key>
-		<true/>
-		<key>CFBundleDevelopmentRegion</key>
-		<string>$(DEVELOPMENT_LANGUAGE)</string>
-		<key>CFBundleDisplayName</key>
-		<string>Barrim</string>
-		<key>CFBundleExecutable</key>
-		<string>$(EXECUTABLE_NAME)</string>
-		<key>CFBundleIdentifier</key>
-		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-		<key>CFBundleInfoDictionaryVersion</key>
-		<string>6.0</string>
-		<key>CFBundleName</key>
-		<string>Barrim</string>
-		<key>CFBundlePackageType</key>
-		<string>APPL</string>
-		<key>CFBundleShortVersionString</key>
-		<string>$(FLUTTER_BUILD_NAME)</string>
-		<key>CFBundleSignature</key>
-		<string>????</string>
-		<key>CFBundleURLTypes</key>
-		<array>
-			<dict>
-				<key>CFBundleTypeRole</key>
-				<string>Editor</string>
-				<key>CFBundleURLSchemes</key>
-				<array>
-					<!-- Replace with your GCP OAuth client ID URL scheme -->
-					<string>com.googleusercontent.apps.307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86</string>
-				</array>
-			</dict>
-		</array>
-		<key>CFBundleVersion</key>
-		<string>$(FLUTTER_BUILD_NUMBER)</string>
-		<key>LSApplicationQueriesSchemes</key>
-		<array>
-			<string>https</string>
-			<string>http</string>
-			<string>comgooglemaps</string>
-		</array>
-		<key>LSRequiresIPhoneOS</key>
-		<true/>
-		<key>NSCameraUsageDescription</key>
-		<string>This app needs access to camera to take photos for your company logo</string>
-		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>This app needs access to location when open to show your current location on the map and provide location-based services.</string>
-		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-		<string>This app needs access to your location to provide location-based services including showing nearby businesses, enabling location-based search and filtering, providing directions, and delivering location-relevant notifications. Location data helps us show you the most relevant services and businesses in your area, improve search results, and provide accurate navigation assistance.</string>
-		<key>NSMicrophoneUsageDescription</key>
-		<string>This app needs access to microphone for camera functionality</string>
-		<key>NSPhotoLibraryUsageDescription</key>
-		<string>This app needs access to photo library to select images and videos for your business branches</string>
-		<key>NSPhotoLibraryAddUsageDescription</key>
-		<string>This app needs access to save images to your photo library</string>
-		<key>UIApplicationSupportsIndirectInputEvents</key>
-		<true/>
-		<key>UIBackgroundModes</key>
-		<array>
-			<string>remote-notification</string>
-			<string>nearby-interaction</string>
-		</array>
-		<key>UILaunchStoryboardName</key>
-		<string>LaunchScreen</string>
-		<key>UIMainStoryboardFile</key>
-		<string>Main</string>
-		<key>UISupportedInterfaceOrientations</key>
-		<array>
-			<string>UIInterfaceOrientationLandscapeLeft</string>
-			<string>UIInterfaceOrientationLandscapeRight</string>
-			<string>UIInterfaceOrientationPortrait</string>
-			<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		</array>
-		<key>io.flutter.embedded_views_preview</key>
-		<true/>
-		<key>UIStatusBarHidden</key>
-		<true/>
-		<key>UIViewControllerBasedStatusBarAppearance</key>
-		<false/>
-	</dict>
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Barrim</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Barrim</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>comgooglemaps</string>
+	</array>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Barrim uses the camera to let you take photos for your business profile, such as uploading your company logo or photos of your work. For example, a plumber can take a photo of their completed work to showcase their services to potential customers.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Barrim uses your location to show nearby service providers, businesses, and enable location-based search. For example, when you search for "plumber," we'll show you plumbers closest to your current location. We also use location to provide accurate directions to service providers, help you find businesses in your area, and send you relevant notifications about services available near you.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Barrim uses your location to show nearby service providers, businesses, and enable location-based search. For example, when you search for "plumber," we'll show you plumbers closest to your current location. We also use location to provide accurate directions to service providers and help you find businesses in your area.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Barrim uses the microphone when taking photos or videos for your business profile. For example, when recording a video to showcase your services, the microphone captures audio to provide a complete presentation of your work.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Barrim can save images to your photo library when you want to keep a copy of photos taken within the app. For example, after taking a photo of your completed work, you can save it to your device's photo library for your own records.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Barrim uses your photo library to let you select existing images for your business profile. For example, you can choose photos of your completed work, your business location, or team photos to build a comprehensive profile that attracts customers.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>nearby-interaction</string>
+		<string>fetch</string>
+	</array>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIStatusBarHidden</key>
+	<true/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
+</dict>
 </plist>

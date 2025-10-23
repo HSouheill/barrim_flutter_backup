@@ -1,4 +1,5 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
+// Temporarily disabled Firebase messaging
+// import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -91,21 +92,22 @@ class _BookingSectionState extends State<BookingSection> {
 
   void _setupNotificationListener() {
     try {
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        print("Received message: ${message.notification?.title}");
-        if (message.data['type'] == 'booking_status_update') {
-          final status = message.data['status'];
-          final bookingId = message.data['booking'];
+      // Temporarily disabled Firebase messaging
+      // FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      //   print("Received message: ${message.notification?.title}");
+      //   if (message.data['type'] == 'booking_status_update') {
+      //     final status = message.data['status'];
+      //     final bookingId = message.data['booking'];
 
-          // Show status update to user
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //   SnackBar(
-          //     content: Text(message.notification?.body ?? 'Booking status updated'),
-          //     backgroundColor: _getStatusColor(status),
-          //   ),
-          // );
-        }
-      });
+      //     // Show status update to user
+      //     // ScaffoldMessenger.of(context).showSnackBar(
+      //     //   SnackBar(
+      //     //     content: Text(message.notification?.body ?? 'Booking status updated'),
+      //     //     backgroundColor: _getStatusColor(status),
+      //     //   ),
+      //     // );
+      //   }
+      // });
     } catch (e) {
       print("Error setting up notification listener: $e");
     }
@@ -712,6 +714,15 @@ class _BookingSectionState extends State<BookingSection> {
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.white70,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The service provider has been notified',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white60,
                   ),
                   textAlign: TextAlign.center,
                 ),

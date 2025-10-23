@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "598124535901",
+    "project_id": "barrim-93482",
+    "storage_bucket": "barrim-93482.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:598124535901:android:a26af11cdbc623332f6db4",
+        "android_client_info": {
+          "package_name": "com.Barrim.AppBarrim"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_d-k4srUwr9UYcRwXQOzKCIBG2AIo-r4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

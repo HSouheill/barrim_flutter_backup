@@ -335,7 +335,7 @@ class _SignupWholesalerPage1State extends State<SignupWholesalerPage1> {
               fontSize: ResponsiveUtils.getInputTextFontSize(context),
             ),
             decoration: InputDecoration(
-              labelText: 'Phone',
+              labelText: 'Phone (Optional)',
               labelStyle: GoogleFonts.nunito(
                 color: Colors.white,
                 fontSize: ResponsiveUtils.getInputLabelFontSize(context),
@@ -378,35 +378,35 @@ class _SignupWholesalerPage1State extends State<SignupWholesalerPage1> {
               errorText: _phoneValidationMessage,
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your phone number';
-              }
-              if (!_isValidPhoneFormat(value)) {
-                return 'Phone number should contain only digits';
-              }
-              if (!_isPhoneValid && _phoneValidationMessage != null) {
-                return _phoneValidationMessage;
-              }
-              // Check minimum length based on country code
-              int minLength = 0;
-              switch (_countryCode) {
-                case '+1':
-                  minLength = 10;  // US/Canada
-                  break;
-                case '+44':
-                  minLength = 10;  // UK
-                  break;
-                case '+961':
-                  minLength = 8;   // Lebanon
-                  break;
-                case '+971':
-                  minLength = 9;   // UAE
-                  break;
-                default:
-                  minLength = 8;
-              }
-              if (value.length < minLength) {
-                return 'Phone number must be at least $minLength digits';
+              // Phone number is now optional
+              if (value != null && value.isNotEmpty) {
+                if (!_isValidPhoneFormat(value)) {
+                  return 'Phone number should contain only digits';
+                }
+                if (!_isPhoneValid && _phoneValidationMessage != null) {
+                  return _phoneValidationMessage;
+                }
+                // Check minimum length based on country code
+                int minLength = 0;
+                switch (_countryCode) {
+                  case '+1':
+                    minLength = 10;  // US/Canada
+                    break;
+                  case '+44':
+                    minLength = 10;  // UK
+                    break;
+                  case '+961':
+                    minLength = 8;   // Lebanon
+                    break;
+                  case '+971':
+                    minLength = 9;   // UAE
+                    break;
+                  default:
+                    minLength = 8;
+                }
+                if (value.length < minLength) {
+                  return 'Phone number must be at least $minLength digits';
+                }
               }
               return null;
             },

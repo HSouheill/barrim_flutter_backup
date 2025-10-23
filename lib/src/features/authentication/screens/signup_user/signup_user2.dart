@@ -372,7 +372,7 @@ class _SignupUserPage2State extends State<SignupUserPage2> {
       children: [
         // Phone Label
         Text(
-          'Phone',
+          'Phone (Optional)',
           style: GoogleFonts.nunito(
             color: const Color(0xFFDBD5D5),
             fontSize: labelFontSize * 0.8,
@@ -445,14 +445,14 @@ class _SignupUserPage2State extends State<SignupUserPage2> {
                   ),
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your phone number';
-                  }
-                  if (!_isValidPhoneFormat(value)) {
-                    return 'Please enter a valid phone number';
-                  }
-                  if (!_isPhoneValid && _phoneValidationMessage != null) {
-                    return _phoneValidationMessage;
+                  // Phone number is now optional
+                  if (value != null && value.isNotEmpty) {
+                    if (!_isValidPhoneFormat(value)) {
+                      return 'Please enter a valid phone number';
+                    }
+                    if (!_isPhoneValid && _phoneValidationMessage != null) {
+                      return _phoneValidationMessage;
+                    }
                   }
                   return null;
                 },
@@ -523,7 +523,10 @@ class _SignupUserPage2State extends State<SignupUserPage2> {
               final updatedUserData = {...widget.userData};
               updatedUserData['dateOfBirth'] = _dateController.text;
               updatedUserData['gender'] = _selectedGender;
-              updatedUserData['phone'] = '$_countryCode${_phoneController.text}';
+              // Only add phone if provided
+              if (_phoneController.text.isNotEmpty) {
+                updatedUserData['phone'] = '$_countryCode${_phoneController.text}';
+              }
               updatedUserData['referralCode'] = _referralController.text;
 
               // Navigate to next page with updated data

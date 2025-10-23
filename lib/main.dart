@@ -1,4 +1,4 @@
-import 'package:barrim/src/services/gcp_google_auth_service.dart';
+import 'package:barrim/src/services/google_auth_service.dart';
 import 'package:barrim/src/services/notification_service.dart';
 import 'package:barrim/src/services/notification_provider.dart';
 import 'package:barrim/src/services/user_provider.dart';
@@ -19,9 +19,8 @@ import '../src/models/auth_provider.dart';
 import '../src/utils/subscription_provider.dart';
 import '../src/utils/edge_to_edge_helper.dart';
 import '../src/utils/centralized_token_manager.dart';
-// Removed Firebase imports - using GCP OAuth instead
-// import 'package:firebase_core/firebase_core.dart';
-// import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,8 +40,16 @@ Future<void> main() async {
       print("Continuing with default environment configuration...");
     }
 
-    // Firebase initialization removed - using GCP OAuth instead
-    print("Using GCP OAuth for Google Sign-In - no Firebase initialization needed");
+    // Initialize Firebase only if not already initialized
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      print("Firebase initialized successfully");
+    } catch (e) {
+      print("Firebase initialization error: $e");
+      // Continue without Firebase if initialization fails
+    }
 
     // Initialize centralized token manager
     await CentralizedTokenManager.initialize();
@@ -284,7 +291,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider(
-    create: (context) => GCPGoogleSignInProvider(),
+    create: (context) => GoogleSignInProvider(),
     child: MaterialApp(
       title: 'Barrim',
       navigatorKey: _navigatorKey,
