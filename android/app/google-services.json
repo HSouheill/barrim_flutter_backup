@@ -15,6 +15,14 @@
       "oauth_client": [
         {
           "client_id": "598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.Barrim.AppBarrim",
+            "certificate_hash": "76:4C:1C:F4:8F:47:6F:BE:F3:2D:43:BA:F8:A5:D5:77:86:25:CB:D0"
+          }
+        },
+        {
+          "client_id": "598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
