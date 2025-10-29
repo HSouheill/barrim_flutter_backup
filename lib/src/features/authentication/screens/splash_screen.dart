@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../services/user_provider.dart';
 import '../../../services/extended_session_service.dart';
+import '../../../services/notification_provider.dart';
 import 'user_dashboard/home.dart';
 import 'company_dashboard/company_dashboard.dart';
 import 'serviceProvider_dashboard/serviceProvider_dashboard.dart';
@@ -89,6 +90,12 @@ class _SplashScreenState extends State<SplashScreen>
     print('  lastVisitedPage: ${userProvider.lastVisitedPage}');
     print('  isSavedRouteValid: ${userProvider.isSavedRouteValid()}');
     
+    // CRITICAL: Send FCM token if user is already logged in
+    // This ensures notifications work even when app is closed and reopened
+    if (userProvider.isLoggedIn && userProvider.user != null) {
+      await _sendFCMTokenIfNeeded(userProvider);
+    }
+    
     // Check for extended session first
     bool hasValidExtendedSession = false;
     Map<String, dynamic>? extendedRouteInfo;
@@ -151,6 +158,34 @@ class _SplashScreenState extends State<SplashScreen>
         builder: (context) => const LoginPage(),
       ),
     );
+  }
+
+  // Send FCM token to server if user is already logged in
+  Future<void> _sendFCMTokenIfNeeded(UserProvider userProvider) async {
+    try {
+      final user = userProvider.user;
+      if (user == null) return;
+      
+      final userType = user.userType;
+      final userId = user.id;
+      
+      print('Sending FCM token on app start for user type: $userType, userId: $userId');
+      
+      // Get notification provider
+      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+      
+      // Send FCM token based on user type
+      if (userType == 'serviceProvider') {
+        await notificationProvider.sendServiceProviderFCMTokenToServer();
+      } else if (userId.isNotEmpty) {
+        await notificationProvider.sendFCMTokenToServer(userId);
+      }
+      
+      print('FCM token sent successfully on app start');
+    } catch (e) {
+      print('Error sending FCM token on app start: $e');
+      // Don't block app navigation if FCM token fails
+    }
   }
 
   // Navigate to specific page based on page name

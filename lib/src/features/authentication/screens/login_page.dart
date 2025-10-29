@@ -16,6 +16,7 @@ import 'package:barrim/src/services/user_provider.dart'; // Import UserProvider
 import '../../../services/google_auth_service.dart';
 import 'package:barrim/src/services/notification_provider.dart';
 import './countrycode_dropdown.dart';
+import './help/how_to_use_app.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -247,7 +248,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Helper method to get dashboard page name for session restoration
+  // Helper metwd to get dasowboard page name for session restoration
   String _getDashboardPageName(String userType) {
     switch (userType) {
       case 'user':
@@ -504,7 +505,7 @@ class _LoginPageState extends State<LoginPage> {
                   Positioned(
                     left: 24,
                     right: 24,
-                    top: constraints.maxHeight * 0.25,
+                    top: constraints.maxHeight * 0.23,
                     bottom: 0,
                     child: Form(
                       key: _formKey,
@@ -698,7 +699,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
 
-                          SizedBox(height: constraints.maxHeight * 0.05),
+                          SizedBox(height: constraints.maxHeight * 0.03),
 
                           // Login Button
                           Center(
@@ -745,7 +746,9 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
 
-                          SizedBox(height: constraints.maxHeight * 0.03),
+                          
+
+                          SizedBox(height: constraints.maxHeight * 0.02),
 
                           // Sign Up Instead
                           Center(
@@ -779,7 +782,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
 
-                          SizedBox(height: constraints.maxHeight * 0.03),
+                          SizedBox(height: constraints.maxHeight * 0.01),
 
                           // Divider
                           Row(
@@ -810,7 +813,7 @@ class _LoginPageState extends State<LoginPage> {
                             ],
                           ),
 
-                          SizedBox(height: constraints.maxHeight * 0.03),
+                          SizedBox(height: constraints.maxHeight * 0.02),
 
                           // Social Login Buttons
                           Row(
@@ -824,6 +827,41 @@ class _LoginPageState extends State<LoginPage> {
                                 onPressed: _handleGoogleSignIn,
                               ),
                             ],
+                          ),
+
+                          SizedBox(height: constraints.maxHeight * 0.02),
+
+                          // How to Use App Link
+                          Center(
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const HowToUseAppPage(),
+                                  ),
+                                );
+                              },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.help_outline,
+                                    color: Colors.white.withOpacity(0.8),
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'How to Use the App',
+                                    style: GoogleFonts.nunito(
+                                      fontSize: getButtonFontSize() * 0.7,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white.withOpacity(0.8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),

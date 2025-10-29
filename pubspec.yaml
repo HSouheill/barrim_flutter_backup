@@ -48,6 +48,7 @@ dependencies:
   jwt_decoder: ^2.0.1
   cached_network_image: ^3.4.1
   web_socket_channel: ^2.4.0
+  connectivity_plus: ^6.0.5
   table_calendar: ^3.2.0
   video_player: ^2.9.5
   country_picker: ^2.0.27
@@ -100,6 +101,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/barrim_icons/
     - assets/logo/
     - assets/countries_districts_cities.json
     - .env

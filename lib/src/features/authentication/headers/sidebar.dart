@@ -8,9 +8,9 @@ import '../screens/referrals/user_referral.dart';
 import '../screens/settings/settings.dart';
 import '../screens/category/categories.dart';
 import '../screens/category/wholesaler_categories.dart';
-import '../screens/workers/worker_home.dart';
 import '../screens/user_dashboard/home.dart';
 import '../screens/service_providers/service_provider_categories.dart';
+import '../screens/help/how_to_use_app.dart';
 
 class Sidebar extends StatelessWidget {
   final VoidCallback onCollapse;
@@ -202,6 +202,21 @@ class Sidebar extends StatelessWidget {
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(parentContext).pushReplacement(
                         MaterialPageRoute(builder: (context) => const ReferralPointsPage()),
+                      );
+                    });
+                  },
+                ),
+
+                _buildMenuItem(
+                  Icons.help_outline,
+                  'How to Use',
+                  onTap: () {
+                    onCollapse();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(parentContext).push(
+                        MaterialPageRoute(
+                          builder: (context) => const HowToUseAppPage(),
+                        ),
                       );
                     });
                   },

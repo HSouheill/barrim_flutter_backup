@@ -5,12 +5,14 @@ import 'package:web_socket_channel/io.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'notification_service.dart';
+import 'fcm_service.dart';
 
 class NotificationProvider with ChangeNotifier {
   final NotificationService _notificationService;
   WebSocketChannel? _channel;
   String? _userId;
   String? _currentToken;
+  String? _userType; // Store user type for token refresh
   List<Map<String, dynamic>> _notifications = [];
   bool _isConnected = false;
   Timer? _reconnectTimer;
@@ -18,12 +20,15 @@ class NotificationProvider with ChangeNotifier {
   static const int _maxReconnectAttempts = 5;
   static const Duration _reconnectDelay = Duration(seconds: 5);
 
-  NotificationProvider(this._notificationService);
+  NotificationProvider(this._notificationService) {
+    // Register token refresh callback
+    _setupTokenRefreshHandler();
+  }
 
   List<Map<String, dynamic>> get notifications => _notifications;
   bool get isConnected => _isConnected;
 
-  void initWebSocket(String token, String userId) {
+  void initWebSocket(String token, String userId, {String? userType}) {
     // Prevent multiple connections with the same credentials
     if (_isConnected && _currentToken == token && _userId == userId) {
       // print('WebSocket already connected with same credentials');
@@ -44,9 +49,10 @@ class NotificationProvider with ChangeNotifier {
 
     _userId = userId;
     _currentToken = token;
+    _userType = userType; // Store user type for token refresh
 
-          // Send FCM token to server when initializing WebSocket
-          sendFCMTokenToServer(userId);
+    // Send FCM token to server when initializing WebSocket
+    sendFCMTokenToServer(userId);
 
     _establishConnection();
   }
@@ -149,12 +155,37 @@ class NotificationProvider with ChangeNotifier {
       _isConnected = false;
       _currentToken = null;
       _userId = null;
+      _userType = null; // Clear user type
       notifyListeners();
     }
     
     // Cancel any pending reconnect attempts
     _reconnectTimer?.cancel();
     _reconnectAttempts = 0;
+  }
+  
+  /// Setup token refresh handler
+  void _setupTokenRefreshHandler() {
+    final fcmService = FCMService();
+    fcmService.onTokenRefresh((newToken) {
+      if (kDebugMode) {
+        print('FCM Token refreshed in NotificationProvider: $newToken');
+      }
+      
+      // Send updated token to server if we have user info
+      if (_userId != null) {
+        if (kDebugMode) {
+          print('Sending refreshed FCM token to server for user: $_userId, type: $_userType');
+        }
+        
+        // Send based on user type
+        if (_userType == 'serviceProvider') {
+          sendServiceProviderFCMTokenToServer();
+        } else if (_userId!.isNotEmpty) {
+          sendFCMTokenToServer(_userId!);
+        }
+      }
+    });
   }
 
   void clearNotifications() {

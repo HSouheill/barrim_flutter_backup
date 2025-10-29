@@ -296,6 +296,19 @@ class FCMService {
     if (kDebugMode) {
       print('FCM Token refreshed, should send to server: $newToken');
     }
+    
+    // Trigger token update callback if registered
+    if (_onTokenRefreshCallback != null) {
+      _onTokenRefreshCallback!(newToken);
+    }
+  }
+  
+  // Callback for token refresh
+  Function(String)? _onTokenRefreshCallback;
+  
+  /// Register callback for token refresh
+  void onTokenRefresh(Function(String) callback) {
+    _onTokenRefreshCallback = callback;
   }
 
   /// Subscribe to topic

@@ -280,9 +280,9 @@ class FCMIntegrationExample {
   FCMIntegrationExample(this._notificationProvider, this._notificationService);
 
   /// Call this when user logs in
-  Future<void> onUserLogin(String userId, String token) async {
+  Future<void> onUserLogin(String userId, String token, {String? userType}) async {
     // Initialize WebSocket (which will also send FCM token)
-    _notificationProvider.initWebSocket(token, userId);
+    _notificationProvider.initWebSocket(token, userId, userType: userType);
     
     // Subscribe to user-specific topics
     await _notificationService.subscribeToTopic('user_$userId');

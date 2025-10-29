@@ -16,6 +16,7 @@ import '../../../../components/map_component.dart';
 import '../../../../components/google_maps_wrapper.dart';
 import '../../../../components/place_details_overlay.dart';
 import '../../../../components/search_results_overlay.dart';
+import '../../../../components/banner_carousel.dart';
 import '../../../../services/api_service.dart';
 import '../../headers/dashboard_headers.dart';
 import '../../headers/sidebar.dart';
@@ -28,6 +29,8 @@ import 'package:barrim/src/components/secure_network_image.dart';
 import 'notification.dart' as notification;
 import '../booking/myboooking.dart';
 import '../referrals/user_referral.dart';
+import '../../../../services/performance_optimized_api_service.dart';
+import '../../../../services/data_loading_manager.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
 import '../category/categories.dart';
@@ -58,6 +61,9 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
 
   // Add profile image path variable
   String? _profileImagePath;
+  
+  // Categories data
+  List<dynamic> _categories = [];
 
   // Google Maps related variables
   final GoogleMapsWrapper _mapController = GoogleMapsWrapper();
@@ -117,6 +123,9 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   
   // Add variable to force map updates
   int _mapUpdateCounter = 0;
+  
+  // Add variable to track banner carousel state
+  bool _isBannerCollapsed = true;
 
 
 
@@ -1264,39 +1273,8 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     
     _fetchUserData(); // Add this line to fetch user data
     
-      // Fetch category data first, then fetch branches and companies
-      _fetchCategoryData().then((_) {
-        print('Category data loaded, now fetching branches and companies');
-        
-        // Test color conversion
-        _testColorConversion();
-        
-        // Test wholesaler icon loading
-        _testWholesalerIcon();
-      
-      // Fetch categories from API
-      _fetchCategories().then((_) {
-        // Test category integration
-        CategoryIntegrationTest.testCategoryIntegration();
-      });
-      
-      // Always fetch companies to ensure all company markers are visible
-        _fetchCompanies().then((_) {
-        print('Companies fetched, total markers: ${_wayPointMarkers.length}');
-          // After companies are fetched, show nearby companies if location is already set
-          if (_currentLocation != null || _initialLocationSet) {
-            _showNearbyCompanies();
-          }
-        });
-      
-      // Always fetch branches to ensure all branch markers are visible
-      _fetchAllBranches();
-      
-            // Always fetch wholesalers to ensure all wholesaler markers are visible
-      _fetchAllWholesalers().catchError((e) {
-        print('Error fetching wholesalers: $e');
-      });
-    });
+    // OPTIMIZED: Load all data in parallel for better performance
+    _loadAllDataInParallel();
     
     // Add search focus listener
     _searchFocusNode.addListener(() {
@@ -1822,6 +1800,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   // Show companies near the user's current location (within 5km)
   void _showNearbyCompanies() {
     if (_allCompanies.isEmpty || _userLocation == null) return;
+    print('🔍 _showNearbyCompanies called - markers before: ${_wayPointMarkers.length}');
     const double maxDistance = 5.0; // km
     final List<Map<String, dynamic>> nearbyCompanies = _allCompanies.where((company) {
       final companyLocation = company['location'];
@@ -1831,7 +1810,9 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       final double distance = _calculateDistance(_userLocation.latitude, _userLocation.longitude, lat, lng);
       return distance <= maxDistance;
     }).toList();
+    print('🔍 Nearby companies found: ${nearbyCompanies.length}');
     _createMarkersFromCompanies(nearbyCompanies);
+    print('🔍 Markers after _createMarkersFromCompanies: ${_wayPointMarkers.length}');
     if (_wayPointMarkers.isNotEmpty && _mapController != null) {
       _mapController.move(_wayPointMarkers[0].position, 15.0);
     }
@@ -2804,8 +2785,19 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                     ),
                   ),
                 ),
-                
-
+                // Banner Carousel for Advertisements
+                BannerCarousel(
+                  imageUrls: [
+                    'assets/images/subscription.png',
+                    'assets/images/6months_subscription.png',
+                    'assets/images/monthly_subscription.png',
+                    'assets/images/yearly_subscription.png',
+                  ],
+                  height: 150,
+                  autoPlayInterval: const Duration(seconds: 5),
+                  autoPlay: true,
+                  
+                ),
                 
                 Expanded(
                   child: Stack(
@@ -3284,6 +3276,386 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       // ScaffoldMessenger.of(context).showSnackBar(
       //   SnackBar(content: Text('Failed to load wholesalers: $e')),
       // );
+    }
+  }
+
+  // OPTIMIZED: Load all data in parallel for better performance
+  Future<void> _loadAllDataInParallel() async {
+    print('🚀 Starting parallel data loading...');
+    
+    try {
+      // Initialize data loading manager
+      final dataManager = DataLoadingManager();
+      await dataManager.initialize();
+      
+      // Load all critical data in parallel
+      final results = await dataManager.loadMultipleData({
+        'categories': () => _fetchCategoriesOptimized(),
+        'companies': () => _fetchCompaniesOptimized(),
+        'branches': () => _fetchBranchesOptimized(),
+        'wholesalers': () => _fetchWholesalersOptimized(),
+        'categoryData': () => _fetchCategoryDataOptimized(),
+      });
+      
+      print('✅ Parallel data loading completed');
+      print('Results: ${results.keys.map((k) => '$k: ${results[k] != null ? 'loaded' : 'failed'}').join(', ')}');
+      
+      // Process results and update UI
+      await _processParallelResults(results);
+      
+    } catch (e) {
+      print('❌ Error in parallel data loading: $e');
+      // Fallback to sequential loading
+      await _fallbackSequentialLoading();
+    }
+  }
+  
+  // Optimized fetch methods that use the performance service
+  Future<List<dynamic>> _fetchCategoriesOptimized() async {
+    try {
+      return await PerformanceOptimizedApiService.fetchCategories();
+    } catch (e) {
+      print('Error fetching categories (optimized): $e');
+      return [];
+    }
+  }
+  
+  Future<List<dynamic>> _fetchCompaniesOptimized() async {
+    try {
+      return await PerformanceOptimizedApiService.fetchCompanies();
+    } catch (e) {
+      print('Error fetching companies (optimized): $e');
+      return [];
+    }
+  }
+  
+  Future<List<dynamic>> _fetchBranchesOptimized() async {
+    try {
+      return await PerformanceOptimizedApiService.fetchBranches();
+    } catch (e) {
+      print('Error fetching branches (optimized): $e');
+      return [];
+    }
+  }
+  
+  Future<List<dynamic>> _fetchWholesalersOptimized() async {
+    try {
+      return await PerformanceOptimizedApiService.fetchWholesalers();
+    } catch (e) {
+      print('Error fetching wholesalers (optimized): $e');
+      return [];
+    }
+  }
+  
+  Future<Map<String, dynamic>> _fetchCategoryDataOptimized() async {
+    try {
+      // This would be your category data fetching logic
+      return {};
+    } catch (e) {
+      print('Error fetching category data (optimized): $e');
+      return {};
+    }
+  }
+  
+  // Process results from parallel loading
+  Future<void> _processParallelResults(Map<String, dynamic> results) async {
+    try {
+      // Process categories
+      if (results['categories'] != null) {
+        final categories = results['categories'] as List<dynamic>;
+        setState(() {
+          _categories = categories;
+        });
+        print('✅ Categories processed: ${categories.length} items');
+      }
+      
+      // Process companies
+      if (results['companies'] != null) {
+        final companies = results['companies'] as List<dynamic>;
+        await _processCompaniesData(companies);
+        print('✅ Companies processed: ${companies.length} items');
+      }
+      
+      // Process branches
+      if (results['branches'] != null) {
+        final branches = results['branches'] as List<dynamic>;
+        await _processBranchesData(branches);
+        print('✅ Branches processed: ${branches.length} items');
+      }
+      
+      // Process wholesalers
+      if (results['wholesalers'] != null) {
+        final wholesalers = results['wholesalers'] as List<dynamic>;
+        await _processWholesalersData(wholesalers);
+        print('✅ Wholesalers processed: ${wholesalers.length} items');
+      }
+      
+      // Process category data
+      if (results['categoryData'] != null) {
+        final categoryData = results['categoryData'] as Map<String, dynamic>;
+        setState(() {
+          _categoryData = categoryData.cast<String, Map<String, dynamic>>();
+        });
+        print('✅ Category data processed');
+      }
+      
+      // Show nearby companies if location is available
+      // Temporarily disabled to avoid conflicts with parallel processing
+      // if (_currentLocation != null || _initialLocationSet) {
+      //   print('🔍 Calling _showNearbyCompanies after parallel processing');
+      //   _showNearbyCompanies();
+      // }
+      
+      print('🔍 Final marker count after parallel processing: ${_wayPointMarkers.length}');
+      
+    } catch (e) {
+      print('❌ Error processing parallel results: $e');
+    }
+  }
+  
+  // Fallback to sequential loading if parallel fails
+  Future<void> _fallbackSequentialLoading() async {
+    print('🔄 Falling back to sequential loading...');
+    
+    try {
+      // Load data sequentially as before
+      await _fetchCategoryData();
+      await _fetchCategories();
+      await _fetchCompanies();
+      await _fetchAllBranches();
+      await _fetchAllWholesalers();
+      
+      print('✅ Sequential loading completed');
+    } catch (e) {
+      print('❌ Error in sequential loading: $e');
+    }
+  }
+  
+  // Helper methods to process data with actual implementation
+  Future<void> _processCompaniesData(List<dynamic> companies) async {
+    try {
+      print('Processing ${companies.length} companies...');
+      
+      // Filter out companies with status 'pending' or 'rejected'
+      final filteredCompanies = companies.where((company) {
+        final status = company['status'] ?? company['companyInfo']?['status'];
+        return status == 'active';
+      }).toList();
+
+      // Store all companies for later use
+      _allCompanies = List<Map<String, dynamic>>.from(filteredCompanies);
+
+      setState(() {
+        // Create markers for companies
+        for (var company in filteredCompanies) {
+          if (company['location'] != null &&
+              company['location']['lat'] != null &&
+              company['location']['lng'] != null) {
+
+            final location = company['location'];
+            final companyInfo = company['companyInfo'];
+
+            _wayPointMarkers.add(
+              google_maps.Marker(
+                markerId: google_maps.MarkerId('company_${company['_id']}'),
+                position: google_maps.LatLng(
+                  location['lat'].toDouble(),
+                  location['lng'].toDouble(),
+                ),
+                onTap: () {
+                  setState(() {
+                    _selectedPlace = {
+                      'name': companyInfo?['name'] ?? 'Unknown Company',
+                      '_id': company['_id'],
+                      'latitude': location['lat'],
+                      'longitude': location['lng'],
+                      'address': company['address'] ?? 'No address available',
+                      'phone': companyInfo?['phone'] ?? 'No phone available',
+                      'description': companyInfo?['description'] ?? 'No description available',
+                      'image': companyInfo?['logo'] ?? 'assets/images/company_placeholder.png',
+                      'logoUrl': companyInfo?['logo'],
+                      'companyName': companyInfo?['name'],
+                      'companyId': company['_id'],
+                      'category': companyInfo?['category'],
+                      'company': companyInfo,
+                    };
+                  });
+                },
+                icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue),
+              ),
+            );
+          }
+        }
+      });
+      
+      print('✅ Companies processed: ${filteredCompanies.length} items');
+    } catch (e) {
+      print('❌ Error processing companies: $e');
+    }
+  }
+  
+  Future<void> _processBranchesData(List<dynamic> branches) async {
+    try {
+      print('Processing ${branches.length} branches...');
+      
+      // Filter out branches whose status is not 'active'
+      print('🔍 Total branches received: ${branches.length}');
+      final filteredBranches = branches.where((branch) {
+        final branchStatus = branch['status'];
+        final isActive = branchStatus == 'active';
+        if (!isActive) {
+          print('🔍 Filtered out branch: ${branch['name']} - Status: $branchStatus');
+        }
+        return isActive;
+      }).toList();
+      print('🔍 Active branches after filtering: ${filteredBranches.length}');
+      
+      setState(() {
+        _allBranches = List<Map<String, dynamic>>.from(filteredBranches);
+      });
+
+      // Update active branches data
+      _updateActiveBranches();
+
+      // Create markers for filtered branches
+      final branchMarkers = await Future.wait(filteredBranches.map((branch) async {
+        final location = branch['location'];
+        if (location == null ||
+            location['lat'] == null ||
+            location['lng'] == null) {
+          return null;
+        }
+
+        final lat = location['lat'].toDouble();
+        final lng = location['lng'].toDouble();
+        
+        if (lat == 0.0 && lng == 0.0) {
+          return null;
+        }
+
+        // Debug: Print branch data structure
+        print('🔍 Branch data keys: ${branch.keys.toList()}');
+        print('🔍 Branch _id: ${branch['_id']}');
+        print('🔍 Branch id: ${branch['id']}');
+        print('🔍 Branch name: ${branch['name']}');
+
+        // Use id or _id or generate a unique ID
+        final branchId = branch['_id'] ?? branch['id'] ?? 'branch_${DateTime.now().millisecondsSinceEpoch}_${lat.toString()}_${lng.toString()}';
+        
+        return google_maps.Marker(
+          markerId: google_maps.MarkerId('branch_$branchId'),
+          position: google_maps.LatLng(lat, lng),
+          onTap: () {
+            setState(() {
+              _selectedPlace = {
+                'name': branch['name'] ?? 'Unknown Branch',
+                '_id': branch['_id'],
+                'latitude': lat,
+                'longitude': lng,
+                'address': branch['address'] ?? 'No address available',
+                'phone': branch['phone'] ?? 'No phone available',
+                'description': branch['description'] ?? 'No description available',
+                'image': branch['images']?.isNotEmpty == true 
+                    ? branch['images'][0] 
+                    : 'assets/images/branch_placeholder.png',
+                'category': branch['category'],
+                'company': branch['company'],
+                'socialMedia': _getValidSocialMedia(branch['socialMedia'], branch['company']?['socialMedia']),
+              };
+            });
+          },
+          icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
+        );
+      }));
+
+      final validBranchMarkers = branchMarkers.where((marker) => marker != null).cast<google_maps.Marker>().toList();
+      print('🔍 Valid branch markers created: ${validBranchMarkers.length}');
+      
+      setState(() {
+        _wayPointMarkers.addAll(validBranchMarkers);
+      });
+      
+      print('✅ Branches processed: ${filteredBranches.length} items');
+      print('🔍 Total markers after branches: ${_wayPointMarkers.length}');
+    } catch (e) {
+      print('❌ Error processing branches: $e');
+    }
+  }
+  
+  Future<void> _processWholesalersData(List<dynamic> wholesalers) async {
+    try {
+      print('Processing ${wholesalers.length} wholesalers...');
+      
+      // Filter wholesalers with active branches
+      final filteredWholesalers = wholesalers.where((wholesaler) {
+        final hasActiveBranches = wholesaler['branches']?.any((branch) => branch['status'] == 'active') ?? false;
+        return hasActiveBranches;
+      }).toList();
+
+      // Create markers for wholesaler branches
+      final wholesalerMarkers = <google_maps.Marker>[];
+      
+      for (var wholesaler in filteredWholesalers) {
+        for (var branch in wholesaler['branches'] ?? []) {
+          if (branch['status'] == 'active' && branch['location'] != null) {
+            final location = branch['location'];
+            final lat = location['lat']?.toDouble();
+            final lng = location['lng']?.toDouble();
+            
+            if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
+              // Debug: Print wholesaler branch data
+              print('🔍 Wholesaler data keys: ${wholesaler.keys.toList()}');
+              print('🔍 Branch data keys: ${branch.keys.toList()}');
+              print('🔍 Wholesaler _id: ${wholesaler['_id']}');
+              print('🔍 Branch _id: ${branch['_id']}');
+              
+              // Use id or _id or generate unique IDs
+              final wholesalerId = wholesaler['_id'] ?? wholesaler['id'] ?? 'wholesaler_${DateTime.now().millisecondsSinceEpoch}';
+              final branchId = branch['_id'] ?? branch['id'] ?? 'branch_${DateTime.now().millisecondsSinceEpoch}';
+              
+              wholesalerMarkers.add(
+                google_maps.Marker(
+                  markerId: google_maps.MarkerId('wholesaler_branch_${wholesalerId}_${branchId}'),
+                  position: google_maps.LatLng(lat, lng),
+                  onTap: () {
+                    setState(() {
+                      _selectedPlace = {
+                        'name': branch['name'] ?? 'Unknown Branch',
+                        '_id': branch['_id'],
+                        'latitude': lat,
+                        'longitude': lng,
+                        'address': branch['address'] ?? 'No address available',
+                        'phone': branch['phone'] ?? 'No phone available',
+                        'description': branch['description'] ?? 'No description available',
+                        'image': wholesaler['logoUrl'] ?? 'assets/images/wholesaler_placeholder.png',
+                        'logoUrl': wholesaler['logoUrl'],
+                        'companyName': wholesaler['businessName'],
+                        'companyId': wholesaler['_id'],
+                        'category': branch['category'],
+                        'company': {
+                          'businessName': wholesaler['businessName'],
+                          'logoUrl': wholesaler['logoUrl'],
+                          'id': wholesaler['_id'],
+                        },
+                      };
+                    });
+                  },
+                  icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueOrange),
+                ),
+              );
+            }
+          }
+        }
+      }
+
+      setState(() {
+        _wayPointMarkers.addAll(wholesalerMarkers);
+      });
+      
+      print('✅ Wholesalers processed: ${filteredWholesalers.length} items');
+      print('🔍 Total markers after wholesalers: ${_wayPointMarkers.length}');
+    } catch (e) {
+      print('❌ Error processing wholesalers: $e');
     }
   }
 

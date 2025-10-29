@@ -13,6 +13,7 @@ import '../login_page.dart';
 import '../../../../services/api_service.dart';
 import 'package:barrim/src/components/secure_network_image.dart';
 import 'package:barrim/src/utils/authService.dart';
+import '../help/how_to_use_app.dart';
 
 class WholesalerCategoryData {
   final String id;
@@ -441,6 +442,18 @@ class _WholesalerCategoriesPageState extends State<WholesalerCategoriesPage> {
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(builder: (context) => const ReferralPointsPage()),
+                      );
+                    });
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.help_outline, color: Colors.white),
+                  title: Text('How to Use', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    _toggleSidebar();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (context) => const HowToUseAppPage()),
                       );
                     });
                   },

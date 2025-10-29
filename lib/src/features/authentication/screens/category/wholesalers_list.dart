@@ -9,6 +9,7 @@ import '../referrals/user_referral.dart';
 import '../settings/settings.dart';
 import '../login_page.dart';
 import 'wholesaler_categories.dart';
+import '../help/how_to_use_app.dart';
 
 class WholesalersListPage extends StatefulWidget {
   final String categoryName;
@@ -269,6 +270,18 @@ class _WholesalersListPageState extends State<WholesalersListPage> {
                     Future.delayed(const Duration(milliseconds: 300), () {
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(builder: (context) => const ReferralPointsPage()),
+                      );
+                    });
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.help_outline, color: Colors.white),
+                  title: Text('How to Use', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    _toggleSidebar();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (context) => const HowToUseAppPage()),
                       );
                     });
                   },

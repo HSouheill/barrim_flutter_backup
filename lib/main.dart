@@ -67,6 +67,14 @@ Future<void> main() async {
         print("Warning: Notification service initialization timeout");
       },
     );
+    
+    // Print FCM token after initialization
+    final fcmToken = notificationService.fcmToken;
+    if (fcmToken != null) {
+      print("🔥 FCM Token: $fcmToken");
+    } else {
+      print("❌ FCM Token not available");
+    }
 
     // Start the app immediately - don't wait for Google Maps
     runApp(
@@ -246,6 +254,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           notificationProvider.initWebSocket(
             userProvider.token!,
             userProvider.user!.id,
+            userType: userProvider.user!.userType,
           );
           if (kDebugMode) {
             print('WebSocket reconnected from extended session');
@@ -272,6 +281,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         notificationProvider.initWebSocket(
           userProvider.token!,
           userProvider.user!.id,
+          userType: userProvider.user!.userType,
         );
         if (kDebugMode) {
           print('Regular session validated and WebSocket reconnected');
@@ -499,6 +509,7 @@ class _MyHomePageState extends State<MyHomePage> {
           notificationProvider.initWebSocket(
             userProvider.token!,
             userProvider.user!.id,
+            userType: userProvider.user!.userType,
           );
           _websocketInitialized = true;
           if (kDebugMode) {
@@ -670,6 +681,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             ),
                           ),
                         ),
+                        
                       ],
                     ),
                   ),
@@ -709,6 +721,61 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       return 26; // Large phones
     }
+  }
+
+  // Show FCM Token dialog
+  void _showFCMTokenDialog(BuildContext context) {
+    final notificationService = NotificationService();
+    final fcmToken = notificationService.fcmToken;
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('FCM Token'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  fcmToken ?? 'FCM Token not available',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+                if (fcmToken != null) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Copy this token to test notifications:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Copy to clipboard
+                      Clipboard.setData(ClipboardData(text: fcmToken));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('FCM Token copied to clipboard!')),
+                      );
+                    },
+                    child: const Text('Copy Token'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
