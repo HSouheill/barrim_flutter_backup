@@ -15,6 +15,7 @@ import '../models/review.dart';
 import '../utils/api_constants.dart';
 import '../utils/auth_manager.dart';
 import '../utils/centralized_token_manager.dart';
+import '../../models/ad_model.dart';
 
 class ApiService {
   static const String baseUrl = 'https://barrim.online';
@@ -3900,6 +3901,18 @@ static Future<List<NotificationModel>> fetchNotifications() async {
     } catch (e) {
       throw Exception('Failed to get purchased vouchers: ${e.toString()}');
     }
+  }
+
+  static Future<List<Ad>> fetchAds() async {
+    final uri = Uri.parse('${getBaseUrl()}/api/ads');
+    final headers = await _getHeaders();
+    final response = await http.get(uri, headers: headers);
+    if (response.statusCode == 200) {
+      final jsonBody = json.decode(response.body) as Map<String, dynamic>;
+      final parsed = AdsResponse.fromJson(jsonBody);
+      return parsed.data;
+    }
+    throw Exception('Failed to fetch ads (${response.statusCode})');
   }
 
 }

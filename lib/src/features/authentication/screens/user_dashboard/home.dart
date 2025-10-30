@@ -25,6 +25,7 @@ import '../../../../services/wholesaler_service.dart';
 import '../../../../models/wholesaler_model.dart';
 import 'package:flutter/services.dart';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:barrim/src/components/secure_network_image.dart';
 import 'notification.dart' as notification;
 import '../booking/myboooking.dart';
@@ -40,6 +41,7 @@ import '../../../../services/route_tracking_service.dart';
 import 'notification.dart';
 import 'package:provider/provider.dart';
 import '../../../../utils/category_integration_test.dart';
+import 'package:barrim/models/ad_model.dart';
 
 class UserDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -92,6 +94,10 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   List<Map<String, dynamic>> _allBranches = [];
   List<Map<String, dynamic>> _allCompanies = [];
   List<Map<String, dynamic>> _wholesalerBranches = [];
+  
+  // Polling for new branches
+  final Set<String> _knownBranchIds = {};
+  Timer? _branchesPollTimer;
 
   // Add category data for custom markers
   Map<String, Map<String, dynamic>> _categoryData = {};
@@ -127,7 +133,7 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
   // Add variable to track banner carousel state
   bool _isBannerCollapsed = true;
 
-
+  List<Ad> _ads = [];
 
   // Add method to fetch user data
   Future<void> _fetchUserData() async {
@@ -162,6 +168,35 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       setState(() {
         _profileImagePath = null;
       });
+    }
+  }
+
+  // Start periodic polling for new branches
+  void _startBranchesPolling() {
+    _branchesPollTimer?.cancel();
+    _branchesPollTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (!mounted) return;
+      _checkForNewBranches();
+    });
+  }
+
+  // Check if there are new branches compared to known IDs
+  Future<void> _checkForNewBranches() async {
+    try {
+      final branches = await ApiService.getAllBranches();
+      final filtered = branches.where((b) => b['status'] == 'active').toList();
+      final currentIds = filtered
+          .map((b) => (b['id'] ?? b['_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      final newIds = currentIds.difference(_knownBranchIds);
+      if (newIds.isNotEmpty) {
+        print('Detected ${newIds.length} new branches. Refreshing markers...');
+        await _fetchAllBranches();
+      }
+    } catch (e) {
+      print('Error checking for new branches: $e');
     }
   }
 
@@ -255,6 +290,18 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       
       print('Active branches after filtering: ${filteredBranches.length}');
 
+      // Update known branch IDs for polling comparison
+      final fetchedIds = filteredBranches
+          .map((b) => (b['id'] ?? b['_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      if (_knownBranchIds.isEmpty) {
+        _knownBranchIds.addAll(fetchedIds);
+      } else {
+        // Merge to keep track of all seen branches
+        _knownBranchIds.addAll(fetchedIds);
+      }
+
       setState(() {
         _allBranches = filteredBranches;
 
@@ -275,75 +322,68 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       // Update active branches data
       _updateActiveBranches();
 
-      // Create markers for filtered branches
-      final branchMarkers = await Future.wait(filteredBranches.map((branch) async {
-        final location = branch['location'];
-        final company = branch['company'];
-        final logoUrl = company?['logoUrl'];
-        final category = branch['category']?.toString() ?? company?['category']?.toString() ?? '';
+// In _fetchAllBranches method, update the branch marker creation:
+final branchMarkers = await Future.wait(filteredBranches.map((branch) async {
+  final location = branch['location'];
+  final company = branch['company'];
+  // Prefer branch image, then branch logoUrl, then company logo
+  final dynamic imagesField = branch['images'];
+  final String? branchImage = (imagesField is List && imagesField.isNotEmpty)
+      ? imagesField.first?.toString()
+      : null;
+  final logoUrl = branchImage ?? branch['logoUrl'] ?? company?['logoUrl'];
+  final category = branch['category']?.toString() ?? company?['category']?.toString() ?? '';
 
-        print('Processing branch: ${branch['name']}, Location: $location, Company: $company');
-        print('DEBUG: Branch socialMedia: ${branch['socialMedia']}');
-        print('DEBUG: Company socialMedia: ${company['socialMedia']}');
+  print('Creating marker for branch: ${branch['name']} with logo: $logoUrl');
 
-        // Validate location data
-        if (location == null ||
-            location['lat'] == null ||
-            location['lng'] == null) {
-          print('Branch ${branch['name']} has invalid location data');
-          return null;
-        }
-        
-        // Check if coordinates are valid (not 0,0)
-        final lat = location['lat'].toDouble();
-        final lng = location['lng'].toDouble();
-        
-        if (lat == 0.0 && lng == 0.0) {
-          print('Branch ${branch['name']} has invalid coordinates (0,0), skipping marker creation but keeping for social media');
-          // Don't create a marker, but we'll still process this branch for social media
-          return null;
-        }
-        
-        print('Creating marker for branch: ${branch['name']} at lat: $lat, lng: $lng');
+  // Validate location data
+  if (location == null || location['lat'] == null || location['lng'] == null) {
+    print('Branch ${branch['name']} has invalid location data');
+    return null;
+  }
+  
+  final lat = location['lat'].toDouble();
+  final lng = location['lng'].toDouble();
+  
+  if (lat == 0.0 && lng == 0.0) {
+    print('Branch ${branch['name']} has invalid coordinates (0,0)');
+    return null;
+  }
+  
+  // Always try to use logo first, fallback to category icon
+  final customIcon = await _createMarkerIconWithLogo(logoUrl, category);
 
-        print('Branch category: "$category"');
-        // Create custom marker based on category with dynamic color and logo
-        final customIcon = await _createCategoryMarkerIcon(category);
-
-        return google_maps.Marker(
-          markerId: google_maps.MarkerId('branch_${branch['id']}'),
-          position: google_maps.LatLng(lat, lng),
-          onTap: () {
-            print('Branch marker tapped: ${branch['name']}');
-            setState(() {
-              _selectedPlace = {
-                'name': branch['name'] ?? 'Unnamed Branch',
-                '_id': branch['id'],
-                'latitude': lat,
-                'longitude': lng,
-                'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                'phone': branch['phone'] ?? '',
-                'description': branch['description'] ?? '',
-                'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                'logoUrl': logoUrl,
-                'companyName': company['businessName'] ?? 'Unknown Company',
-                'companyId': company['id'],
-                'images': branch['images'] ?? [],
-                'category': category,
-                'company': company,
-                'type': 'branch',
-                'status': 'active',
-                // Include social media information - prefer branch, fallback to company
-                'socialMedia': _getValidSocialMedia(branch['socialMedia'], company['socialMedia']),
-              };
-            });
-            print('_selectedPlace set to: ${_selectedPlace?['name']}');
-            print('_selectedPlace is now: ${_selectedPlace != null ? 'NOT NULL' : 'NULL'}');
-          },
-          icon: customIcon,
-          visible: true, // Ensure marker is always visible
-        );
-      })).then((markers) => markers.where((marker) => marker != null).cast<google_maps.Marker>().toList());
+  return google_maps.Marker(
+    markerId: google_maps.MarkerId('branch_${branch['id']}'),
+    position: google_maps.LatLng(lat, lng),
+    onTap: () {
+      print('Branch marker tapped: ${branch['name']}');
+      setState(() {
+        _selectedPlace = {
+          'name': branch['name'] ?? 'Unnamed Branch',
+          '_id': branch['id'],
+          'latitude': lat,
+          'longitude': lng,
+          'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+          'phone': branch['phone'] ?? '',
+          'description': branch['description'] ?? '',
+          'image': logoUrl ?? 'assets/images/company_placeholder.png',
+          'logoUrl': logoUrl,
+          'companyName': company['businessName'] ?? 'Unknown Company',
+          'companyId': company['id'],
+          'images': branch['images'] ?? [],
+          'category': category,
+          'company': company,
+          'type': 'branch',
+          'status': 'active',
+          'socialMedia': _getValidSocialMedia(branch['socialMedia'], company['socialMedia']),
+        };
+      });
+    },
+    icon: customIcon,
+    visible: true,
+  );
+}));
 
       print('Created ${branchMarkers.length} branch markers');
 
@@ -381,8 +421,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
         
         print('Creating social media only marker for branch: ${branch['name']}');
         
-        // Create custom marker based on category
-        final customIcon = await _createCategoryMarkerIcon(category);
+        // Create marker icon using branch/company logo when available
+        final customIcon = await _createMarkerIconWithLogo(logoUrl, category);
         
         return google_maps.Marker(
           markerId: google_maps.MarkerId('social_media_${branch['id']}'),
@@ -426,8 +466,8 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       // The branch marker already handles the onTap functionality
 
       setState(() {
-        // Add branch markers to existing company markers
-        _wayPointMarkers.addAll(branchMarkers);
+        // Add branch markers to existing company markers (filter out nulls)
+        _wayPointMarkers.addAll(branchMarkers.whereType<google_maps.Marker>());
         // Add social media only markers (these are hidden but accessible via search)
         _wayPointMarkers.addAll(socialMediaOnlyMarkers);
         print('Total markers on map: ${_wayPointMarkers.length} (${branchMarkers.length} branch markers, ${socialMediaOnlyMarkers.length} social media only)');
@@ -646,104 +686,70 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
       // Store all companies for later use in filtering and searching
       _allCompanies = List<Map<String, dynamic>>.from(filteredCompanies);
 
-      setState(() {
-        // Create markers for companies and their branches
-        // Don't clear existing markers - add to them instead
-        // _wayPointMarkers = [];
+      // Build markers with logo icons outside setState
+      final List<google_maps.Marker> newMarkers = [];
 
-        for (var company in filteredCompanies) {
-          print('Processing company: ${company['companyInfo']?['name']}'); // Debug log
+      for (var company in filteredCompanies) {
+        print('Processing company: ${company['companyInfo']?['name']}');
 
-          // Add company headquarters marker
-          if (company['location'] != null &&
-              company['location']['lat'] != null &&
-              company['location']['lng'] != null) {
+        if (company['location'] != null &&
+            company['location']['lat'] != null &&
+            company['location']['lng'] != null) {
+          final location = company['location'];
+          final companyInfo = company['companyInfo'];
+          final logoUrl = companyInfo?['logo'];
+          print('Company location: lat=${location['lat']}, lng=${location['lng']}');
 
-            final location = company['location'];
-            final companyInfo = company['companyInfo'];
-            final logoUrl = companyInfo?['logo'];
+          final hqIcon = await _createMarkerIconWithLogo(
+            logoUrl,
+            companyInfo?['category']?.toString() ?? '',
+          );
 
-            print('Company location: lat=${location['lat']}, lng=${location['lng']}'); // Debug log
+          newMarkers.add(
+            google_maps.Marker(
+              markerId: google_maps.MarkerId('company_${company['_id']}'),
+              position: google_maps.LatLng(
+                location['lat'].toDouble(),
+                location['lng'].toDouble(),
+              ),
+              icon: hqIcon,
+              visible: true,
+              onTap: () async {
+                try {
+                  final prefs = await SharedPreferences.getInstance();
+                  final token = prefs.getString('auth_token');
+                  if (token != null) {
+                    final branches = await ApiService.getCompanyBranches(token);
+                    final companyBranches = branches.where((b) {
+                      if (b['companyId'] != company['_id']) return false;
+                      final branchStatus = b['status'];
+                      if (branchStatus != 'active') return false;
+                      return true;
+                    }).toList();
 
-            // Add company headquarters marker with a distinct style
-            _wayPointMarkers.add(
-              google_maps.Marker(
-                markerId: google_maps.MarkerId('company_${company['_id']}'),
-                position: google_maps.LatLng(
-                  location['lat'].toDouble(),
-                  location['lng'].toDouble(),
-                ),
-                onTap: () async {
-                  try {
-                    // Fetch branches for this company
-                    final prefs = await SharedPreferences.getInstance();
-                    final token = prefs.getString('auth_token');
-                    if (token != null) {
-                      final branches = await ApiService.getCompanyBranches(token);
-                      // Filter branches for this specific company and check status
-                      final companyBranches = branches.where((b) {
-                        // First check if this branch belongs to the current company
-                        if (b['companyId'] != company['_id']) return false;
-                        
-                        // Then check if the branch is active
-                        final branchStatus = b['status'];
-                        if (branchStatus != 'active') {
-                          return false; // Skip branches that are not active
-                        }
-                        
-                        return true;
-                      }).toList();
+                    final processedBranches = companyBranches.map((branch) {
+                      final branchImages = branch['images'];
+                      List<String> processedImages = [];
+                      if (branchImages != null && branchImages is List && branchImages.isNotEmpty) {
+                        processedImages = branchImages.map((img) {
+                          if (img is String) {
+                            if (img.startsWith('http')) return img;
+                            return '${ApiService.baseUrl}/$img';
+                          }
+                          return '';
+                        }).where((img) => img.isNotEmpty).toList();
+                      }
+                      return {
+                        ...branch,
+                        'name': branch['name'] ?? 'Unnamed Branch',
+                        'description': branch['description'] ?? 'No description available',
+                        'location': branch['location'] ?? 'No address available',
+                        'images': processedImages,
+                        'latitude': branch['latitude'] ?? location['lat'].toDouble(),
+                        'longitude': branch['longitude'] ?? location['lng'].toDouble(),
+                      };
+                    }).toList();
 
-                      // Process branch data
-                      final processedBranches = companyBranches.map((branch) {
-                        final branchImages = branch['images'];
-                        List<String> processedImages = [];
-
-                        if (branchImages != null && branchImages is List && branchImages.isNotEmpty) {
-                          processedImages = branchImages.map((img) {
-                            if (img is String) {
-                              if (img.startsWith('http')) {
-                                return img;
-                              }
-                              return '${ApiService.baseUrl}/$img';
-                            }
-                            return '';
-                          }).where((img) => img.isNotEmpty).toList();
-                        }
-
-                        return {
-                          ...branch,
-                          'name': branch['name'] ?? 'Unnamed Branch',
-                          'description': branch['description'] ?? 'No description available',
-                          'location': branch['location'] ?? 'No address available',
-                          'images': processedImages,
-                          'latitude': branch['latitude'] ?? location['lat'].toDouble(),
-                          'longitude': branch['longitude'] ?? location['lng'].toDouble(),
-                        };
-                      }).toList();
-
-                      setState(() {
-                        _selectedPlace = {
-                          'name': companyInfo?['name'] ?? 'Unknown Company',
-                          '_id': company['_id'],
-                          'latitude': location['lat'].toDouble(),
-                          'longitude': location['lng'].toDouble(),
-                          'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
-                          'phone': company['phone'] ?? '',
-                          'description': companyInfo?['description'] ?? '',
-                          'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                          'logoUrl': logoUrl,
-                          'branches': processedBranches,
-                          'type': 'company', // Add type to distinguish company from branch
-                          'category': companyInfo?['category'] ?? 'Unknown Category',
-                          // Include social media information from company data
-                          'socialMedia': _getValidSocialMedia(null, companyInfo?['socialMedia']),
-                        };
-                      });
-                      print('_selectedPlace set to company: ${_selectedPlace?['name']}');
-                    }
-                  } catch (e) {
-                    print('Error fetching branches: $e');
                     setState(() {
                       _selectedPlace = {
                         'name': companyInfo?['name'] ?? 'Unknown Company',
@@ -755,84 +761,110 @@ class _UserDashboardState extends State<UserDashboard> with WidgetsBindingObserv
                         'description': companyInfo?['description'] ?? '',
                         'image': logoUrl ?? 'assets/images/company_placeholder.png',
                         'logoUrl': logoUrl,
-                        'branches': [],
-                        'type': 'company', // Add type to distinguish company from branch
+                        'branches': processedBranches,
+                        'type': 'company',
                         'category': companyInfo?['category'] ?? 'Unknown Category',
-                        // Include social media information from company data
                         'socialMedia': _getValidSocialMedia(null, companyInfo?['socialMedia']),
                       };
                     });
-                    print('_selectedPlace set to company (fallback): ${_selectedPlace?['name']}');
+                    print('_selectedPlace set to company: ${_selectedPlace?['name']}');
                   }
-                },
-                icon: _getCategoryMarkerIconSync(companyInfo?['category']?.toString() ?? ''),
-                visible: true, // Ensure marker is always visible
-              ),
-            );
-          } else {
-            print('Company missing location data: ${company['companyInfo']?['name']}'); // Debug log
-          }
+                } catch (e) {
+                  print('Error fetching branches: $e');
+                  setState(() {
+                    _selectedPlace = {
+                      'name': companyInfo?['name'] ?? 'Unknown Company',
+                      '_id': company['_id'],
+                      'latitude': location['lat'].toDouble(),
+                      'longitude': location['lng'].toDouble(),
+                      'address': '${location['street'] ?? ''}, ${location['city'] ?? ''}',
+                      'phone': company['phone'] ?? '',
+                      'description': companyInfo?['description'] ?? '',
+                      'image': logoUrl ?? 'assets/images/company_placeholder.png',
+                      'logoUrl': logoUrl,
+                      'branches': [],
+                      'type': 'company',
+                      'category': companyInfo?['category'] ?? 'Unknown Category',
+                      'socialMedia': _getValidSocialMedia(null, companyInfo?['socialMedia']),
+                    };
+                  });
+                  print('_selectedPlace set to company (fallback): ${_selectedPlace?['name']}');
+                }
+              },
+            ),
+          );
+        } else {
+          print('Company missing location data: ${company['companyInfo']?['name']}');
+        }
 
-          // Add branch markers if available
-          if (company['branches'] != null && company['branches'] is List) {
-            print('Processing branches for company: ${company['companyInfo']?['name']}'); // Debug log
-            for (var branch in company['branches']) {
-              if (branch['location'] != null &&
-                  branch['location']['lat'] != null &&
-                  branch['location']['lng'] != null) {
+        if (company['branches'] != null && company['branches'] is List) {
+          print('Processing branches for company: ${company['companyInfo']?['name']}');
+          for (var branch in company['branches']) {
+            if (branch['location'] != null &&
+                branch['location']['lat'] != null &&
+                branch['location']['lng'] != null) {
+              final branchLocation = branch['location'];
+              final companyInfo = company['companyInfo'];
+              // Prefer branch image, then branch logo, then company logo
+              final dynamic bImages = branch['images'];
+              final String? firstBranchImage = (bImages is List && bImages.isNotEmpty)
+                  ? bImages.first?.toString()
+                  : null;
+              final branchLogoUrl = firstBranchImage ?? branch['logoUrl'] ?? companyInfo?['logo'];
 
-                final branchLocation = branch['location'];
-                final companyInfo = company['companyInfo'];
-                final logoUrl = companyInfo?['logo'];
+              final branchIcon = await _createMarkerIconWithLogo(
+                branchLogoUrl,
+                branch['category']?.toString() ?? companyInfo?['category']?.toString() ?? '',
+              );
 
-                print('Branch location: lat=${branchLocation['lat']}, lng=${branchLocation['lng']}'); // Debug log
-
-                _wayPointMarkers.add(
-                  google_maps.Marker(
-                    markerId: google_maps.MarkerId('branch_${branch['id']}'),
-                    position: google_maps.LatLng(
-                      branchLocation['lat'].toDouble(),
-                      branchLocation['lng'].toDouble(),
-                    ),
-                    onTap: () {
-                      print('Company branch marker tapped: ${branch['name']}');
-                      setState(() {
-                        _selectedPlace = {
-                          'name': branch['name'] ?? 'Unnamed Branch',
-                          '_id': branch['id'],
-                          'latitude': branchLocation['lat'].toDouble(),
-                          'longitude': branchLocation['lng'].toDouble(),
-                          'address': '${branchLocation['street'] ?? ''}, ${branchLocation['city'] ?? ''}',
-                          'phone': branch['phone'] ?? '',
-                          'description': branch['description'] ?? '',
-                          'image': logoUrl ?? 'assets/images/company_placeholder.png',
-                          'logoUrl': logoUrl,
-                          'companyName': companyInfo?['name'] ?? 'Unknown Company',
-                          'companyId': company['_id'],
-                          'images': branch['images'] ?? [],
-                          'type': 'branch', // Add type to distinguish branch from company
-                          'category': branch['category'] ?? 'Unknown Category',
-                          'company': companyInfo,
-                          'status': 'active',
-                          // Prefer branch social media; fallback to company
-                          'socialMedia': _getValidSocialMedia(branch['socialMedia'], companyInfo?['socialMedia']),
-                        };
-                      });
-                      print('_selectedPlace set to company branch: ${_selectedPlace?['name']}');
-                    },
-                    icon: _getCategoryMarkerIconSync(branch['category']?.toString() ?? ''),
-                    visible: true, // Ensure marker is always visible
+              newMarkers.add(
+                google_maps.Marker(
+                  markerId: google_maps.MarkerId('branch_${branch['id']}'),
+                  position: google_maps.LatLng(
+                    branchLocation['lat'].toDouble(),
+                    branchLocation['lng'].toDouble(),
                   ),
-                );
-              } else {
-                print('Branch missing location data: ${branch['name']}'); // Debug log
-              }
+                  icon: branchIcon,
+                  visible: true,
+                  onTap: () {
+                    print('Company branch marker tapped: ${branch['name']}');
+                    setState(() {
+                      _selectedPlace = {
+                        'name': branch['name'] ?? 'Unnamed Branch',
+                        '_id': branch['id'],
+                        'latitude': branchLocation['lat'].toDouble(),
+                        'longitude': branchLocation['lng'].toDouble(),
+                        'address': '${branchLocation['street'] ?? ''}, ${branchLocation['city'] ?? ''}',
+                        'phone': branch['phone'] ?? '',
+                        'description': branch['description'] ?? '',
+                        'image': branchLogoUrl ?? 'assets/images/company_placeholder.png',
+                        'logoUrl': branchLogoUrl,
+                        'companyName': companyInfo?['name'] ?? 'Unknown Company',
+                        'companyId': company['_id'],
+                        'images': branch['images'] ?? [],
+                        'type': 'branch',
+                        'category': branch['category'] ?? 'Unknown Category',
+                        'company': companyInfo,
+                        'status': 'active',
+                        'socialMedia': _getValidSocialMedia(branch['socialMedia'], companyInfo?['socialMedia']),
+                      };
+                    });
+                    print('_selectedPlace set to company branch: ${_selectedPlace?['name']}');
+                  },
+                ),
+              );
+            } else {
+              print('Branch missing location data: ${branch['name']}');
             }
           }
         }
+      }
 
-        print('Total markers created: ${_wayPointMarkers.length}'); // Debug log
+      setState(() {
+        _wayPointMarkers.addAll(newMarkers);
       });
+
+      print('Total markers created: ${_wayPointMarkers.length}');
 
       // Move camera to the first marker if exists
       if (_wayPointMarkers.isNotEmpty && _mapController != null) {
@@ -1315,6 +1347,9 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
         _ensureLocationTracking();
       }
     });
+
+    _fetchAds();
+    _startBranchesPolling();
   }
 
   // New method to get user location immediately upon login
@@ -1494,6 +1529,7 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _locationSubscription?.cancel();
+    _branchesPollTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -2787,16 +2823,29 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
                 ),
                 // Banner Carousel for Advertisements
                 BannerCarousel(
-                  imageUrls: [
-                    'assets/images/subscription.png',
-                    'assets/images/6months_subscription.png',
-                    'assets/images/monthly_subscription.png',
-                    'assets/images/yearly_subscription.png',
-                  ],
+                  imageUrls: _ads.isNotEmpty
+                      ? _ads
+                          .map((ad) {
+                            final raw = (ad.imageUrl ?? '').trim();
+                            if (raw.isEmpty) return '';
+                            if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+                            final base = ApiService.getBaseUrl();
+                            if (base.endsWith('/') && raw.startsWith('/')) return base + raw.substring(1);
+                            if (!base.endsWith('/') && !raw.startsWith('/')) return '$base/$raw';
+                            return base + raw;
+                          })
+                          .where((url) => url.isNotEmpty)
+                          .toList()
+                      : [
+                          'assets/images/subscription.png',
+                          'assets/images/6months_subscription.png',
+                          'assets/images/monthly_subscription.png',
+                          'assets/images/yearly_subscription.png',
+                        ],
                   height: 150,
                   autoPlayInterval: const Duration(seconds: 5),
                   autoPlay: true,
-                  
+                  // TODO: Make banners clickable (open link) if BannerCarousel supports it
                 ),
                 
                 Expanded(
@@ -3564,7 +3613,10 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
               };
             });
           },
-          icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueGreen),
+          icon: await _createMarkerIconWithLogo(
+            branch['company']?['logoUrl'],
+            branch['category']?.toString() ?? branch['company']?['category']?.toString() ?? '',
+          ),
         );
       }));
 
@@ -3863,6 +3915,231 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
       return _getCategoryMarkerIconSync(categoryName);
     }
   }
+
+  // Helper method to build a marker icon using a logo image when available
+  Future<google_maps.BitmapDescriptor> _createMarkerIconWithLogo(String? logoUrl, String categoryFallback) async {
+  try {
+    print('Creating marker icon with logo: $logoUrl');
+    
+    if (logoUrl != null && logoUrl.toString().trim().isNotEmpty) {
+      final resolvedUrl = _resolveImageUrl(logoUrl.toString().trim());
+      print('Resolved logo URL: $resolvedUrl');
+      
+      Uint8List bytes;
+      
+      // Handle network images
+      if (resolvedUrl.startsWith('http')) {
+        try {
+            final response = await http.get(Uri.parse(resolvedUrl));
+          if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+              final contentType = response.headers['content-type'] ?? '';
+              if (contentType.contains('svg')) {
+                print('Logo is SVG; using placeholder instead');
+                return await _createPinnedPlaceholder(categoryFallback);
+              }
+              bytes = await _buildPinnedMarkerFromImage(response.bodyBytes, 96);
+              print('Successfully built pinned network logo, size: ${bytes.length} bytes');
+              return google_maps.BitmapDescriptor.fromBytes(bytes);
+          } else {
+            print('Failed to load network logo: ${response.statusCode}');
+          }
+        } catch (e) {
+          print('Error loading network logo: $e');
+        }
+      } 
+      // Handle asset images
+      else if (resolvedUrl.startsWith('assets/')) {
+        try {
+          final ByteData data = await rootBundle.load(resolvedUrl);
+            bytes = await _buildPinnedMarkerFromImage(data.buffer.asUint8List(), 96);
+            print('Successfully built pinned asset logo, size: ${bytes.length} bytes');
+            return google_maps.BitmapDescriptor.fromBytes(bytes);
+        } catch (e) {
+          print('Error loading asset logo: $e');
+        }
+      }
+    }
+    
+      // Fallback to placeholder with category initial if logo loading fails
+      print('Using placeholder logo for category: $categoryFallback');
+      return await _createPinnedPlaceholder(categoryFallback);
+    
+  } catch (e) {
+    print('Error creating logo marker: $e');
+    // Final fallback
+      return await _createPinnedPlaceholder(categoryFallback);
+  }
+}
+
+  // Ensure URLs are absolute; support asset paths
+  String _resolveImageUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.startsWith('http')) return trimmed;
+    if (trimmed.startsWith('assets/')) return trimmed;
+    final base = ApiService.getBaseUrl();
+    if (base.endsWith('/') && trimmed.startsWith('/')) return base + trimmed.substring(1);
+    if (!base.endsWith('/') && !trimmed.startsWith('/')) return '$base/$trimmed';
+    return base + trimmed;
+  }
+
+  // Build a classic pin marker with the image inside a circular top
+  Future<Uint8List> _buildPinnedMarkerFromImage(Uint8List data, int diameter) async {
+    final circleSize = diameter; // top circle
+    final pinHeight = (diameter * 1.35).toInt(); // include pointer
+    final codec = await ui.instantiateImageCodec(data);
+    final frame = await codec.getNextFrame();
+
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, circleSize.toDouble(), pinHeight.toDouble()));
+
+    // Draw pin background (circle + pointer)
+    final bgPaint = ui.Paint()..color = const Color(0xFF2079C2);
+    final circleCenter = ui.Offset(circleSize / 2, circleSize / 2);
+    canvas.drawCircle(circleCenter, circleSize / 2, bgPaint);
+
+    // Pointer triangle
+    final path = ui.Path()
+      ..moveTo(circleSize / 2, circleSize.toDouble())
+      ..lineTo((circleSize / 2) - (circleSize * 0.18), circleSize - (circleSize * 0.15))
+      ..lineTo((circleSize / 2) + (circleSize * 0.18), circleSize - (circleSize * 0.15))
+      ..close();
+    canvas.drawPath(path, bgPaint);
+
+    // Draw white circular inset
+    final insetPaint = ui.Paint()..color = const Color(0xFFFFFFFF);
+    final insetRadius = (circleSize / 2) - 4;
+    canvas.drawCircle(circleCenter, insetRadius, insetPaint);
+
+    // Draw the image clipped as circle
+    final img = frame.image;
+    final src = ui.Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+    final dst = ui.Rect.fromCircle(center: circleCenter, radius: insetRadius - 2);
+
+    final clipPath = ui.Path()..addOval(ui.Rect.fromCircle(center: circleCenter, radius: insetRadius - 2));
+    canvas.save();
+    canvas.clipPath(clipPath);
+    canvas.drawImageRect(img, src, dst, ui.Paint());
+    canvas.restore();
+
+    final picture = recorder.endRecording();
+    final output = await picture.toImage(circleSize, pinHeight);
+    final byteData = await output.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
+  // Resize raw image bytes to a square PNG (used by older code paths)
+ // Resize raw image bytes to a square PNG suitable for marker icons
+Future<Uint8List> _resizeImage(Uint8List data, int targetSize) async {
+  try {
+    final codec = await ui.instantiateImageCodec(
+      data, 
+      targetWidth: targetSize, 
+      targetHeight: targetSize
+    );
+    final frame = await codec.getNextFrame();
+    
+    // Create a square canvas with the image centered
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    final paint = ui.Paint();
+    
+    // Draw a white background circle (optional)
+    final circlePaint = ui.Paint()
+      ..color = Colors.white
+      ..style = ui.PaintingStyle.fill;
+    canvas.drawCircle(
+      ui.Offset(targetSize / 2, targetSize / 2),
+      targetSize / 2,
+      circlePaint,
+    );
+    
+    // Draw the logo image centered in the circle
+    final sourceImage = frame.image;
+    final src = ui.Rect.fromLTWH(0, 0, sourceImage.width.toDouble(), sourceImage.height.toDouble());
+    final dst = ui.Rect.fromCircle(
+      center: ui.Offset(targetSize / 2, targetSize / 2),
+      radius: targetSize / 2 - 2, // Slightly smaller than the circle
+    );
+    
+    canvas.drawImageRect(sourceImage, src, dst, paint);
+    
+    final picture = recorder.endRecording();
+    final outputImage = await picture.toImage(targetSize, targetSize);
+    final byteData = await outputImage.toByteData(format: ui.ImageByteFormat.png);
+    
+    return byteData!.buffer.asUint8List();
+  } catch (e) {
+    print('Error in advanced image resize: $e');
+    // Fallback to simple resize
+    final codec = await ui.instantiateImageCodec(data, targetWidth: targetSize, targetHeight: targetSize);
+    final frame = await codec.getNextFrame();
+    final byteData = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+}
+
+ // Add this method for placeholder logos inside a pin
+ Future<google_maps.BitmapDescriptor> _createPinnedPlaceholder(String category) async {
+  try {
+    final diameter = 96;
+    final pinHeight = (diameter * 1.35).toInt();
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, diameter.toDouble(), pinHeight.toDouble()));
+
+    // Pin background
+    final bgColor = _getColorFromCategory(category);
+    final bgPaint = ui.Paint()..color = bgColor;
+    final center = ui.Offset(diameter / 2, diameter / 2);
+    canvas.drawCircle(center, diameter / 2, bgPaint);
+    final path = ui.Path()
+      ..moveTo(diameter / 2, diameter.toDouble())
+      ..lineTo((diameter / 2) - (diameter * 0.18), diameter - (diameter * 0.15))
+      ..lineTo((diameter / 2) + (diameter * 0.18), diameter - (diameter * 0.15))
+      ..close();
+    canvas.drawPath(path, bgPaint);
+
+    // White circle inner
+    final insetPaint = ui.Paint()..color = const Color(0xFFFFFFFF);
+    final insetRadius = (diameter / 2) - 4;
+    canvas.drawCircle(center, insetRadius, insetPaint);
+
+    // Letter placeholder
+    final paragraphBuilder = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.center))
+      ..pushStyle(ui.TextStyle(color: const Color(0xFF333333), fontSize: 34, fontWeight: FontWeight.w700))
+      ..addText(category.isNotEmpty ? category[0].toUpperCase() : '?');
+    final paragraph = paragraphBuilder.build();
+    paragraph.layout(ui.ParagraphConstraints(width: diameter.toDouble()));
+    canvas.drawParagraph(
+      paragraph,
+      ui.Offset((diameter - paragraph.width) / 2, (diameter - paragraph.height) / 2),
+    );
+
+    final picture = recorder.endRecording();
+    final output = await picture.toImage(diameter, pinHeight);
+    final bytes = await output.toByteData(format: ui.ImageByteFormat.png);
+    return google_maps.BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+  } catch (e) {
+    print('Error creating placeholder logo: $e');
+    return google_maps.BitmapDescriptor.defaultMarkerWithHue(google_maps.BitmapDescriptor.hueBlue);
+  }
+}
+
+// Helper to get consistent colors for categories
+Color _getColorFromCategory(String category) {
+  const colors = [
+    Color(0xFF2079C2), // Blue
+    Color(0xFF20B2AA), // Light Sea Green
+    Color(0xFF9370DB), // Medium Purple
+    Color(0xFF32CD32), // Lime Green
+    Color(0xFFFFD700), // Gold
+    Color(0xFFFF6347), // Tomato
+    Color(0xFF40E0D0), // Turquoise
+    Color(0xFFDA70D6), // Orchid
+  ];
+  
+  final index = category.hashCode % colors.length;
+  return colors[index];
+}
 
   // Test function to verify color conversion
   void _testColorConversion() {
@@ -4336,6 +4613,17 @@ void _createMarkersFromCompanies(List<Map<String, dynamic>> companies) {
     print('Primary route: ${_primaryRouteCoordinates.length} points');
     print('Alternative route: ${_alternativeRouteCoordinates.length} points');
     print('==============================');
+  }
+
+  Future<void> _fetchAds() async {
+    try {
+      final ads = await ApiService.fetchAds();
+      setState(() {
+        _ads = ads;
+      });
+    } catch (e) {
+      print('Failed to fetch ads: $e');
+    }
   }
 
 

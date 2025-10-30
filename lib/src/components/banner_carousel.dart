@@ -147,7 +147,8 @@ class _BannerCarouselState extends State<BannerCarousel> {
         // Network image
         return Image.network(
           imageUrl,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
+          alignment: Alignment.center,
           errorBuilder: (context, error, stackTrace) {
             return _buildPlaceholder();
           },
@@ -170,7 +171,8 @@ class _BannerCarouselState extends State<BannerCarousel> {
         // Asset image
         return Image.asset(
           imageUrl,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
+          alignment: Alignment.center,
           errorBuilder: (context, error, stackTrace) {
             return _buildPlaceholder();
           },
