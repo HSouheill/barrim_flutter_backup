@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
 import '../../../headers/sidebar.dart';
 import '../../../../../models/subscription.dart';
 import '../../../../../models/sponsorship.dart';
@@ -14,6 +15,7 @@ import '../../../../../models/wholesaler_model.dart';
 import '../../../../../services/wholesaler_service.dart';
 import '../../../../../services/api_service.dart';
 import '../../../../../services/sponsorship_service.dart';
+import '../../../../../services/wholesaler_subscription_service.dart';
 import '../../../../../utils/subscription_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../headers/wholesaler_header.dart';
@@ -26,7 +28,7 @@ class WholesalerSubscription extends StatefulWidget {
   State<WholesalerSubscription> createState() => _WholesalerSubscriptionState();
 }
 
-class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
+class _WholesalerSubscriptionState extends State<WholesalerSubscription> with WidgetsBindingObserver {
   bool _isSidebarOpen = false;
   String? _logoUrl;
   final WholesalerService _wholesalerService = WholesalerService();
@@ -51,10 +53,20 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
   SponsorshipSubscriptionTimeRemainingData? _sponsorshipSubscriptionData;
   bool _isLoadingSponsorshipSubscription = false;
   String? _sponsorshipSubscriptionError;
+  
+  // Payment status polling timer
+  Timer? _paymentStatusPollTimer;
+  String? _currentPaymentRequestId;
+  int? _currentPaymentExternalId;
+  
+  // Sponsorship payment tracking
+  String? _currentSponsorshipPaymentRequestId;
 
   @override
   void initState() {
     super.initState();
+    // Add observer for app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
     _initializeSubscriptionData();
     _loadWholesalerLogo();
     _loadBranches();
@@ -622,55 +634,159 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
         return;
       }
 
+      // Check if branch ID is available
+      if (_selectedBranchId == null || _selectedBranchId!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a branch first'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
       // Show loading dialog
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (BuildContext context) {
-          return const AlertDialog(
-            content: Row(
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 30),
-                Text(
-                  'Processing subscription request...',
-                  style: TextStyle(fontSize: 10),
-                ),
-              ],
+          return WillPopScope(
+            onWillPop: () async => false,
+            child: AlertDialog(
+              content: Row(
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  const Text(
+                    'Checking balance...',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ],
+              ),
             ),
           );
         },
       );
 
-      final success = await provider.requestSubscription(
-        planId: plan.id!,
-      );
+      try {
+        // Check Whish account balance before creating subscription
+        final balanceResponse = await WholesalerSubscriptionService().checkWhishAccountBalance();
+        
+        // Update loading dialog message
+        if (mounted) {
+          Navigator.of(context).pop();
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return WillPopScope(
+                onWillPop: () async => false,
+                child: AlertDialog(
+                  content: Row(
+                    children: [
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      const Text(
+                        'Initiating payment...',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        }
+        
+        if (balanceResponse.success && balanceResponse.data != null) {
+          final balance = balanceResponse.data!;
+          final subscriptionPrice = plan.price ?? 0;
+          
+          // Check if balance is sufficient
+          if (balance < subscriptionPrice) {
+            // Close loading dialog
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+            
+            // Show insufficient funds error
+            _showInsufficientFundsDialog(
+              balance: balance,
+              requiredAmount: subscriptionPrice,
+              planTitle: plan.title ?? 'Unknown Plan',
+            );
+            return;
+          }
+        } else {
+          // If balance check fails, log warning but continue with payment
+          // (balance check might not be critical in all cases)
+          print('⚠️ Warning: Could not verify account balance: ${balanceResponse.message}');
+        }
+        
+        // Create subscription request directly (this now creates Whish payment)
+        final subscriptionRequest = await WholesalerSubscriptionService().createWholesalerSubscription(
+          planId: plan.id!,
+          branchId: _selectedBranchId!,
+          imageFile: null, // Optional: Add file picker for payment proof
+        );
 
-      // Close loading dialog
-      Navigator.of(context).pop();
+        // Close loading dialog
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
 
-      if (success) {
-        _showSubscriptionDialog(plan.title ?? 'Unknown Plan',
-            plan.price?.toString() ?? '0');
-      } else {
+        // Check if we have a collectUrl for Whish payment
+        if (subscriptionRequest.collectUrl != null && subscriptionRequest.collectUrl!.isNotEmpty) {
+          // Show payment dialog with Whish payment URL
+          _showWhishPaymentDialog(
+            collectUrl: subscriptionRequest.collectUrl!,
+            planTitle: plan.title ?? 'Unknown Plan',
+            planPrice: '\$${plan.price?.toStringAsFixed(2) ?? '0.00'}',
+            requestId: subscriptionRequest.id,
+            externalId: subscriptionRequest.externalId,
+          );
+        } else {
+          // Fallback to old success dialog (in case backend doesn't return collectUrl)
+          _showSubscriptionDialog(plan.title ?? 'Unknown Plan', plan.price?.toString() ?? '0');
+        }
+      } catch (e) {
+        // Close loading dialog
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+
         // Show info dialog if error is about pending subscription or 409 conflict
-        final errorMessage = provider.errorMessage ?? '';
-        if (errorMessage.toLowerCase().contains('already have a pending subscription request') ||
-            errorMessage.toLowerCase().contains('subscription request has already been sent') ||
-            errorMessage.toLowerCase().contains('conflict')) {
+        final errorString = e.toString().toLowerCase();
+        if (errorString.contains('already have a pending subscription request') ||
+            errorString.contains('subscription request has already been sent') ||
+            errorString.contains('conflict') ||
+            errorString.contains('conflictexception')) {
           _showActiveSubscriptionDialog();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: $errorMessage'),
+              content: Text('Failed to send subscription request: ${e.toString()}'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
             ),
           );
         }
       }
     } catch (e) {
       // Close loading dialog if it's still open
-      if (Navigator.of(context).canPop()) {
+      if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
       // Show info dialog if error is about pending subscription or 409 conflict
@@ -955,6 +1071,260 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
         );
       },
     ) ?? false;
+  }
+
+  /// Show insufficient funds dialog when account balance is less than subscription price
+  void _showInsufficientFundsDialog({
+    required double balance,
+    required double requiredAmount,
+    required String planTitle,
+  }) {
+    final shortfall = requiredAmount - balance;
+    final formattedBalance = WholesalerSubscriptionService.formatPrice(balance);
+    final formattedRequired = WholesalerSubscriptionService.formatPrice(requiredAmount);
+    final formattedShortfall = WholesalerSubscriptionService.formatPrice(shortfall);
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.orange[600]!,
+                  Colors.orange[700]!,
+                  Colors.red[700]!,
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header section
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.account_balance_wallet,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Insufficient Funds',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content section
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Whish account balance is insufficient to complete this subscription.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Balance details card
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Subscription Plan:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  planTitle,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Required Amount:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  formattedRequired,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Current Balance:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  formattedBalance,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Shortfall:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                                Text(
+                                  formattedShortfall,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Please add funds to your Whish account to proceed with this subscription.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange[700],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'OK',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showActiveSubscriptionDialog() {
@@ -2385,50 +2755,10 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
         return;
       }
 
-      // Only show loading dialog and set state AFTER user confirms
+      // Set state AFTER user confirms
       setState(() {
         _isSubmittingSponsorship = true;
       });
-
-      // Show loading dialog
-      showDialog(
-        context: context,
-        barrierDismissible: true, // Allow user to dismiss if needed
-        builder: (BuildContext context) {
-          return AlertDialog(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                  ),
-                ),
-                SizedBox(width: 20),
-                Expanded(
-                  child: Text(
-                    'Sending request to admin...',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  setState(() {
-                    _isSubmittingSponsorship = false;
-                  });
-                },
-                child: Text('Cancel'),
-              ),
-            ],
-          );
-        },
-      );
 
       final response = await SponsorshipService.createWholesalerBranchSponsorshipRequest(
         sponsorshipId: originalSponsorshipId,
@@ -2437,32 +2767,97 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
       );
 
       if (mounted) {
-        // Close loading dialog
-        Navigator.of(context).pop();
-        
         setState(() {
           _isSubmittingSponsorship = false;
         });
 
-        if (response['success'] == true) {
-          // Show success snackbar first
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Sponsorship request sent successfully!'),
-                  
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+        // Debug: Print full response
+        print('Full response: $response');
+        
+        // Check both 'status' (as number 200-299 or true) and 'success' for compatibility
+        final status = response['status'];
+        final success = response['success'];
+        final isSuccess = (status is int && status >= 200 && status < 300) || 
+                         status == true || 
+                         success == true;
+        
+        print('Status check: status=$status, success=$success, isSuccess=$isSuccess');
+        
+        if (isSuccess) {
+          // Check if we have a collectUrl or paymentUrl for Whish payment
+          final paymentUrl = response['data']?['collectUrl'] ?? 
+                            response['data']?['paymentUrl'] ?? 
+                            response['collectUrl'] ?? 
+                            response['paymentUrl'];
+          final requestId = response['data']?['requestId']?.toString() ?? 
+                           response['requestId']?.toString();
           
-          // Show success dialog with sponsorship details
-          _showSponsorshipSuccessDialog(selectedSponsorship);
+          print('Payment URL extracted: $paymentUrl');
+          print('Request ID extracted: $requestId');
+          
+          if (paymentUrl != null && paymentUrl.toString().isNotEmpty) {
+            try {
+              // Navigate directly to Whish payment URL
+              final Uri paymentUri = Uri.parse(paymentUrl.toString());
+              print('Parsed payment URI: $paymentUri');
+              
+              final canLaunch = await canLaunchUrl(paymentUri);
+              print('Can launch URL: $canLaunch');
+              
+              if (canLaunch) {
+                await launchUrl(
+                  paymentUri,
+                  mode: LaunchMode.externalApplication,
+                );
+                print('✅ Successfully launched payment URL');
+                
+                // Store payment info for resume handling
+                _currentSponsorshipPaymentRequestId = requestId;
+                
+                // Start polling for payment status
+                _pollSponsorshipPaymentStatus(requestId: requestId);
+              } else {
+                print('❌ Cannot launch URL: $paymentUri');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not open payment page. Please check your internet connection.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            } catch (e) {
+              print('❌ Error launching URL: $e');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error opening payment page: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          } else {
+            print('❌ No payment URL found in response');
+            // Fallback to old success dialog (in case backend doesn't return paymentUrl)
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white),
+                    SizedBox(width: 12),
+                    Text('Sponsorship request sent successfully!'),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            
+            // Show success dialog with sponsorship details
+            _showSponsorshipSuccessDialog(selectedSponsorship);
+          }
           
           // Reset selection and clear admin note
           setState(() {
@@ -2742,41 +3137,13 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'You already have a pending or active sponsorship request for this package.',
+                'You already have an active sponsorship for this package.',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[700],
                 ),
               ),
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.schedule,
-                      color: Colors.orange[700],
-                      size: 20,
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Please wait for the admin team to review your existing request before submitting a new one.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.orange[700],
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              
             ],
           ),
           actions: [
@@ -3075,6 +3442,675 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
     );
   }
 
+
+  void _showWhishPaymentDialog({
+    required String collectUrl,
+    required String planTitle,
+    required String planPrice,
+    String? requestId,
+    int? externalId,
+  }) {
+    // Wholesaler brand colors (similar to company, using blue gradient)
+    const Color primaryBlue = Color(0xFF2079C2);
+    const Color navyBlue = Color(0xFF10105D);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF2079C2), // #2079C2
+                  Color(0xFF1F4889), // #1F4889
+                  Color(0xFF10105D), // #10105D
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header section with gradient background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.payment,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Complete Payment',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content section with white background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'You will be redirected to Whish Money to complete your payment.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      // Show testing note in debug mode
+                      if (kDebugMode)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 14, color: Colors.orange[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Testing mode: Using Whish Sandbox',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange[700],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: primaryBlue.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.card_membership, color: primaryBlue, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  planTitle,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.attach_money, color: primaryBlue, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  planPrice,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: navyBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'After payment, you will be redirected back to the app.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey[600],
+                                side: BorderSide(color: Colors.grey[300]!),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                // Close dialog first
+                                Navigator.of(context).pop();
+                                
+                                // Open Whish payment URL
+                                final Uri paymentUri = Uri.parse(collectUrl);
+                                if (await canLaunchUrl(paymentUri)) {
+                                  await launchUrl(
+                                    paymentUri,
+                                    mode: LaunchMode.externalApplication, // Open in browser
+                                  );
+                                  
+                                  // Store payment info for resume handling
+                                  _currentPaymentRequestId = requestId;
+                                  _currentPaymentExternalId = externalId;
+                                  
+                                  // Start polling for payment status
+                                  _pollPaymentStatus(requestId: requestId, externalId: externalId);
+                                } else {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Could not open payment page. Please check your internet connection.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: const Text(
+                                'Proceed to Payment',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _pollPaymentStatus({String? requestId, int? externalId}) {
+    // Cancel existing timer if any
+    _paymentStatusPollTimer?.cancel();
+    
+    int pollCount = 0;
+    const maxPolls = 60; // Poll for up to 5 minutes (60 * 5 seconds)
+    
+    _paymentStatusPollTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      pollCount++;
+      
+      if (pollCount >= maxPolls) {
+        timer.cancel();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment verification timed out. Please check your subscription status.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
+      }
+      
+      // Reload subscription data to check for updates
+      try {
+        final provider = context.read<SubscriptionProvider>();
+        await provider.refreshAllData();
+        
+        // Check if subscription is now active
+        if (provider.hasActiveSubscription) {
+          timer.cancel();
+          _currentPaymentRequestId = null;
+          _currentPaymentExternalId = null;
+          
+          if (mounted) {
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text('Payment successful! Your subscription is now active.'),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+            
+            // Refresh UI
+            provider.refreshAllData();
+            _loadSponsorshipSubscriptionData();
+          }
+        }
+      } catch (e) {
+        print('Error polling payment status: $e');
+        // Continue polling even if there's an error
+      }
+    });
+  }
+
+  void _showWhishSponsorshipPaymentDialog({
+    required String collectUrl,
+    required String sponsorshipTitle,
+    required String sponsorshipPrice,
+    String? requestId,
+  }) {
+    // Wholesaler brand colors
+    const Color primaryBlue = Color(0xFF2079C2);
+    const Color navyBlue = Color(0xFF10105D);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF2079C2),
+                  Color(0xFF1F4889),
+                  Color(0xFF10105D),
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header section with gradient background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.payment,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Complete Payment',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content section with white background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'You will be redirected to Whish Money to complete your sponsorship payment.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      if (kDebugMode)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 14, color: Colors.orange[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Testing mode: Using Whish Sandbox',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange[700],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: primaryBlue.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.card_giftcard, color: primaryBlue, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  sponsorshipTitle,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.attach_money, color: primaryBlue, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  sponsorshipPrice,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: navyBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'After payment, you will be redirected back to the app.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey[600],
+                                side: BorderSide(color: Colors.grey[300]!),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                // Close dialog first
+                                Navigator.of(context).pop();
+                                
+                                // Open Whish payment URL
+                                final Uri paymentUri = Uri.parse(collectUrl);
+                                if (await canLaunchUrl(paymentUri)) {
+                                  await launchUrl(
+                                    paymentUri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                  
+                                  // Store payment info for resume handling
+                                  _currentSponsorshipPaymentRequestId = requestId;
+                                  
+                                  // Start polling for payment status
+                                  _pollSponsorshipPaymentStatus(requestId: requestId);
+                                } else {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Could not open payment page. Please check your internet connection.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: const Text(
+                                'Proceed to Payment',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  void _pollSponsorshipPaymentStatus({String? requestId}) {
+    // Cancel existing timer if any
+    _paymentStatusPollTimer?.cancel();
+    
+    int pollCount = 0;
+    const maxPolls = 60; // Poll for up to 5 minutes (60 * 5 seconds)
+    
+    _paymentStatusPollTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      pollCount++;
+      
+      if (pollCount >= maxPolls) {
+        timer.cancel();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment verification timed out. Please check your sponsorship status.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
+      }
+      
+      // Reload sponsorship subscription data to check for updates
+      try {
+        await _loadSponsorshipSubscriptionData();
+        
+        // Check if sponsorship subscription is now active
+        if (_sponsorshipSubscriptionData?.hasActiveSubscription == true) {
+          timer.cancel();
+          _currentSponsorshipPaymentRequestId = null;
+          
+          if (mounted) {
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text('Payment successful! Your sponsorship is now active.'),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+            
+            // Refresh UI
+            _loadSponsorshipSubscriptionData();
+            _loadSponsorships();
+          }
+        }
+      } catch (e) {
+        print('Error polling sponsorship payment status: $e');
+        // Continue polling even if there's an error
+      }
+    });
+  }
 
   void _showSubscriptionDialog(String plan, String price) {
     showDialog(
@@ -3586,11 +4622,62 @@ class _WholesalerSubscriptionState extends State<WholesalerSubscription> {
       );
     }
   }
-    @override
+  @override
   void dispose() {
     _stopCountdownTimer();
+    _paymentStatusPollTimer?.cancel(); // Cancel payment polling timer
     _adminNoteController.dispose();
+    // Remove observer
+    WidgetsBinding.instance.removeObserver(this);
+    // Clear payment tracking
+    _currentPaymentRequestId = null;
+    _currentPaymentExternalId = null;
+    _currentSponsorshipPaymentRequestId = null;
     super.dispose();
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+        // Pause the countdown timer when app is in background
+        _stopCountdownTimer();
+        break;
+      case AppLifecycleState.resumed:
+        // Resume the countdown timer when app comes to foreground
+        if (_subscriptionEndDate != null) {
+          _startCountdownTimer();
+        }
+        // Refresh subscription data when app resumes (e.g., after payment redirect)
+        if (mounted) {
+          final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+          provider.refreshAllData();
+          _loadSponsorshipSubscriptionData();
+          // Resume payment polling if it was active (after returning from payment)
+          if (_currentPaymentRequestId != null) {
+            // Restart polling if it was interrupted
+            if (_paymentStatusPollTimer == null || !_paymentStatusPollTimer!.isActive) {
+              _pollPaymentStatus(
+                requestId: _currentPaymentRequestId,
+                externalId: _currentPaymentExternalId,
+              );
+            }
+          }
+          // Resume sponsorship payment polling if it was active
+          if (_currentSponsorshipPaymentRequestId != null) {
+            if (_paymentStatusPollTimer == null || !_paymentStatusPollTimer!.isActive) {
+              _pollSponsorshipPaymentStatus(
+                requestId: _currentSponsorshipPaymentRequestId,
+              );
+            }
+          }
+        }
+        break;
+      default:
+        break;
+    }
   }
 }
 

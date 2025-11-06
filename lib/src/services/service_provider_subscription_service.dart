@@ -1,10 +1,26 @@
 // lib/services/service_provider_subscription_service.dart
+// This service handles service provider subscription requests with Whish Money payment integration
+//
+// Whish Money Payment Integration:
+// - The backend creates a Whish payment and returns collectUrl and externalId
+// - The frontend receives the payment URL (collectUrl) from the backend after creating a subscription request
+// - Users are redirected to Whish payment page to complete payment
+// - After payment, Whish redirects back to the app via deep linking
+//
+// IMPORTANT: Backend Configuration for CreateServiceProviderSubscription
+// When creating a Whish payment for subscription requests, the backend MUST use these redirect URLs:
+// - Success: barrim://payment-success?requestId={requestId}
+// - Failure: barrim://payment-failed?requestId={requestId}
+// Alternative (will also work): https://barrim.online/payment-success?requestId={requestId}
+// See ApiConstants.getPaymentSuccessUrl() and getPaymentFailedUrl() for helper functions
+// The frontend deep link handler in main.dart will automatically catch these URLs and navigate
+// users back to their subscription page after payment completion.
+//
 import 'dart:convert';
 import 'dart:io';
 import 'package:barrim/src/services/api_service.dart';
 import 'package:http/http.dart' as http;
 
-import 'package:flutter/foundation.dart';
 import '../models/api_response.dart';
 import '../models/subscription.dart';
 import '../utils/token_storage.dart';
@@ -103,21 +119,38 @@ class ServiceProviderSubscriptionService {
   static Future<ApiResponse<List<SubscriptionPlan>>> getSubscriptionPlans() async {
     try {
       final headers = await _getHeaders();
+      final url = '$_baseUrl$_apiPrefix/subscription-plans';
+      
+      print('🟢 Service Provider Subscription Service: Fetching plans from: $url');
+      
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$_baseUrl$_apiPrefix/subscription-plans'),
+        Uri.parse(url),
         headers: headers,
       );
 
-      // Response logged without sensitive data
+      print('🟢 Service Provider Subscription Service: Response status: ${response.statusCode}');
+      print('🟢 Service Provider Subscription Service: Response body: ${response.body}');
 
       final Map<String, dynamic> responseData = json.decode(response.body);
 
       if (response.statusCode == 200) {
         final List<dynamic> plansData = responseData['data'] ?? [];
-        final List<SubscriptionPlan> plans = plansData
-            .map((plan) => SubscriptionPlan.fromJson(plan))
-            .toList();
+        
+        print('🟢 Service Provider Subscription Service: Found ${plansData.length} plans');
+        
+        final List<SubscriptionPlan> plans = plansData.map((plan) {
+          try {
+            final parsedPlan = SubscriptionPlan.fromJson(plan);
+            print('🟢 Parsed plan: ${parsedPlan.title}, ID: ${parsedPlan.id}, Price: ${parsedPlan.price}');
+            return parsedPlan;
+          } catch (e) {
+            print('❌ Error parsing plan: $e, JSON: $plan');
+            rethrow;
+          }
+        }).toList();
+
+        print('🟢 Service Provider Subscription Service: Successfully parsed ${plans.length} plans');
 
         return ApiResponse<List<SubscriptionPlan>>(
           success: true,
@@ -125,6 +158,7 @@ class ServiceProviderSubscriptionService {
           message: responseData['message'] ?? 'Subscription plans retrieved successfully',
         );
       } else {
+        print('❌ Service Provider Subscription Service: Request failed with status ${response.statusCode}');
         return ApiResponse<List<SubscriptionPlan>>(
           success: false,
           message: responseData['message'] ?? 'Failed to get subscription plans',
@@ -132,14 +166,17 @@ class ServiceProviderSubscriptionService {
         );
       }
     } catch (e) {
+      print('❌ Service Provider Subscription Service: Exception: $e');
       return ApiResponse<List<SubscriptionPlan>>(
         success: false,
-        message: 'Failed to retrieve subscription plans',
+        message: 'Failed to retrieve subscription plans: $e',
       );
     }
   }
 
-  /// Create a new subscription request
+  /// Create a new service provider subscription request with Whish payment integration
+  /// This matches the backend CreateServiceProviderSubscription implementation
+  /// The backend creates a Whish payment and returns collectUrl for payment completion
   static Future<ApiResponse<SubscriptionRequest>> createSubscriptionRequest({
     required String planId,
     File? paymentProofImage,
@@ -155,15 +192,15 @@ class ServiceProviderSubscriptionService {
         throw Exception('Invalid plan ID format');
       }
       
-      // Validate payment proof image if provided
+      // Validate payment proof image if provided (optional for Whish payment flow)
       if (paymentProofImage != null) {
         if (!await paymentProofImage.exists()) {
           throw Exception('Payment proof image file does not exist');
         }
         
         final fileSize = await paymentProofImage.length();
-        if (fileSize > 5 * 1024 * 1024) { // 5MB limit
-          throw Exception('Payment proof image is too large. Maximum size is 5MB');
+        if (fileSize > 10 * 1024 * 1024) { // 10MB limit (matching backend)
+          throw Exception('Payment proof image is too large. Maximum size is 10MB');
         }
         
         final fileExtension = paymentProofImage.path.split('.').last.toLowerCase();
@@ -175,7 +212,7 @@ class ServiceProviderSubscriptionService {
       final headers = await _getMultipartHeaders();
       final uri = Uri.parse('$_baseUrl$_apiPrefix/subscription-requests');
 
-      // Prepare fields with sanitized inputs
+      // Prepare fields with sanitized inputs (backend expects planId in form data)
       Map<String, String> fields = {
         'planId': planId.trim(),
       };
@@ -183,7 +220,7 @@ class ServiceProviderSubscriptionService {
       // Prepare files
       List<http.MultipartFile> files = [];
 
-      // Add image if provided
+      // Add image if provided (optional - Whish payment doesn't require image)
       if (paymentProofImage != null) {
         final imageStream = http.ByteStream(paymentProofImage.openRead());
         final imageLength = await paymentProofImage.length();
@@ -196,8 +233,6 @@ class ServiceProviderSubscriptionService {
         files.add(multipartFile);
       }
 
-      // Creating subscription request
-
       // Send the request using custom client
       final streamedResponse = await _makeMultipartRequest(
         'POST',
@@ -209,18 +244,95 @@ class ServiceProviderSubscriptionService {
       
       final response = await http.Response.fromStream(streamedResponse);
 
-      // Response logged without sensitive data
+      // Log response for debugging
+      print('🟢 Service Provider Subscription Service: CreateServiceProviderSubscription Response Status: ${response.statusCode}');
+      print('🟢 Service Provider Subscription Service: Response Body: ${response.body}');
 
       final Map<String, dynamic> responseData = json.decode(response.body);
 
-      if (response.statusCode == 201) {
-        final SubscriptionRequest subscriptionRequest =
-        SubscriptionRequest.fromJson(responseData['data']);
+      // Handle 409 Conflict - already has pending subscription request
+      if (response.statusCode == 409) {
+        return ApiResponse<SubscriptionRequest>(
+          success: false,
+          message: responseData['message'] ?? 'You already have a pending subscription request. Please complete the payment first.',
+          statusCode: response.statusCode,
+        );
+      }
 
+      // Handle 201 Created - successful payment initiation
+      if (response.statusCode == 201) {
+        final data = responseData['data'];
+        if (data == null) {
+          return ApiResponse<SubscriptionRequest>(
+            success: false,
+            message: 'No data received from server',
+            statusCode: response.statusCode,
+          );
+        }
+        
+        // Backend returns: requestId, plan, status, submittedAt, paymentAmount, collectUrl, externalId
+        // Parse the response data - backend returns requestId (not id), submittedAt (not requestedAt)
+        final requestId = data['requestId']?.toString() ?? data['id']?.toString();
+        final planData = data['plan'];
+        final status = data['status']?.toString() ?? 'pending_payment';
+        final submittedAt = data['submittedAt'] ?? data['requestedAt'];
+        final collectUrl = data['collectUrl']?.toString();
+        final externalId = data['externalId'];
+        // paymentAmount is available in response but not needed for SubscriptionRequest model
+        
+        // Parse planId from plan data if available, otherwise use provided planId
+        String? parsedPlanId;
+        if (planData != null && planData is Map) {
+          parsedPlanId = planData['id']?.toString() ?? planData['_id']?.toString();
+        }
+        
+        // Parse dates
+        DateTime? requestedAt;
+        if (submittedAt != null) {
+          try {
+            if (submittedAt is String) {
+              requestedAt = DateTime.parse(submittedAt);
+            } else if (submittedAt is int) {
+              requestedAt = DateTime.fromMillisecondsSinceEpoch(submittedAt);
+            }
+          } catch (e) {
+            print('⚠️ Error parsing submittedAt: $e');
+          }
+        }
+        
+        // Parse externalId (can be int or string)
+        int? parsedExternalId;
+        if (externalId != null) {
+          if (externalId is int) {
+            parsedExternalId = externalId;
+          } else if (externalId is String) {
+            parsedExternalId = int.tryParse(externalId);
+          } else if (externalId is num) {
+            parsedExternalId = externalId.toInt();
+          }
+        }
+        
+        // Create subscription request object with all payment data
+        final subscriptionRequest = SubscriptionRequest(
+          id: requestId,
+          companyId: null, // Service provider subscription doesn't have companyId
+          planId: parsedPlanId ?? planId.trim(),
+          status: status,
+          adminId: null,
+          adminNote: null,
+          requestedAt: requestedAt ?? DateTime.now(),
+          processedAt: null,
+          imagePath: null,
+          collectUrl: collectUrl,
+          externalId: parsedExternalId,
+          paymentStatus: status == 'pending_payment' ? 'pending' : (data['paymentStatus']?.toString() ?? 'pending'),
+          paidAt: null,
+        );
+        
         return ApiResponse<SubscriptionRequest>(
           success: true,
+          message: responseData['message'] ?? 'Payment initiated successfully. Please complete the payment to activate your subscription.',
           data: subscriptionRequest,
-          message: responseData['message'] ?? 'Subscription request created successfully',
         );
       } else {
         return ApiResponse<SubscriptionRequest>(
@@ -230,9 +342,10 @@ class ServiceProviderSubscriptionService {
         );
       }
     } catch (e) {
+      print('❌ Service Provider Subscription Service: Exception in createSubscriptionRequest: $e');
       return ApiResponse<SubscriptionRequest>(
         success: false,
-        message: 'Failed to create subscription request',
+        message: 'Failed to create subscription request: ${e.toString()}',
       );
     }
   }
@@ -399,6 +512,62 @@ class ServiceProviderSubscriptionService {
         success: false,
         message: 'Failed to retrieve subscription status',
       );
+    }
+  }
+
+  /// Check Whish account balance (via backend)
+  /// Returns the account balance in the response data
+  static Future<ApiResponse<double>> checkWhishAccountBalance() async {
+    try {
+      final headers = await _getHeaders();
+      final url = '$_baseUrl$_apiPrefix/payment/whish/balance';
+      
+      final uri = Uri.parse(url);
+      final response = await _makeRequest('GET', uri, headers: headers);
+      final responseData = json.decode(response.body);
+      
+      if (response.statusCode == 200) {
+        // Backend should return balance in response.data
+        final balance = responseData['data'] is num 
+            ? (responseData['data'] as num).toDouble()
+            : (responseData['data']?['balance'] is num 
+                ? (responseData['data']['balance'] as num).toDouble()
+                : null);
+        
+        if (balance != null) {
+          return ApiResponse<double>(
+            success: true,
+            message: responseData['message'] ?? 'Balance retrieved successfully',
+            data: balance,
+          );
+        } else {
+          return ApiResponse<double>(
+            success: false,
+            message: 'Invalid balance data received from server',
+          );
+        }
+      } else {
+        return ApiResponse<double>(
+          success: false,
+          message: responseData['message'] ?? 'Failed to check account balance',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      print('Error checking Whish account balance: $e');
+      return ApiResponse<double>(
+        success: false,
+        message: 'Failed to check account balance: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Format subscription price
+  static String formatPrice(double price) {
+    if (price == price.roundToDouble()) {
+      return '\$${price.round()}';
+    } else {
+      return '\$${price.toStringAsFixed(2)}';
     }
   }
 

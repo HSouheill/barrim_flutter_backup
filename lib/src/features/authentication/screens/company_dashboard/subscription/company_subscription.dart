@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../../headers/company_header.dart';
 import '../../../headers/dashboard_headers.dart';
 import '../../../headers/sidebar.dart';
@@ -61,6 +62,22 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   Timer? _sponsorshipCountdownTimer;
   String _sponsorshipCurrentTimeDisplay = '';
   DateTime? _sponsorshipEndDate;
+  
+  // Payment status polling timer
+  Timer? _paymentStatusPollTimer;
+  String? _currentPaymentRequestId;
+  int? _currentPaymentExternalId;
+  
+  // Sponsorship payment tracking
+  String? _currentSponsorshipPaymentRequestId;
+  
+  // Payment success dialog tracking (to prevent duplicate dialogs)
+  bool _hasShownSubscriptionSuccessDialog = false;
+  bool _hasShownSponsorshipSuccessDialog = false;
+  
+  // Throttle remaining time API calls (prevent excessive requests)
+  DateTime? _lastRemainingTimeCall;
+  static const Duration _remainingTimeCallThrottle = Duration(seconds: 30); // Only call every 30 seconds max
 
   @override
   void initState() {
@@ -114,11 +131,17 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     _refreshTimer?.cancel();
     _countdownTimer?.cancel();
     _sponsorshipCountdownTimer?.cancel();
+    _paymentStatusPollTimer?.cancel(); // Cancel payment polling timer
     _progressAnimationController.dispose();
     _pulseAnimationController?.dispose();
     
     // Remove observer
     WidgetsBinding.instance.removeObserver(this);
+    
+    // Clear payment tracking
+    _currentPaymentRequestId = null;
+    _currentPaymentExternalId = null;
+    _currentSponsorshipPaymentRequestId = null;
     
     super.dispose();
   }
@@ -141,9 +164,113 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         if (_sponsorshipSubscriptionData?.hasActiveSubscription == true) {
           _startSponsorshipCountdownTimer();
         }
+        
+        // Immediately check payment status when app resumes (after returning from payment)
+        _checkPaymentStatusOnResume();
         break;
       default:
         break;
+    }
+  }
+
+  /// Check payment status immediately when app resumes from payment
+  Future<void> _checkPaymentStatusOnResume() async {
+    // Check subscription payment status
+    if (_currentPaymentRequestId != null) {
+      // Immediately check payment status
+      await _checkSubscriptionPaymentStatus();
+      
+      // Resume polling if needed
+      if (_paymentStatusPollTimer == null || !_paymentStatusPollTimer!.isActive) {
+        _pollPaymentStatus(
+          requestId: _currentPaymentRequestId,
+          externalId: _currentPaymentExternalId,
+        );
+      }
+    }
+    
+    // Check sponsorship payment status
+    if (_currentSponsorshipPaymentRequestId != null) {
+      // Immediately check payment status
+      await _checkSponsorshipPaymentStatus();
+      
+      // Resume polling if needed
+      if (_paymentStatusPollTimer == null || !_paymentStatusPollTimer!.isActive) {
+        _pollSponsorshipPaymentStatus(
+          requestId: _currentSponsorshipPaymentRequestId,
+        );
+      }
+    }
+    
+    // Refresh subscription data when app resumes (e.g., after payment redirect)
+    _loadSubscriptionData();
+    _loadSponsorshipSubscriptionData();
+  }
+
+  /// Check subscription payment status immediately (for when app resumes)
+  Future<void> _checkSubscriptionPaymentStatus() async {
+    try {
+      // Only check subscription status, not remaining time (to avoid excessive API calls)
+      final statusResponse = await CompanySubscriptionService.getSubscriptionStatus(
+        branchId: widget.branchId ?? '',
+      );
+      
+      if (statusResponse.success && statusResponse.data != null) {
+        setState(() {
+          _currentSubscription = statusResponse.data;
+        });
+        
+        // Check if subscription is now active
+        if (_currentSubscription?.isActive == true) {
+          // Payment was successful
+          _currentPaymentRequestId = null;
+          _currentPaymentExternalId = null;
+          _paymentStatusPollTimer?.cancel();
+          
+          // Load remaining time only once when payment is confirmed
+          await _loadSubscriptionData();
+          
+          // Only show dialog if not already shown
+          if (mounted && !_hasShownSubscriptionSuccessDialog) {
+            _hasShownSubscriptionSuccessDialog = true;
+            _showPaymentSuccessDialog(
+              title: 'Payment Successful!',
+              message: 'Your subscription has been activated successfully. You can now enjoy all the features.',
+              isSubscription: true,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error checking subscription payment status: $e');
+      // Continue polling in case of temporary error
+    }
+  }
+
+  /// Check sponsorship payment status immediately (for when app resumes)
+  Future<void> _checkSponsorshipPaymentStatus() async {
+    try {
+      await _loadSponsorshipSubscriptionData();
+      
+      // Check if sponsorship subscription is now active
+      if (_sponsorshipSubscriptionData?.hasActiveSubscription == true) {
+        // Payment was successful
+        _currentSponsorshipPaymentRequestId = null;
+        _paymentStatusPollTimer?.cancel();
+        
+        // Only show dialog if not already shown
+        if (mounted && !_hasShownSponsorshipSuccessDialog) {
+          _hasShownSponsorshipSuccessDialog = true;
+          _showPaymentSuccessDialog(
+            title: 'Payment Successful!',
+            message: 'Your sponsorship subscription has been activated successfully. Your business will now be featured prominently.',
+            isSubscription: false,
+          );
+        }
+      }
+    } catch (e) {
+      print('Error checking sponsorship payment status: $e');
+      // Continue polling in case of temporary error
     }
   }
 
@@ -162,9 +289,13 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     try {
       // Load subscription plans
       final plansResponse = await CompanySubscriptionService.getSubscriptionPlans();
-      print('Subscription Plans Response: ${plansResponse.success}');
-      print('Subscription Plans Message: ${plansResponse.message}');
-      print('Subscription Plans Data: ${plansResponse.data?.map((p) => p.toJson()).toList()}');
+      print('🔵 Company Subscription Page: Plans Response success: ${plansResponse.success}');
+      print('🔵 Company Subscription Page: Plans Response message: ${plansResponse.message}');
+      print('🔵 Company Subscription Page: Plans Response data length: ${plansResponse.data?.length ?? 0}');
+      
+      if (plansResponse.data != null) {
+        print('🔵 Company Subscription Page: Plans data: ${plansResponse.data!.map((p) => '${p.title} (${p.id})').join(', ')}');
+      }
 
       if (plansResponse.success && plansResponse.data != null) {
         // Deduplicate subscription plans by ID
@@ -175,10 +306,17 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
           }
         }
         
+        print('🔵 Company Subscription Page: Deduplicated plans count: ${uniquePlans.length}');
+        
         setState(() {
           _subscriptionPlans = uniquePlans.values.toList();
         });
-        print('Updated _subscriptionPlans (deduplicated): ${_subscriptionPlans.map((p) => p.toJson()).toList()}');
+        print('🔵 Company Subscription Page: Updated _subscriptionPlans count: ${_subscriptionPlans.length}');
+      } else {
+        print('❌ Company Subscription Page: Failed to load plans. Success: ${plansResponse.success}, Message: ${plansResponse.message}');
+        setState(() {
+          _error = plansResponse.message ?? 'Failed to load subscription plans';
+        });
       }
 
       // Load current subscription status
@@ -213,28 +351,44 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
         print('- Plan: ${_currentSubscription?.plan?.toJson()}');
       }
 
-      // Load remaining time
-      final remainingTimeResponse = await CompanySubscriptionService.getSubscriptionRemainingTime(
-        branchId: widget.branchId ?? '',
-      );
-      if (remainingTimeResponse.success && remainingTimeResponse.data != null) {
-        setState(() {
-          _remainingTimeData = remainingTimeResponse.data;
-        });
-        _progressAnimationController.forward(from: 0.0);
+      // Load remaining time (with throttle to prevent excessive API calls)
+      final now = DateTime.now();
+      final shouldCallRemainingTime = _lastRemainingTimeCall == null || 
+                                      now.difference(_lastRemainingTimeCall!) >= _remainingTimeCallThrottle;
+      
+      if (shouldCallRemainingTime) {
+        final remainingTimeResponse = await CompanySubscriptionService.getSubscriptionRemainingTime(
+          branchId: widget.branchId ?? '',
+        );
+        _lastRemainingTimeCall = now;
         
-        // Start countdown timer if we have remaining time data
-        if (remainingTimeResponse.data!.hasActiveSubscription == true) {
-          _startCountdownTimer();
-          // Set subscription end date for countdown timer
-          if (remainingTimeResponse.data!.remainingTime?.endDate != null) {
-            _setSubscriptionEndDate(remainingTimeResponse.data!.remainingTime!.endDate);
+        if (remainingTimeResponse.success && remainingTimeResponse.data != null) {
+          setState(() {
+            _remainingTimeData = remainingTimeResponse.data;
+          });
+          _progressAnimationController.forward(from: 0.0);
+          
+          // Start countdown timer if we have remaining time data
+          if (remainingTimeResponse.data!.hasActiveSubscription == true) {
+            _startCountdownTimer();
+            // Set subscription end date for countdown timer
+            if (remainingTimeResponse.data!.remainingTime?.endDate != null) {
+              _setSubscriptionEndDate(remainingTimeResponse.data!.remainingTime!.endDate);
+            }
+          } else {
+            _stopCountdownTimer();
           }
         } else {
           _stopCountdownTimer();
         }
       } else {
-        _stopCountdownTimer();
+        // Skip API call if throttled, but still update UI if we have existing data
+        if (_remainingTimeData?.remainingTime != null && _remainingTimeData!.hasActiveSubscription == true) {
+          // Continue countdown with existing data
+          if (!(_countdownTimer?.isActive ?? false)) {
+            _startCountdownTimer();
+          }
+        }
       }
     } catch (e) {
       print('Error loading subscription data: $e');
@@ -531,33 +685,88 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
   }
 
   Future<void> _cancelSubscription() async {
+    // Show loading dialog
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: const AlertDialog(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                  ),
+                ),
+                SizedBox(width: 20),
+                Text(
+                  'Cancelling subscription...',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
     try {
       final response = await CompanySubscriptionService.cancelSubscription(
         branchId: widget.branchId ?? '',
       );
+      
+      // Close loading dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      
       if (response.success) {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(
-        //     content: Text('Subscription cancelled successfully'),
-        //     backgroundColor: Colors.green,
-        //   ),
-        // );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text('Subscription cancelled successfully'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        // Reload subscription data to reflect changes
         _loadSubscriptionData();
       } else {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text(response.message),
-        //     backgroundColor: Colors.red,
-        //   ),
-        // );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('Failed to cancel subscription: \\${e.toString()}'),
-      //     backgroundColor: Colors.red,
-      //   ),
-      // );
+      // Close loading dialog if still open
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to cancel subscription: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -566,19 +775,93 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Cancel Subscription'),
-          content: const Text('Are you sure you want to cancel your current subscription?'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Cancel Subscription',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Are you sure you want to cancel your current subscription?',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This action will stop auto-renewal. Your subscription will remain active until the end of the current billing period.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.orange[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('No'),
+              child: Text(
+                'Keep Subscription',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[600],
+                ),
+              ),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 _cancelSubscription();
               },
-              child: const Text('Yes, Cancel'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+              ),
+              child: const Text(
+                'Yes, Cancel',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         );
@@ -1303,36 +1586,6 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       _isSubmittingSponsorship = true;
     });
 
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return WillPopScope(
-          onWillPop: () async => false, // Prevent back button from closing dialog
-          child: AlertDialog(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                  ),
-                ),
-                SizedBox(width: 20),
-                Text(
-                  'Sending request to admin...',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
     try {
       final response = await SponsorshipService.createCompanyBranchSponsorshipRequest(
         sponsorshipId: originalSponsorshipId,
@@ -1340,35 +1593,104 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       );
 
       if (mounted) {
-        // Close loading dialog
-        Navigator.of(context).pop();
-        
         setState(() {
           _isSubmittingSponsorship = false;
         });
 
-        if (response['success'] == true) {
-          // Show success snackbar first
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Sponsorship request sent successfully!'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+        // Debug: Print full response
+        print('Full response: $response');
+        
+        // Check both 'status' (as number 200-299 or true) and 'success' for compatibility
+        final status = response['status'];
+        final success = response['success'];
+        final isSuccess = (status is int && status >= 200 && status < 300) || 
+                         status == true || 
+                         success == true;
+        
+        print('Status check: status=$status, success=$success, isSuccess=$isSuccess');
+        
+        if (isSuccess) {
+          // Check if we have a collectUrl or paymentUrl for Whish payment
+          final paymentUrl = response['data']?['collectUrl'] ?? 
+                            response['data']?['paymentUrl'] ?? 
+                            response['collectUrl'] ?? 
+                            response['paymentUrl'];
+          final requestId = response['data']?['requestId']?.toString() ?? 
+                           response['requestId']?.toString();
           
-          // Show success dialog with sponsorship details
-          final selectedSponsorship = _sponsorships.firstWhere(
-            (s) => s.id == originalSponsorshipId,
-            orElse: () => Sponsorship(),
-          );
-          _showSponsorshipSuccessDialog(selectedSponsorship);
+          print('Payment URL extracted: $paymentUrl');
+          print('Request ID extracted: $requestId');
+          
+          if (paymentUrl != null && paymentUrl.toString().isNotEmpty) {
+            try {
+              // Navigate directly to Whish payment URL
+              final Uri paymentUri = Uri.parse(paymentUrl.toString());
+              print('Parsed payment URI: $paymentUri');
+              
+              final canLaunch = await canLaunchUrl(paymentUri);
+              print('Can launch URL: $canLaunch');
+              
+              if (canLaunch) {
+                await launchUrl(
+                  paymentUri,
+                  mode: LaunchMode.externalApplication,
+                );
+                print('✅ Successfully launched payment URL');
+                
+                // Store payment info for resume handling
+                _currentSponsorshipPaymentRequestId = requestId;
+                _hasShownSponsorshipSuccessDialog = false; // Reset flag for new payment
+                
+                // Start polling for payment status
+                _pollSponsorshipPaymentStatus(requestId: requestId);
+              } else {
+                print('❌ Cannot launch URL: $paymentUri');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not open payment page. Please check your internet connection.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            } catch (e) {
+              print('❌ Error launching URL: $e');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error opening payment page: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          } else {
+            print('❌ No payment URL found in response');
+            // Fallback to old success dialog (in case backend doesn't return paymentUrl)
+            // Get selected sponsorship for details
+            final selectedSponsorship = _sponsorships.firstWhere(
+              (s) => s.id == originalSponsorshipId,
+              orElse: () => Sponsorship(),
+            );
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white),
+                    SizedBox(width: 12),
+                    Text('Sponsorship request sent successfully!'),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            
+            // Show success dialog with sponsorship details
+            _showSponsorshipSuccessDialog(selectedSponsorship);
+          }
           
           // Reset selection
           setState(() {
@@ -1386,29 +1708,68 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
               errorMessage.contains('exists')) {
             _showExistingSponsorshipDialog();
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(response['message'] ?? 'Failed to submit sponsorship request'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            // Show error dialog for payment/configuration errors
+            final errorMessage = response['message']?.toString() ?? 'Failed to submit sponsorship request';
+            final isPaymentError = errorMessage.toLowerCase().contains('whish') ||
+                                 errorMessage.toLowerCase().contains('credentials') ||
+                                 errorMessage.toLowerCase().contains('environment') ||
+                                 errorMessage.toLowerCase().contains('payment');
+            
+            if (isPaymentError) {
+              _showPaymentErrorDialog(
+                title: 'Payment Error',
+                message: errorMessage,
+                isConfigurationError: errorMessage.toLowerCase().contains('whish') ||
+                                   errorMessage.toLowerCase().contains('credentials') ||
+                                   errorMessage.toLowerCase().contains('environment'),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(errorMessage),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        // Close loading dialog
-        Navigator.of(context).pop();
+        // Close loading dialog if still open
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
         
         setState(() {
           _isSubmittingSponsorship = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        
+        final errorMessage = e.toString();
+        final isPaymentError = errorMessage.toLowerCase().contains('whish') ||
+                             errorMessage.toLowerCase().contains('credentials') ||
+                             errorMessage.toLowerCase().contains('payment');
+        
+        if (isPaymentError) {
+          _showPaymentErrorDialog(
+            title: 'Payment Error',
+            message: errorMessage.contains('Whish') || errorMessage.contains('credentials')
+                ? 'Payment service is currently unavailable. Please contact support or try again later.'
+                : 'Error: ${errorMessage}',
+            isConfigurationError: errorMessage.toLowerCase().contains('whish') ||
+                               errorMessage.toLowerCase().contains('credentials') ||
+                               errorMessage.toLowerCase().contains('environment'),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${errorMessage}'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
       }
     }
   }
@@ -1840,48 +2201,1500 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: AlertDialog(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                const Text(
+                  'Checking balance...',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
 
     try {
-      // Create subscription request
+      // Check Whish account balance before creating subscription
+      final balanceResponse = await CompanySubscriptionService.checkWhishAccountBalance();
+      
+      // Update loading dialog message
+      if (mounted) {
+        Navigator.of(context).pop();
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return WillPopScope(
+              onWillPop: () async => false,
+              child: AlertDialog(
+                content: Row(
+                  children: [
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    const Text(
+                      'Initiating payment...',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }
+      
+      if (balanceResponse.success && balanceResponse.data != null) {
+        final balance = balanceResponse.data!;
+        final subscriptionPrice = selectedPlan.price ?? 0;
+        
+        // Check if balance is sufficient
+        if (balance < subscriptionPrice) {
+          // Close loading dialog
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+          
+          // Show insufficient funds error
+          _showInsufficientFundsDialog(
+            balance: balance,
+            requiredAmount: subscriptionPrice,
+            planTitle: plan,
+          );
+          return;
+        }
+      } else {
+        // If balance check fails, log warning but continue with payment
+        // (balance check might not be critical in all cases)
+        print('⚠️ Warning: Could not verify account balance: ${balanceResponse.message}');
+      }
+      
+      // Create subscription request (this now creates Whish payment)
       final response = await CompanySubscriptionService.createSubscriptionRequest(
         planId: selectedPlan.id!,
         branchId: widget.branchId ?? '',
       );
 
       // Close loading dialog
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
 
-      if (response.success) {
-        // Show success dialog
-        _showSuccessDialog();
+      if (response.success && response.data != null) {
+        final subscriptionRequest = response.data!;
+        
+        // Check if we have a collectUrl for Whish payment
+        if (subscriptionRequest.collectUrl != null && subscriptionRequest.collectUrl!.isNotEmpty) {
+          // Show payment dialog with Whish payment URL
+          _showWhishPaymentDialog(
+            collectUrl: subscriptionRequest.collectUrl!,
+            planTitle: plan,
+            planPrice: price,
+            requestId: subscriptionRequest.id,
+            externalId: subscriptionRequest.externalId,
+          );
+        } else {
+          // Fallback to old success dialog (in case backend doesn't return collectUrl)
+          _showSuccessDialog();
+        }
       } else {
-        // Show error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(response.message),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        // Show error dialog instead of snackbar for better visibility
+        if (mounted) {
+          // Handle specific error cases
+          String errorTitle = 'Payment Error';
+          bool isConflictError = response.statusCode == 409;
+          
+          if (isConflictError) {
+            errorTitle = 'Pending Request';
+          }
+          
+          final errorMessage = response.message ?? 'Failed to initiate payment. Please try again later.';
+          final lowerMessage = errorMessage.toLowerCase();
+          
+          _showPaymentErrorDialog(
+            title: errorTitle,
+            message: errorMessage,
+            isConfigurationError: lowerMessage.contains('whish') ||
+                                 lowerMessage.contains('credentials') ||
+                                 lowerMessage.contains('environment'),
+          );
+        }
       }
     } catch (e) {
       // Close loading dialog
-      Navigator.of(context).pop();
-
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send subscription request: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        Navigator.of(context).pop();
+        
+        // Show error dialog
+        final errorMessage = e.toString();
+        _showPaymentErrorDialog(
+          title: 'Payment Error',
+          message: errorMessage.contains('Whish') || errorMessage.contains('credentials')
+              ? 'Payment service is currently unavailable. Please contact support or try again later.'
+              : 'Failed to send subscription request: ${errorMessage}',
+          isConfigurationError: errorMessage.toLowerCase().contains('whish') ||
+                               errorMessage.toLowerCase().contains('credentials') ||
+                               errorMessage.toLowerCase().contains('environment'),
+        );
+      }
     }
+  }
+
+  void _showWhishPaymentDialog({
+    required String collectUrl,
+    required String planTitle,
+    required String planPrice,
+    String? requestId,
+    int? externalId,
+  }) {
+    // Company brand colors
+    const Color primaryBlue = Color(0xFF2079C2);
+    const Color navyBlue = Color(0xFF10105D);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF2079C2), // #2079C2
+                  Color(0xFF1F4889), // #1F4889
+                  Color(0xFF10105D), // #10105D
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header section with gradient background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.payment,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Complete Payment',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content section with white background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'You will be redirected to Whish Money to complete your payment.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      // Show testing note in debug mode
+                      if (kDebugMode)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 14, color: Colors.orange[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Testing mode: Using Whish Sandbox',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange[700],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: primaryBlue.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.card_membership, color: primaryBlue, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  planTitle,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.attach_money, color: primaryBlue, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  planPrice,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: navyBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'After payment, you will be redirected back to the app.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey[600],
+                                side: BorderSide(color: Colors.grey[300]!),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                // Close dialog first
+                                Navigator.of(context).pop();
+                                
+                                // Open Whish payment URL
+                                final Uri paymentUri = Uri.parse(collectUrl);
+                                if (await canLaunchUrl(paymentUri)) {
+                                  await launchUrl(
+                                    paymentUri,
+                                    mode: LaunchMode.externalApplication, // Open in browser
+                                  );
+                                  
+                                  // Store payment info for resume handling
+                                  _currentPaymentRequestId = requestId;
+                                  _currentPaymentExternalId = externalId;
+                                  _hasShownSubscriptionSuccessDialog = false; // Reset flag for new payment
+                                  
+                                  // Start polling for payment status
+                                  _pollPaymentStatus(requestId: requestId, externalId: externalId);
+                                } else {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Could not open payment page. Please check your internet connection.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: const Text(
+                                'Proceed to Payment',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _pollPaymentStatus({String? requestId, int? externalId}) {
+    // Cancel existing timer if any
+    _paymentStatusPollTimer?.cancel();
+    
+    int pollCount = 0;
+    const maxPolls = 60; // Poll for up to 5 minutes (60 * 5 seconds)
+    
+    _paymentStatusPollTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      pollCount++;
+      
+      if (pollCount >= maxPolls) {
+        timer.cancel();
+        _currentPaymentRequestId = null;
+        _currentPaymentExternalId = null;
+        
+        if (mounted) {
+          // Show timeout message - payment might still be processing
+          _showPaymentStatusDialog(
+            isSuccess: false,
+            title: 'Payment Verification',
+            message: 'Payment verification is taking longer than expected. Please check your subscription status manually. If payment was completed, your subscription should be active shortly.',
+            isSubscription: true,
+          );
+        }
+        return;
+      }
+      
+      // Only check subscription status, not remaining time (to avoid excessive API calls)
+      // Remaining time is calculated locally from the endDate
+      try {
+        final statusResponse = await CompanySubscriptionService.getSubscriptionStatus(
+          branchId: widget.branchId ?? '',
+        );
+        
+        if (statusResponse.success && statusResponse.data != null) {
+          setState(() {
+            _currentSubscription = statusResponse.data;
+          });
+          
+          // Check if subscription is now active
+          if (_currentSubscription?.isActive == true) {
+            timer.cancel();
+            _currentPaymentRequestId = null;
+            _currentPaymentExternalId = null;
+            
+            // Load remaining time only once when payment is confirmed
+            await _loadSubscriptionData();
+            _loadSponsorshipSubscriptionData();
+            
+            // Only show dialog if not already shown
+            if (mounted && !_hasShownSubscriptionSuccessDialog) {
+              _hasShownSubscriptionSuccessDialog = true;
+              // Show success dialog
+              _showPaymentSuccessDialog(
+                title: 'Payment Successful!',
+                message: 'Your subscription has been activated successfully. You can now enjoy all the features.',
+                isSubscription: true,
+              );
+            }
+          }
+        }
+      } catch (e) {
+        print('Error checking payment status: $e');
+        // Continue polling on error
+      }
+    });
+  }
+  
+  void _showWhishSponsorshipPaymentDialog({
+    required String collectUrl,
+    required String sponsorshipTitle,
+    required String sponsorshipPrice,
+    String? requestId,
+  }) {
+    // Company brand colors
+    const Color primaryBlue = Color(0xFF2079C2);
+    const Color navyBlue = Color(0xFF10105D);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF2079C2),
+                  Color(0xFF1F4889),
+                  Color(0xFF10105D),
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header section with gradient background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.payment,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Complete Payment',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content section with white background
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'You will be redirected to Whish Money to complete your sponsorship payment.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      if (kDebugMode)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 14, color: Colors.orange[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Testing mode: Using Whish Sandbox',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange[700],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: primaryBlue.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.card_giftcard, color: primaryBlue, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  sponsorshipTitle,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.attach_money, color: primaryBlue, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  sponsorshipPrice,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: navyBlue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'After payment, you will be redirected back to the app.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey[600],
+                                side: BorderSide(color: Colors.grey[300]!),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                // Close dialog first
+                                Navigator.of(context).pop();
+                                
+                                // Open Whish payment URL
+                                final Uri paymentUri = Uri.parse(collectUrl);
+                                if (await canLaunchUrl(paymentUri)) {
+                                  await launchUrl(
+                                    paymentUri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                  
+                                  // Store payment info for resume handling
+                                  _currentSponsorshipPaymentRequestId = requestId;
+                                  _hasShownSponsorshipSuccessDialog = false; // Reset flag for new payment
+                                  
+                                  // Start polling for payment status
+                                  _pollSponsorshipPaymentStatus(requestId: requestId);
+                                } else {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Could not open payment page. Please check your internet connection.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 2,
+                              ),
+                              child: const Text(
+                                'Proceed to Payment',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  void _pollSponsorshipPaymentStatus({String? requestId}) {
+    // Cancel existing timer if any
+    _paymentStatusPollTimer?.cancel();
+    
+    int pollCount = 0;
+    const maxPolls = 60; // Poll for up to 5 minutes (60 * 5 seconds)
+    
+    _paymentStatusPollTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      pollCount++;
+      
+      if (pollCount >= maxPolls) {
+        timer.cancel();
+        _currentSponsorshipPaymentRequestId = null;
+        
+        if (mounted) {
+          // Show timeout message - payment might still be processing
+          _showPaymentStatusDialog(
+            isSuccess: false,
+            title: 'Payment Verification',
+            message: 'Payment verification is taking longer than expected. Please check your sponsorship status manually. If payment was completed, your sponsorship should be active shortly.',
+            isSubscription: false,
+          );
+        }
+        return;
+      }
+      
+      // Reload sponsorship subscription data to check for updates
+      try {
+        await _loadSponsorshipSubscriptionData();
+        
+        // Check if sponsorship subscription is now active
+        if (_sponsorshipSubscriptionData?.hasActiveSubscription == true) {
+          timer.cancel();
+          _currentSponsorshipPaymentRequestId = null;
+          
+          // Only show dialog if not already shown
+          if (mounted && !_hasShownSponsorshipSuccessDialog) {
+            _hasShownSponsorshipSuccessDialog = true;
+            // Show success dialog
+            _showPaymentSuccessDialog(
+              title: 'Payment Successful!',
+              message: 'Your sponsorship subscription has been activated successfully. Your business will now be featured prominently.',
+              isSubscription: false,
+            );
+          }
+          
+          // Refresh UI
+          if (mounted) {
+            _loadSponsorshipSubscriptionData();
+          }
+        }
+      } catch (e) {
+        print('Error polling sponsorship payment status: $e');
+        // Continue polling even if there's an error
+      }
+    });
+  }
+
+  /// Show payment success dialog when payment is completed
+  void _showPaymentSuccessDialog({
+    required String title,
+    required String message,
+    required bool isSubscription,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent dismissing by tapping outside
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            contentPadding: EdgeInsets.zero,
+            content: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF2079C2),
+                    Color(0xFF1F4889),
+                    Color(0xFF10105D),
+                  ],
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header section
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check_circle,
+                            color: Colors.white,
+                            size: 48,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Content section
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(20),
+                        bottomRight: Radius.circular(20),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          message,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                            height: 1.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              // Refresh data
+                              _loadSubscriptionData();
+                              _loadSponsorshipSubscriptionData();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2079C2),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Continue',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Show insufficient funds dialog when account balance is less than subscription price
+  void _showInsufficientFundsDialog({
+    required double balance,
+    required double requiredAmount,
+    required String planTitle,
+  }) {
+    final shortfall = requiredAmount - balance;
+    final formattedBalance = CompanySubscriptionService.formatPrice(balance);
+    final formattedRequired = CompanySubscriptionService.formatPrice(requiredAmount);
+    final formattedShortfall = CompanySubscriptionService.formatPrice(shortfall);
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.orange[600]!,
+                  Colors.orange[700]!,
+                  Colors.red[700]!,
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header section
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.account_balance_wallet,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Insufficient Funds',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content section
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Whish account balance is insufficient to complete this subscription.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Balance details card
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Subscription Plan:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  planTitle,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Required Amount:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  formattedRequired,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Current Balance:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  formattedBalance,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Shortfall:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                                Text(
+                                  formattedShortfall,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Please add funds to your Whish account to proceed with this subscription.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange[700],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'OK',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Show payment error dialog when payment fails
+  void _showPaymentErrorDialog({
+    required String title,
+    required String message,
+    required bool isConfigurationError,
+  }) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.red[600]!,
+                  Colors.red[700]!,
+                  Colors.red[800]!,
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header section
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.error_outline,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content section
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        message,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (isConfigurationError) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange[200]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'This appears to be a configuration issue. Please contact support for assistance.',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.orange[700],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[700],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'OK',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Show payment status dialog (for timeout or other status messages)
+  void _showPaymentStatusDialog({
+    required bool isSuccess,
+    required String title,
+    required String message,
+    required bool isSubscription,
+  }) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isSuccess
+                    ? [
+                        const Color(0xFF2079C2),
+                        const Color(0xFF1F4889),
+                        const Color(0xFF10105D),
+                      ]
+                    : [
+                        Colors.orange[700]!,
+                        Colors.orange[600]!,
+                        Colors.orange[800]!,
+                      ],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header section
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isSuccess ? Icons.check_circle : Icons.info_outline,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content section
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        message,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            // Refresh data
+                            _loadSubscriptionData();
+                            _loadSponsorshipSubscriptionData();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isSuccess
+                                ? const Color(0xFF2079C2)
+                                : Colors.orange[700],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'OK',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showSuccessDialog() {
@@ -2045,13 +3858,23 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
     
     final percentUsed = double.tryParse((remaining.percentageUsed ?? '0').replaceAll('%', '')) ?? 0;
     final percentLeft = 1 - (percentUsed / 100);
+    final isActive = _currentSubscription?.isActive ?? false;
     
     return Container(
-      
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         children: [
-
-          
           // Circular progress indicator with time
           SizedBox(
             width: 200,
@@ -2103,6 +3926,33 @@ class _CompanySubscriptionsPageState extends State<CompanySubscriptionsPage> wit
               ],
             ),
           ),
+          
+          // Cancel subscription button (only show if subscription is active)
+          if (isActive) ...[
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _showCancelConfirmationDialog,
+                icon: const Icon(Icons.cancel_outlined, size: 20),
+                label: const Text(
+                  'Cancel Subscription',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: BorderSide(color: Colors.red[300]!, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

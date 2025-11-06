@@ -415,6 +415,6 @@ class ReferralService {
       return '';
     }
     
-    return 'https://barrim.com/code?v=${referralCode.trim()}';
+    return 'https://barrim.online/code?v=${referralCode.trim()}';
   }
 }

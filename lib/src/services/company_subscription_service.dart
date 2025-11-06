@@ -1,5 +1,34 @@
 // lib/services/company_subscription_service.dart
-// This service ensures all API calls use HTTPS for security
+//
+// Whish Money Payment Integration:
+// - The backend should be configured to use Whish Money API for payment processing
+// - For testing: Configure backend to use https://api.sandbox.whish.money/itel-service/api/
+// - For production: Configure backend to use https://whish.money/itel-service/api/
+// - The frontend receives the payment URL (collectUrl) from the backend after creating a subscription request
+// - Currently using sandbox/testing API for development
+//
+// Backend Whish API Headers Required:
+//   channel: "10196975"
+//   secret: "024709627da343afbcd5278a5fea819e"
+//   websiteurl: "barrim.com" (CRITICAL: Use domain only, NOT "https://barrim.com")
+//   Content-Type: "application/json"
+// See ApiConstants.getWhishHeaders() for reference implementation
+//
+// IMPORTANT: If backend receives "auth.session_not_exist" error:
+// 1. Check websiteurl format - should be "barrim.com" not "https://barrim.com"
+// 2. Verify credentials with Whish support
+// 3. Ensure Whish account is active and properly configured
+//
+// IMPORTANT: Backend Configuration for CreateBranchSubscriptionRequest
+// Deep Linking for Payment Redirects:
+// When creating a Whish payment for subscription requests, the backend MUST use these redirect URLs:
+// - Success: barrim://payment-success?requestId={requestId}
+// - Failure: barrim://payment-failed?requestId={requestId}
+// Alternative (will also work): https://barrim.online/payment-success?requestId={requestId}
+// See ApiConstants.getPaymentSuccessUrl() and getPaymentFailedUrl() for helper functions
+// The frontend deep link handler in main.dart will automatically catch these URLs and navigate
+// users back to their subscription page after payment completion.
+//
 import 'dart:convert';
 import 'dart:io';
 import 'package:barrim/src/services/api_service.dart';
@@ -12,17 +41,8 @@ import '../utils/token_storage.dart';
 
 class CompanySubscriptionService {
   static final TokenStorage _tokenStorage = TokenStorage();
-  static const String _baseUrl = ApiService.baseUrl; // TODO: Move to api_constants.dart
+  static const String _baseUrl = ApiService.baseUrl; 
   static const String _subscriptionEndpoint = '/api/companies';
-
-  // Validate that all URLs are using HTTPS
-  static bool _validateHttpsUrl(String url) {
-    if (!url.startsWith('https://')) {
-      print('CompanySubscriptionService: WARNING - Non-HTTPS URL detected: $url');
-      return false;
-    }
-    return true;
-  }
 
   // --- Custom HTTP client with proper SSL handling ---
   static http.Client? _customClient;
@@ -138,10 +158,7 @@ class CompanySubscriptionService {
       
       final url = '$_baseUrl$_subscriptionEndpoint/subscription-plans';
       
-      // Ensure HTTPS is being used
-      if (!_validateHttpsUrl(url)) {
-        throw Exception('Cannot get subscription plans with non-HTTPS URL');
-      }
+      print('🔵 Company Subscription Service: Fetching plans from: $url');
       
       final response = await _makeRequest(
         'GET',
@@ -149,7 +166,8 @@ class CompanySubscriptionService {
         headers: headers,
       );
       
-      // Response logged without sensitive data
+      print('🔵 Company Subscription Service: Response status: ${response.statusCode}');
+      print('🔵 Company Subscription Service: Response body: ${response.body}');
 
       try {
         final responseData = json.decode(response.body);
@@ -157,16 +175,28 @@ class CompanySubscriptionService {
         if (response.statusCode == 200) {
           final List<dynamic> plansJson = responseData['data'] ?? [];
           
+          print('🔵 Company Subscription Service: Found ${plansJson.length} plans');
+          
           final plans = plansJson.map((json) {
-            return SubscriptionPlan.fromJson(json);
+            try {
+              final plan = SubscriptionPlan.fromJson(json);
+              print('🔵 Parsed plan: ${plan.title}, ID: ${plan.id}, Price: ${plan.price}');
+              return plan;
+            } catch (e) {
+              print('❌ Error parsing plan: $e, JSON: $json');
+              rethrow;
+            }
           }).toList();
 
+          print('🔵 Company Subscription Service: Successfully parsed ${plans.length} plans');
+          
           return ApiResponse<List<SubscriptionPlan>>(
             success: true,
             message: responseData['message'] ?? 'Subscription plans retrieved successfully',
             data: plans,
           );
         } else {
+          print('❌ Company Subscription Service: Request failed with status ${response.statusCode}');
           return ApiResponse<List<SubscriptionPlan>>(
             success: false,
             message: responseData['message'] ?? 'Failed to retrieve subscription plans',
@@ -174,17 +204,25 @@ class CompanySubscriptionService {
           );
         }
       } catch (parseError) {
-        throw Exception('Failed to parse subscription plans response');
+        print('❌ Company Subscription Service: Parse error: $parseError');
+        print('❌ Response body was: ${response.body}');
+        return ApiResponse<List<SubscriptionPlan>>(
+          success: false,
+          message: 'Failed to parse subscription plans response: $parseError',
+        );
       }
     } catch (e) {
+      print('❌ Company Subscription Service: Exception: $e');
       return ApiResponse<List<SubscriptionPlan>>(
         success: false,
-        message: 'Failed to retrieve subscription plans',
+        message: 'Failed to retrieve subscription plans: $e',
       );
     }
   }
 
-  /// Create a subscription request with optional payment proof image
+  /// Create a branch subscription request with Whish payment integration
+  /// This matches the backend CreateBranchSubscriptionRequest implementation
+  /// The backend creates a Whish payment and returns collectUrl for payment completion
   static Future<ApiResponse<SubscriptionRequest>> createSubscriptionRequest({
     required String planId,
     required String branchId,
@@ -207,15 +245,15 @@ class CompanySubscriptionService {
         throw Exception('Invalid branch ID format');
       }
       
-      // Validate payment proof image if provided
+      // Validate payment proof image if provided (optional for Whish payment flow)
       if (paymentProofImage != null) {
         if (!await paymentProofImage.exists()) {
           throw Exception('Payment proof image file does not exist');
         }
         
         final fileSize = await paymentProofImage.length();
-        if (fileSize > 5 * 1024 * 1024) { // 5MB limit
-          throw Exception('Payment proof image is too large. Maximum size is 5MB');
+        if (fileSize > 10 * 1024 * 1024) { // 10MB limit (matching backend)
+          throw Exception('Payment proof image is too large. Maximum size is 10MB');
         }
         
         final fileExtension = paymentProofImage.path.split('.').last.toLowerCase();
@@ -225,25 +263,21 @@ class CompanySubscriptionService {
       }
       
       final headers = await _getMultipartHeaders();
+      // Backend endpoint: branchId is in URL path, planId is in form data
+      // Note: Endpoint may vary based on backend routing - update if backend uses different path
       final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/request';
-      
-      // Ensure HTTPS is being used
-      if (!_validateHttpsUrl(url)) {
-        throw Exception('Cannot create subscription request with non-HTTPS URL');
-      }
       
       final uri = Uri.parse(url);
 
-      // Prepare fields with sanitized inputs
+      // Prepare fields with sanitized inputs (backend expects planId in form data)
       Map<String, String> fields = {
         'planId': planId.trim(),
-        'branchId': branchId.trim(),
       };
 
       // Prepare files
       List<http.MultipartFile> files = [];
 
-      // Add image if provided
+      // Add image if provided (optional - Whish payment doesn't require image)
       if (paymentProofImage != null) {
         final imageExtension = paymentProofImage.path.split('.').last.toLowerCase();
         final mimeType = _getMimeType(imageExtension);
@@ -266,26 +300,158 @@ class CompanySubscriptionService {
       );
       
       final response = await http.Response.fromStream(streamedResponse);
+      
+      // Log response for debugging
+      print('🔵 Company Subscription Service: CreateBranchSubscriptionRequest Response Status: ${response.statusCode}');
+      print('🔵 Company Subscription Service: Response Body: ${response.body}');
+      
       final responseData = json.decode(response.body);
 
-      if (response.statusCode == 201) {
-        final subscriptionRequest = SubscriptionRequest.fromJson(responseData['data']);
-        return ApiResponse<SubscriptionRequest>(
-          success: true,
-          message: responseData['message'] ?? 'Subscription request created successfully',
-          data: subscriptionRequest,
-        );
-      } else {
+      // Handle 409 Conflict - already has pending subscription request
+      if (response.statusCode == 409) {
         return ApiResponse<SubscriptionRequest>(
           success: false,
-          message: responseData['message'] ?? 'Failed to create subscription request',
+          message: responseData['message'] ?? 'You already have a pending subscription request for this branch. Please complete the payment first.',
+          statusCode: response.statusCode,
+        );
+      }
+
+      // Handle 201 Created - successful payment initiation
+      if (response.statusCode == 201) {
+        // Backend returns: requestId, plan, status, submittedAt, paymentAmount, collectUrl, externalId
+        final data = responseData['data'];
+        
+        if (data == null) {
+          return ApiResponse<SubscriptionRequest>(
+            success: false,
+            message: 'No data received from server',
+            statusCode: response.statusCode,
+          );
+        }
+        
+        // Parse the response data - backend returns requestId (not id), submittedAt (not requestedAt)
+        final requestId = data['requestId']?.toString() ?? data['id']?.toString();
+        final planData = data['plan'];
+        final status = data['status']?.toString() ?? 'pending_payment';
+        final submittedAt = data['submittedAt'] ?? data['requestedAt'];
+        final collectUrl = data['collectUrl']?.toString();
+        final externalId = data['externalId'];
+        // paymentAmount is available in response but not needed for SubscriptionRequest model
+        
+        // Parse planId from plan data if available, otherwise use provided planId
+        String? parsedPlanId;
+        if (planData != null && planData is Map) {
+          parsedPlanId = planData['id']?.toString() ?? planData['_id']?.toString();
+        }
+        
+        // Parse dates
+        DateTime? requestedAt;
+        if (submittedAt != null) {
+          try {
+            if (submittedAt is String) {
+              requestedAt = DateTime.parse(submittedAt);
+            } else if (submittedAt is int) {
+              requestedAt = DateTime.fromMillisecondsSinceEpoch(submittedAt);
+            }
+          } catch (e) {
+            print('⚠️ Error parsing submittedAt: $e');
+          }
+        }
+        
+        // Parse externalId (can be int or string)
+        int? parsedExternalId;
+        if (externalId != null) {
+          if (externalId is int) {
+            parsedExternalId = externalId;
+          } else if (externalId is String) {
+            parsedExternalId = int.tryParse(externalId);
+          } else if (externalId is num) {
+            parsedExternalId = externalId.toInt();
+          }
+        }
+        
+        // Create subscription request object with all payment data
+        final subscriptionRequest = SubscriptionRequest(
+          id: requestId,
+          companyId: null, // Branch subscription doesn't have companyId
+          planId: parsedPlanId ?? planId.trim(),
+          status: status,
+          adminId: null,
+          adminNote: null,
+          requestedAt: requestedAt ?? DateTime.now(),
+          processedAt: null,
+          imagePath: null,
+          collectUrl: collectUrl,
+          externalId: parsedExternalId,
+          paymentStatus: status == 'pending_payment' ? 'pending' : (data['paymentStatus']?.toString() ?? 'pending'),
+          paidAt: null,
+        );
+        
+        return ApiResponse<SubscriptionRequest>(
+          success: true,
+          message: responseData['message'] ?? 'Payment initiated successfully. Please complete the payment to activate your subscription.',
+          data: subscriptionRequest,
+        );
+      } 
+      
+      // Handle other error status codes
+      return ApiResponse<SubscriptionRequest>(
+        success: false,
+        message: responseData['message'] ?? 'Failed to create subscription request',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      print('❌ Company Subscription Service: Exception in createSubscriptionRequest: $e');
+      return ApiResponse<SubscriptionRequest>(
+        success: false,
+        message: 'Failed to create subscription request: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Check Whish account balance (via backend)
+  /// Returns the account balance in the response data
+  static Future<ApiResponse<double>> checkWhishAccountBalance() async {
+    try {
+      final headers = await _getHeaders();
+      final url = '$_baseUrl$_subscriptionEndpoint/payment/whish/balance';
+      
+      final uri = Uri.parse(url);
+      final response = await _makeRequest('GET', uri, headers: headers);
+      final responseData = json.decode(response.body);
+      
+      if (response.statusCode == 200) {
+        // Backend should return balance in response.data
+        final balance = responseData['data'] is num 
+            ? (responseData['data'] as num).toDouble()
+            : (responseData['data']?['balance'] is num 
+                ? (responseData['data']['balance'] as num).toDouble()
+                : null);
+        
+        if (balance != null) {
+          return ApiResponse<double>(
+            success: true,
+            message: responseData['message'] ?? 'Balance retrieved successfully',
+            data: balance,
+          );
+        } else {
+          return ApiResponse<double>(
+            success: false,
+            message: 'Invalid balance data received from server',
+          );
+        }
+      } else {
+        return ApiResponse<double>(
+          success: false,
+          message: responseData['message'] ?? 'Failed to check account balance',
           statusCode: response.statusCode,
         );
       }
     } catch (e) {
-      return ApiResponse<SubscriptionRequest>(
+      print('Error checking Whish account balance: $e');
+      return ApiResponse<double>(
         success: false,
-        message: 'Failed to create subscription request',
+        message: 'Failed to check account balance: ${e.toString()}',
       );
     }
   }
@@ -305,11 +471,6 @@ class CompanySubscriptionService {
       
       final headers = await _getHeaders();
       final url = '$_baseUrl$_subscriptionEndpoint/subscription/request/$branchId/status';
-      
-      // Ensure HTTPS is being used
-      if (!_validateHttpsUrl(url)) {
-        throw Exception('Cannot get current subscription with non-HTTPS URL');
-      }
       
       final response = await _makeRequest(
         'GET',
@@ -361,11 +522,6 @@ class CompanySubscriptionService {
       final headers = await _getHeaders();
       final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/remaining-time';
       
-      // Ensure HTTPS is being used
-      if (!_validateHttpsUrl(url)) {
-        throw Exception('Cannot get subscription remaining time with non-HTTPS URL');
-      }
-      
       final response = await _makeRequest(
         'GET',
         Uri.parse(url),
@@ -412,11 +568,6 @@ class CompanySubscriptionService {
       
       final headers = await _getHeaders();
       final url = '$_baseUrl$_subscriptionEndpoint/subscription/$branchId/cancel';
-      
-      // Ensure HTTPS is being used
-      if (!_validateHttpsUrl(url)) {
-        throw Exception('Cannot cancel subscription with non-HTTPS URL');
-      }
       
       final response = await _makeRequest(
         'POST',

@@ -47,10 +47,24 @@ class SubscriptionPlan {
       }
     }
 
+    // Handle price conversion - can be int or double
+    double? priceValue;
+    if (json['price'] != null) {
+      if (json['price'] is int) {
+        priceValue = (json['price'] as int).toDouble();
+      } else if (json['price'] is double) {
+        priceValue = json['price'] as double;
+      } else if (json['price'] is String) {
+        priceValue = double.tryParse(json['price']);
+      } else if (json['price'] is num) {
+        priceValue = (json['price'] as num).toDouble();
+      }
+    }
+
     return SubscriptionPlan(
       id: json['id'],
       title: json['title'],
-      price: json['price']?.toDouble(),
+      price: priceValue,
       duration: json['duration'],
       type: json['type'],
       benefits: benefitsValue,
@@ -178,6 +192,11 @@ class SubscriptionRequest {
   final DateTime? requestedAt;
   final DateTime? processedAt;
   final String? imagePath;
+  // Whish payment fields
+  final String? collectUrl;
+  final int? externalId;
+  final String? paymentStatus;
+  final DateTime? paidAt;
 
   SubscriptionRequest({
     this.id,
@@ -189,19 +208,27 @@ class SubscriptionRequest {
     this.requestedAt,
     this.processedAt,
     this.imagePath,
+    this.collectUrl,
+    this.externalId,
+    this.paymentStatus,
+    this.paidAt,
   });
 
   factory SubscriptionRequest.fromJson(Map<String, dynamic> json) {
     return SubscriptionRequest(
-      id: json['id'],
+      id: json['id'] ?? json['requestId'],
       companyId: json['companyId'],
       planId: json['planId'],
       status: json['status'],
       adminId: json['adminId'],
       adminNote: json['adminNote'],
-      requestedAt: json['requestedAt'] != null ? DateTime.parse(json['requestedAt']) : null,
+      requestedAt: json['requestedAt'] != null ? DateTime.parse(json['requestedAt']) : (json['submittedAt'] != null ? DateTime.parse(json['submittedAt']) : null),
       processedAt: json['processedAt'] != null ? DateTime.parse(json['processedAt']) : null,
       imagePath: json['imagePath'],
+      collectUrl: json['collectUrl'],
+      externalId: json['externalId'] is int ? json['externalId'] : (json['externalId'] is String ? int.tryParse(json['externalId']) : null),
+      paymentStatus: json['paymentStatus'],
+      paidAt: json['paidAt'] != null ? DateTime.parse(json['paidAt']) : null,
     );
   }
 
@@ -216,6 +243,10 @@ class SubscriptionRequest {
       'requestedAt': requestedAt?.toIso8601String(),
       'processedAt': processedAt?.toIso8601String(),
       'imagePath': imagePath,
+      'collectUrl': collectUrl,
+      'externalId': externalId,
+      'paymentStatus': paymentStatus,
+      'paidAt': paidAt?.toIso8601String(),
     };
   }
 }
@@ -228,6 +259,11 @@ class WholesalerBranchSubscriptionRequest {
   final String? status;
   final DateTime? requestedAt;
   final String? imagePath;
+  // Whish payment fields
+  final String? collectUrl;
+  final int? externalId;
+  final String? paymentStatus;
+  final DateTime? paidAt;
 
   WholesalerBranchSubscriptionRequest({
     this.id,
@@ -236,6 +272,10 @@ class WholesalerBranchSubscriptionRequest {
     this.status,
     this.requestedAt,
     this.imagePath,
+    this.collectUrl,
+    this.externalId,
+    this.paymentStatus,
+    this.paidAt,
   });
 
   factory WholesalerBranchSubscriptionRequest.fromJson(Map<String, dynamic> json) {
@@ -303,6 +343,57 @@ class WholesalerBranchSubscriptionRequest {
       safeImagePath = null;
     }
 
+    // Parse Whish payment fields
+    String? safeCollectUrl;
+    try {
+      safeCollectUrl = json['collectUrl']?.toString();
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing collectUrl: $e');
+      safeCollectUrl = null;
+    }
+
+    int? safeExternalId;
+    try {
+      final externalIdValue = json['externalId'];
+      if (externalIdValue != null) {
+        if (externalIdValue is int) {
+          safeExternalId = externalIdValue;
+        } else if (externalIdValue is String) {
+          safeExternalId = int.tryParse(externalIdValue);
+        } else if (externalIdValue is num) {
+          safeExternalId = externalIdValue.toInt();
+        }
+      }
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing externalId: $e');
+      safeExternalId = null;
+    }
+
+    String? safePaymentStatus;
+    try {
+      safePaymentStatus = json['paymentStatus']?.toString();
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing paymentStatus: $e');
+      safePaymentStatus = null;
+    }
+
+    DateTime? safePaidAt;
+    try {
+      final paidAtValue = json['paidAt'];
+      if (paidAtValue != null) {
+        if (paidAtValue is DateTime) {
+          safePaidAt = paidAtValue;
+        } else if (paidAtValue is String) {
+          safePaidAt = DateTime.parse(paidAtValue);
+        } else if (paidAtValue is int) {
+          safePaidAt = DateTime.fromMillisecondsSinceEpoch(paidAtValue);
+        }
+      }
+    } catch (e) {
+      print('WholesalerBranchSubscriptionRequest - Error parsing paidAt: $e');
+      safePaidAt = null;
+    }
+
     return WholesalerBranchSubscriptionRequest(
       id: safeId,
       branchId: safeBranchId,
@@ -310,6 +401,10 @@ class WholesalerBranchSubscriptionRequest {
       status: safeStatus,
       requestedAt: safeRequestedAt,
       imagePath: safeImagePath,
+      collectUrl: safeCollectUrl,
+      externalId: safeExternalId,
+      paymentStatus: safePaymentStatus,
+      paidAt: safePaidAt,
     );
   }
 
@@ -321,6 +416,10 @@ class WholesalerBranchSubscriptionRequest {
       'status': status,
       'requestedAt': requestedAt?.toIso8601String(),
       'imagePath': imagePath,
+      'collectUrl': collectUrl,
+      'externalId': externalId,
+      'paymentStatus': paymentStatus,
+      'paidAt': paidAt?.toIso8601String(),
     };
   }
 }

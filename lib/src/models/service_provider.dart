@@ -112,6 +112,7 @@ class ServiceProviderInfo {
   final String? description;
   final String? certificateImage;
   final List<String>? certificateImages;
+  final List<String>? portfolioImages;
   final String? status;
   final Map<String, String>? socialLinks;
 
@@ -126,6 +127,7 @@ class ServiceProviderInfo {
     this.description,
     this.certificateImage,
     this.certificateImages,
+    this.portfolioImages,
     this.status,
     this.socialLinks,
   });
@@ -218,6 +220,12 @@ class ServiceProviderInfo {
         certificateImages = List<String>.from(json['certificateImages']);
       }
 
+      // Parse portfolioImages array
+      List<String>? portfolioImages;
+      if (json['portfolioImages'] != null && json['portfolioImages'] is List) {
+        portfolioImages = List<String>.from(json['portfolioImages']);
+      }
+
       return ServiceProviderInfo(
         serviceType: json['serviceType']?.toString() ?? '',
         customServiceType: json['customServiceType']?.toString(),
@@ -228,6 +236,7 @@ class ServiceProviderInfo {
         description: description,
         certificateImage: json['certificateImage']?.toString(),
         certificateImages: certificateImages,
+        portfolioImages: portfolioImages,
         status: json['status']?.toString(),
         socialLinks: socialLinks,
       );
@@ -248,6 +257,7 @@ class ServiceProviderInfo {
       'description': description,
       'certificateImage': certificateImage,
       'certificateImages': certificateImages,
+      'portfolioImages': portfolioImages,
       'status': status,
       if (socialLinks != null) 'socialLinks': socialLinks,
     };

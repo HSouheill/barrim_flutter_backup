@@ -42,6 +42,10 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
   List<File> _certificationImages = [];
   List<String> _certificationImagePaths = [];
 
+  // For portfolio images
+  List<String> _portfolioImageUrls = [];
+  bool _isLoadingPortfolio = false;
+
   // For time selection
   List<TimeSlot> _timeSlots = [];
 
@@ -137,6 +141,17 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
           _loadDistrictsForGovernorate(provider.location!.governorate!);
         }
 
+        // Load portfolio images from service provider info or fetch from API
+        if (provider.serviceProviderInfo?.portfolioImages != null && 
+            provider.serviceProviderInfo!.portfolioImages!.isNotEmpty) {
+          _portfolioImageUrls = provider.serviceProviderInfo!.portfolioImages!
+              .map((path) => _getFullImageUrl(path))
+              .toList();
+        } else {
+          // Try to fetch portfolio images from API after setState completes
+          Future.microtask(() => _loadPortfolioImages());
+        }
+
         // Set available days if they exist
         if (provider.serviceProviderInfo?.availableDays != null) {
           _availableDays = provider.serviceProviderInfo!.availableDays!;
@@ -201,6 +216,171 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to load service provider data: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String _getFullImageUrl(String path) {
+    if (path.startsWith('http')) {
+      return path;
+    }
+    // Remove leading slash if present and construct full URL
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    return '${_serviceProviderService.baseUrl}/$cleanPath';
+  }
+
+  Future<void> _loadPortfolioImages() async {
+    try {
+      setState(() {
+        _isLoadingPortfolio = true;
+      });
+      final imagePaths = await _serviceProviderService.getPortfolioImages();
+      setState(() {
+        _portfolioImageUrls = imagePaths.map((path) => _getFullImageUrl(path)).toList();
+        _isLoadingPortfolio = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingPortfolio = false;
+      });
+      print('Failed to load portfolio images: $e');
+      // Don't show error to user if portfolio images don't exist yet
+    }
+  }
+
+  Future<void> _pickPortfolioImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        await _uploadPortfolioImage(File(pickedFile.path));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to pick image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _uploadPortfolioImage(File imageFile) async {
+    try {
+      _showLoadingDialog();
+      final updatedPortfolioImages = await _serviceProviderService.uploadPortfolioImage(imageFile);
+      Navigator.of(context).pop(); // Close loading dialog
+      
+      setState(() {
+        _portfolioImageUrls = updatedPortfolioImages.map((path) => _getFullImageUrl(path)).toList();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Portfolio image uploaded successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload portfolio image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _updatePortfolioImage(int index) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        _showLoadingDialog();
+        final updatedPortfolioImages = await _serviceProviderService.updatePortfolioImage(index, File(pickedFile.path));
+        Navigator.of(context).pop(); // Close loading dialog
+        
+        setState(() {
+          _portfolioImageUrls = updatedPortfolioImages.map((path) => _getFullImageUrl(path)).toList();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Portfolio image updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update portfolio image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deletePortfolioImage(int index) async {
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Delete Portfolio Image'),
+            content: const Text('Are you sure you want to delete this portfolio image?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed == true) {
+        _showLoadingDialog();
+        final updatedPortfolioImages = await _serviceProviderService.deletePortfolioImage(index);
+        Navigator.of(context).pop(); // Close loading dialog
+        
+        setState(() {
+          _portfolioImageUrls = updatedPortfolioImages.map((path) => _getFullImageUrl(path)).toList();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Portfolio image deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete portfolio image: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -446,6 +626,11 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
                       _buildCertificationUpload(),
                       const SizedBox(height: 16),
 
+                      // Portfolio Images
+                      _buildFieldLabel('Portfolio Images'),
+                      _buildPortfolioUpload(),
+                      const SizedBox(height: 16),
+
                       // Country Picker
                       _buildFieldLabel('Country'),
                       TextFormField(
@@ -628,6 +813,134 @@ class _ServiceProviderInfoPageState extends State<ServiceProviderInfoPage> {
                 SizedBox(height: 8),
                 Text(
                   'Add Certificate',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPortfolioUpload() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_isLoadingPortfolio)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_portfolioImageUrls.isNotEmpty) ...[
+          Text(
+            'Portfolio Images (${_portfolioImageUrls.length})',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+          SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 1,
+            ),
+            itemCount: _portfolioImageUrls.length,
+            itemBuilder: (context, index) {
+              return Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        _portfolioImageUrls[index],
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey.shade200,
+                            child: Icon(Icons.broken_image, color: Colors.grey),
+                          );
+                        },
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Edit button
+                          GestureDetector(
+                            onTap: () => _updatePortfolioImage(index),
+                            child: Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.edit,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          // Delete button
+                          GestureDetector(
+                            onTap: () => _deletePortfolioImage(index),
+                            child: Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          SizedBox(height: 16),
+        ],
+        
+        // Add portfolio image button
+        GestureDetector(
+          onTap: _pickPortfolioImage,
+          child: Container(
+            height: 120,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey),
+                SizedBox(height: 8),
+                Text(
+                  'Add Portfolio Image',
                   style: TextStyle(color: Colors.grey),
                 ),
               ],

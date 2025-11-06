@@ -62,7 +62,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
         final referralData = responseData['referralData'] ?? {};
 
         // Construct the referral link using the user's referral code
-        final String referralLink = 'https://barrim.com/referral?code=${_userReferralCode ?? ''}';
+        final String referralLink = 'https://barrim.online/referral?code=${_userReferralCode ?? ''}';
 
         final int referralsCount = referralData['referralCount'] ?? 
                                  referralData['referralsCount'] ?? 
@@ -113,7 +113,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
         }
       } else {
         // If API call fails, still show the referral code from user profile
-        final String referralLink = 'https://barrim.com/referral?code=${_userReferralCode ?? ''}';
+        final String referralLink = 'https://barrim.online/referral?code=${_userReferralCode ?? ''}';
         setState(() {
           _referralData = {
             'referralCode': _userReferralCode ?? '',
@@ -128,7 +128,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
       }
     } catch (e) {
       // If there's an error, still show the referral code from user profile
-      final String referralLink = 'https://barrim.com/referral?code=${_userReferralCode ?? ''}';
+      final String referralLink = 'https://barrim.online/referral?code=${_userReferralCode ?? ''}';
       setState(() {
         _referralData = {
           'referralCode': _userReferralCode ?? '',
@@ -188,7 +188,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
           _userReferralCode = data['referralCode'];
           // Update referral link if we already have referral data
           if (_referralData.isNotEmpty) {
-            _referralData['referralLink'] = 'https://barrim.com/referral?code=${_userReferralCode}';
+            _referralData['referralLink'] = 'https://barrim.online/referral?code=${_userReferralCode}';
           }
         });
       }

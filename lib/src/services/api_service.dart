@@ -18,7 +18,10 @@ import '../utils/centralized_token_manager.dart';
 import '../../models/ad_model.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://barrim.online';
+  // static const String baseUrl = 'https://barrim.online';
+  // For Android emulator, use: 'http://10.0.2.2:8080'
+  // For iOS simulator or physical devices, use: 'http://localhost:8080' or your machine's IP
+  static const String baseUrl = 'http://barrim.online:3010';
   
   // Secure storage for tokens
   static const _secureStorage = FlutterSecureStorage(
@@ -2014,7 +2017,8 @@ class ApiService {
   }
 
   // Updated method to create a review with multipart form data
-  static Future<bool> createReview(Review review) async {
+  // The backend automatically sends notifications to the service provider when a review is created
+  static Future<Map<String, dynamic>> createReview(Review review) async {
     try {
       // Prepare headers for multipart request (without Content-Type)
       Map<String, String> headers = await _getMultipartHeaders();
@@ -2050,6 +2054,8 @@ class ApiService {
       }
 
       // Send the request using multipart
+      // Backend endpoint: POST /api/reviews
+      // The backend automatically sends a notification to the service provider (in-app + FCM)
       final streamedResponse = await _makeMultipartRequest(
         'POST',
         Uri.parse('$baseUrl/api/reviews'),
@@ -2059,10 +2065,34 @@ class ApiService {
       );
       
       final response = await http.Response.fromStream(streamedResponse);
+      final responseData = json.decode(response.body);
 
-      return response.statusCode == 201;
+      if (response.statusCode == 201) {
+        // Review created successfully
+        // Backend has automatically sent notification to service provider
+        return {
+          'success': true,
+          'status': response.statusCode,
+          'message': responseData['message'] ?? 'Review created successfully',
+          'data': responseData['data'],
+        };
+      } else {
+        // Handle error response
+        return {
+          'success': false,
+          'status': response.statusCode,
+          'message': responseData['message'] ?? 'Failed to create review',
+          'data': null,
+        };
+      }
     } catch (e) {
-      return false;
+      print('Error creating review: $e');
+      return {
+        'success': false,
+        'status': 500,
+        'message': 'Error creating review: $e',
+        'data': null,
+      };
     }
   }
 
@@ -2143,6 +2173,9 @@ class ApiService {
   }
 
   // Post a reply to a review
+  // Backend endpoint: POST /api/reviews/{reviewId}/reply
+  // The backend automatically sends a notification to the review author (user who posted the review)
+  // when a service provider replies to their review. This includes both in-app and FCM notifications.
   static Future<Map<String, dynamic>> postReviewReply({
     required String reviewId,
     required String replyText,
@@ -2163,20 +2196,26 @@ class ApiService {
       final responseData = json.decode(response.body);
 
       if (response.statusCode == 200) {
+        // Reply posted successfully
+        // Backend has automatically sent notification to review author (in-app + FCM)
         return {
+          'success': true,
           'status': response.statusCode,
-          'message': 'Reply posted successfully',
+          'message': responseData['message'] ?? 'Reply posted successfully',
           'data': responseData['data'],
         };
       } else {
         return {
+          'success': false,
           'status': response.statusCode,
           'message': responseData['message'] ?? 'Failed to post reply',
           'data': null,
         };
       }
     } catch (e) {
+      print('Error posting reply: $e');
       return {
+        'success': false,
         'status': 500,
         'message': 'Error posting reply: $e',
         'data': null,
