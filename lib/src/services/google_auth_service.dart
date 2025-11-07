@@ -1,5 +1,6 @@
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
@@ -13,16 +14,27 @@ class GoogleSignInProvider extends ChangeNotifier {
   GoogleSignIn? _googleSignIn;
   
   GoogleSignIn get googleSignIn {
-    _googleSignIn ??= GoogleSignIn(
-      scopes: [
-        'email',
-        'profile',
-      ],
-      // Configure client ID for both platforms
-      clientId: Platform.isAndroid 
-          ? '598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com'
-          : '307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com', // iOS client ID from GoogleService-Info.plist
-    );
+    if (_googleSignIn == null) {
+      // For Android, don't set clientId - it will be auto-detected from google-services.json
+      // For iOS, set the client ID explicitly
+      if (Platform.isAndroid) {
+        _googleSignIn = GoogleSignIn(
+          scopes: [
+            'email',
+            'profile',
+          ],
+          // clientId is not set for Android - it will be auto-detected from google-services.json
+        );
+      } else {
+        _googleSignIn = GoogleSignIn(
+          scopes: [
+            'email',
+            'profile',
+          ],
+          clientId: '307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com', // iOS client ID from GoogleService-Info.plist
+        );
+      }
+    }
     return _googleSignIn!;
   }
   GoogleSignInAccount? _user;
@@ -102,20 +114,44 @@ class GoogleSignInProvider extends ChangeNotifier {
         _user = googleUser;
         print("Google Sign-In successful for user: ${googleUser.email}");
       } catch (e) {
-        print("Google Sign In error: $e");
+        print("=========================================");
+        print("Google Sign In ERROR DETAILS:");
+        print("Error: $e");
         print("Error type: ${e.runtimeType}");
+        print("Error string: ${e.toString()}");
+        if (e is PlatformException) {
+          print("Error code: ${e.code}");
+          print("Error message: ${e.message}");
+          print("Error details: ${e.details}");
+        }
+        print("=========================================");
         
-        if (e.toString().contains('network_error') || e.toString().contains('NETWORK_ERROR')) {
+        // More detailed error handling
+        final errorString = e.toString().toLowerCase();
+        
+        if (errorString.contains('network_error') || errorString.contains('network error')) {
           throw Exception('Network error occurred. Please check your connection and try again.');
-        } else if (e.toString().contains('sign_in_canceled') || e.toString().contains('SIGN_IN_CANCELED')) {
+        } else if (errorString.contains('sign_in_canceled') || errorString.contains('sign in canceled')) {
           _isLoading = false;
           notifyListeners();
           return null; // User canceled sign-in
-        } else if (e.toString().contains('sign_in_failed') || e.toString().contains('SIGN_IN_FAILED')) {
-          throw Exception('Google Sign-In failed. Please check your Google account settings and try again.');
-        } else if (e.toString().contains('DEVELOPER_ERROR')) {
-          throw Exception('Google Sign-In configuration error. Please contact support.');
+        } else if (errorString.contains('sign_in_failed') || errorString.contains('sign in failed')) {
+          // Provide more helpful error message
+          String errorMsg = 'Google Sign-In failed. ';
+          if (errorString.contains('developer_error') || errorString.contains('10:')) {
+            errorMsg += 'Configuration error. Please ensure Google Sign-In is properly configured.';
+          } else if (errorString.contains('api_not_connected') || errorString.contains('api not connected')) {
+            errorMsg += 'Google Play Services is not available. Please update Google Play Services.';
+          } else {
+            errorMsg += 'Please check your Google account settings and try again.';
+          }
+          throw Exception(errorMsg);
+        } else if (errorString.contains('developer_error') || errorString.contains('10:')) {
+          throw Exception('Google Sign-In configuration error. Please check that the app is properly configured in Google Cloud Console and Firebase.');
+        } else if (errorString.contains('api_not_connected') || errorString.contains('api not connected')) {
+          throw Exception('Google Play Services is not available. Please update Google Play Services on your device.');
         } else {
+          // Include the original error for debugging
           throw Exception('Failed to sign in with Google: ${e.toString()}');
         }
       }
@@ -252,17 +288,55 @@ class GoogleSignInProvider extends ChangeNotifier {
           'token': token,
           'user': userData,
         };
+      } else if (response.statusCode == 404 || 
+                 response.statusCode == 422 ||
+                 (response.statusCode == 400 && 
+                 (responseData['message']?.toString().toLowerCase().contains('not found') == true ||
+                  responseData['error']?.toString().toLowerCase().contains('not found') == true ||
+                  responseData['message']?.toString().toLowerCase().contains('user not found') == true ||
+                  responseData['error']?.toString().toLowerCase().contains('user not found') == true ||
+                  responseData['message']?.toString().toLowerCase().contains('does not exist') == true ||
+                  responseData['error']?.toString().toLowerCase().contains('does not exist') == true))) {
+        // User doesn't exist - need to signup
+        // Extract Google user information for signup
+        print("User not found in database, preparing signup data");
+        
+        String fullName = '';
+        String email = '';
+        
+        if (_user != null) {
+          fullName = _user!.displayName ?? '';
+          email = _user!.email;
+          // If displayName is empty, try to extract from email
+          if (fullName.isEmpty && email.isNotEmpty) {
+            fullName = email.split('@')[0];
+          }
+        }
+        
+        final googleUserInfo = {
+          'fullName': fullName,
+          'email': email,
+        };
+        
+        _isLoading = false;
+        notifyListeners();
+        
+        // Return signup required response
+        return {
+          'needsSignup': true,
+          'userData': googleUserInfo,
+        };
       } else {
-        // Handle error response
+        // Handle other error responses
         String errorMessage;
         if (response.statusCode == 401) {
-          errorMessage = responseData['error'] ?? 'Invalid Google credentials';
+          errorMessage = responseData['error'] ?? responseData['message'] ?? 'Invalid Google credentials';
         } else if (response.statusCode == 400) {
-          errorMessage = responseData['error'] ?? 'Invalid request format';
+          errorMessage = responseData['error'] ?? responseData['message'] ?? 'Invalid request format';
         } else if (response.statusCode == 500) {
-          errorMessage = responseData['error'] ?? 'Server error occurred';
+          errorMessage = responseData['error'] ?? responseData['message'] ?? 'Server error occurred';
         } else {
-          errorMessage = responseData['error'] ?? 'Failed to authenticate with backend';
+          errorMessage = responseData['error'] ?? responseData['message'] ?? 'Failed to authenticate with backend';
         }
         throw Exception('$errorMessage (Status: ${response.statusCode})');
       }

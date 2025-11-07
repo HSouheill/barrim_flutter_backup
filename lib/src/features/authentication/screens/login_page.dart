@@ -240,11 +240,44 @@ class _LoginPageState extends State<LoginPage> {
 
         // Navigate based on user type
         _navigateAfterLogin(userType, result);
-      } else if (provider.error != null) {
-        print("Google sign-in error: ${provider.error}");
+      } else {
+        // Handle null result - user canceled or error occurred
+        if (provider.error != null && !provider.error!.toLowerCase().contains('canceled')) {
+          print("Google sign-in error: ${provider.error}");
+          // Show error message to user
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  provider.error!.contains('Exception:') 
+                      ? provider.error!.split('Exception: ')[1]
+                      : provider.error!,
+                ),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } else {
+          print("Google sign-in was canceled by user");
+        }
       }
     } catch (e) {
       print("Unexpected error during Google sign-in: $e");
+      // Show error message to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().contains('Exception:') 
+                  ? e.toString().split('Exception: ')[1]
+                  : 'An error occurred during Google sign-in. Please try again.',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
