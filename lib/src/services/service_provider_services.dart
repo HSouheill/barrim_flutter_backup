@@ -813,6 +813,9 @@ class ServiceProviderService {
   }
 
   /// Post a reply to a review (service provider only)
+  /// Backend endpoint: POST /api/reviews/{reviewId}/reply
+  /// The backend automatically sends a notification to the review author (user who posted the review)
+  /// when a service provider replies to their review. This includes both in-app and FCM notifications.
   Future<ReviewReply> postReviewReply({
     required String reviewId,
     required String replyText,
@@ -828,6 +831,7 @@ class ServiceProviderService {
     final serviceProvider = await getServiceProviderData();
     print('ServiceProviderService: Using service provider ID: ${serviceProvider.id}');
 
+    // Backend automatically sends notification to review author (in-app + FCM)
     final response = await _makeRequest(
       'POST',
       Uri.parse('$baseUrl/api/reviews/$reviewId/reply'),
@@ -871,6 +875,148 @@ class ServiceProviderService {
       return ReviewReply.fromJson(responseData['data']);
     } else {
       throw Exception(responseData['message'] ?? 'Failed to get reply');
+    }
+  }
+
+  // PORTFOLIO IMAGE MANAGEMENT FUNCTIONS
+
+  /// Upload a portfolio image
+  Future<List<String>> uploadPortfolioImage(File imageFile) async {
+    try {
+      final token = await _tokenStorage.getToken();
+      if (token == null) throw Exception('No token found');
+
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/service-providers/portfolio/upload'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'image',
+          imageFile.path,
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
+
+      final client = await _getCustomClient();
+      var streamedResponse = await client.send(request);
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 200) {
+        final responseData = json.decode(response.body);
+        throw Exception(responseData['message'] ?? 'Failed to upload portfolio image');
+      }
+
+      final responseData = json.decode(response.body);
+      if (responseData['data'] != null && responseData['data']['portfolioImages'] != null) {
+        return List<String>.from(responseData['data']['portfolioImages']);
+      }
+      throw Exception('Invalid response format');
+    } catch (e) {
+      throw Exception('Error uploading portfolio image: $e');
+    }
+  }
+
+  /// Get all portfolio images
+  Future<List<String>> getPortfolioImages() async {
+    try {
+      final token = await _tokenStorage.getToken();
+      if (token == null) throw Exception('No token found');
+
+      final response = await _makeRequest(
+        'GET',
+        Uri.parse('$baseUrl/api/service-providers/portfolio'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        final responseData = json.decode(response.body);
+        throw Exception(responseData['message'] ?? 'Failed to get portfolio images');
+      }
+
+      final responseData = json.decode(response.body);
+      if (responseData['data'] != null && responseData['data']['portfolioImages'] != null) {
+        return List<String>.from(responseData['data']['portfolioImages']);
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Error getting portfolio images: $e');
+    }
+  }
+
+  /// Update a portfolio image at a specific index
+  Future<List<String>> updatePortfolioImage(int index, File imageFile) async {
+    try {
+      final token = await _tokenStorage.getToken();
+      if (token == null) throw Exception('No token found');
+
+      var request = http.MultipartRequest(
+        'PUT',
+        Uri.parse('$baseUrl/api/service-providers/portfolio'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.fields['index'] = index.toString();
+      
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'image',
+          imageFile.path,
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
+
+      final client = await _getCustomClient();
+      var streamedResponse = await client.send(request);
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 200) {
+        final responseData = json.decode(response.body);
+        throw Exception(responseData['message'] ?? 'Failed to update portfolio image');
+      }
+
+      final responseData = json.decode(response.body);
+      if (responseData['data'] != null && responseData['data']['portfolioImages'] != null) {
+        return List<String>.from(responseData['data']['portfolioImages']);
+      }
+      throw Exception('Invalid response format');
+    } catch (e) {
+      throw Exception('Error updating portfolio image: $e');
+    }
+  }
+
+  /// Delete a portfolio image at a specific index
+  Future<List<String>> deletePortfolioImage(int index) async {
+    try {
+      final token = await _tokenStorage.getToken();
+      if (token == null) throw Exception('No token found');
+
+      final response = await _makeRequest(
+        'DELETE',
+        Uri.parse('$baseUrl/api/service-providers/portfolio'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'index': index}),
+      );
+
+      if (response.statusCode != 200) {
+        final responseData = json.decode(response.body);
+        throw Exception(responseData['message'] ?? 'Failed to delete portfolio image');
+      }
+
+      final responseData = json.decode(response.body);
+      if (responseData['data'] != null && responseData['data']['portfolioImages'] != null) {
+        return List<String>.from(responseData['data']['portfolioImages']);
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Error deleting portfolio image: $e');
     }
   }
 }

@@ -101,9 +101,10 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
       );
 
       // Submit review
-      final success = await ApiService.createReview(review);
+      // Backend will automatically send notification to service provider
+      final result = await ApiService.createReview(review);
 
-      if (success) {
+      if (result['success'] == true) {
         // Clear form
         _commentController.clear();
         setState(() {
@@ -113,13 +114,19 @@ class _ServiceProviderReviewsState extends State<ServiceProviderReviews> {
         // Refresh reviews
         await _fetchReviews();
 
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(content: Text('Review submitted successfully')),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Review submitted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
       } else {
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(content: Text('Failed to submit review')),
-        // );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to submit review'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       // ScaffoldMessenger.of(context).showSnackBar(

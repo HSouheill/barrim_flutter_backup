@@ -7,12 +7,16 @@ import 'package:barrim/src/services/extended_session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:app_links/app_links.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:barrim/src/features/authentication/screens/login_page.dart';
 import 'package:barrim/src/features/authentication/screens/signup.dart';
 import 'package:barrim/src/features/authentication/screens/splash_screen.dart';
+import 'package:barrim/src/features/authentication/screens/serviceProvider_dashboard/serviceprovider_subscriptions/serviceprovider_subscription.dart';
+import 'package:barrim/src/features/authentication/screens/wholesaler_dashboard/subscription/wholesaler_subscription.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../src/models/auth_provider.dart';
@@ -163,13 +167,207 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   
   // Global navigation key for handling back button
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  
+  // Deep linking
+  late AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     
+    // Initialize deep linking
+    _appLinks = AppLinks();
+    _initDeepLinking();
+    
     // Hardware back button handling is done via WillPopScope in the builder
+  }
+  
+  void _initDeepLinking() {
+    // Handle initial link (if app was opened from a deep link)
+    _appLinks.getInitialLink().then((uri) {
+      if (uri != null) {
+        _handleDeepLink(uri);
+      }
+    });
+    
+    // Listen for deep links while app is running
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      (uri) {
+        _handleDeepLink(uri);
+      },
+      onError: (err) {
+        if (kDebugMode) {
+          print('Deep link error: $err');
+        }
+      },
+    );
+  }
+  
+  void _handleDeepLink(Uri uri) {
+    if (kDebugMode) {
+      print('🔗 Deep link received: $uri');
+    }
+    
+    // Handle payment redirects
+    // Format: barrim://payment-success?requestId=xxx or barrim://payment-failed?requestId=xxx
+    // Or: https://barrim.online/payment-success?requestId=xxx
+    if (uri.scheme == 'barrim' || (uri.scheme == 'https' && uri.host == 'barrim.online')) {
+      final path = uri.path;
+      final queryParams = uri.queryParameters;
+      
+      if (kDebugMode) {
+        print('Path: $path, Query params: $queryParams');
+      }
+      
+      if (path.contains('payment-success') || path.contains('/payment-success')) {
+        final requestId = queryParams['requestId'];
+        if (kDebugMode) {
+          print('✅ Payment success! RequestId: $requestId');
+        }
+        _navigateToPaymentSuccess(requestId);
+      } else if (path.contains('payment-failed') || path.contains('/payment-failed')) {
+        final requestId = queryParams['requestId'];
+        if (kDebugMode) {
+          print('❌ Payment failed! RequestId: $requestId');
+        }
+        _navigateToPaymentFailed(requestId);
+      }
+    }
+  }
+  
+  void _navigateToPaymentSuccess(String? requestId) {
+    // Wait for the app to be fully built before navigating
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) return;
+      
+      // Navigate to subscription page if user is logged in and has user data
+      final userProvider = Provider.of<UserProvider>(navigator.context, listen: false);
+      if (userProvider.isLoggedIn && userProvider.user != null) {
+        if (kDebugMode) {
+          print('Payment success detected via deep link. RequestId: $requestId');
+        }
+        
+        // Show success message
+        ScaffoldMessenger.of(navigator.context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text('Payment successful! Your payment has been processed.'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        
+        // Navigate to subscription page based on user type
+        try {
+          final userType = userProvider.user!.userType;
+          if (userType != null && userType.isNotEmpty) {
+            final userTypeLower = userType.toLowerCase();
+            if (kDebugMode) {
+              print('User type: $userTypeLower, Navigating to subscription page...');
+            }
+            
+            // Wait a bit to ensure the app is fully resumed and context is ready
+            await Future.delayed(const Duration(milliseconds: 800));
+            
+            // Refresh subscription provider data before navigating
+            try {
+              final subscriptionProvider = Provider.of<SubscriptionProvider>(navigator.context, listen: false);
+              subscriptionProvider.refreshAllData();
+              if (kDebugMode) {
+                print('Subscription provider data refreshed');
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                print('Error refreshing subscription provider: $e');
+              }
+            }
+            
+            // Navigate to subscription page based on user type
+            if (userTypeLower == 'service_provider') {
+              if (navigator.mounted) {
+                // Navigate to service provider subscription page
+                navigator.pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => const ServiceproviderSubscription(),
+                  ),
+                  (route) => false, // Remove all previous routes
+                );
+                if (kDebugMode) {
+                  print('✅ Navigated to Service Provider subscription page');
+                }
+              }
+            } else if (userTypeLower == 'company') {
+              // For company, we need branch ID which we don't have from deep link
+              // Navigate to company dashboard instead - user can navigate to subscription from there
+              if (kDebugMode) {
+                print('Company user - payment success detected. User should navigate to subscription page manually.');
+              }
+              // Show a message that they should check their subscription status
+              ScaffoldMessenger.of(navigator.context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please check your subscription status in your branch dashboard.'),
+                  backgroundColor: Colors.blue,
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            } else if (userTypeLower == 'wholesaler') {
+              if (navigator.mounted) {
+                // Navigate to wholesaler subscription page
+                navigator.pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => const WholesalerSubscription(),
+                  ),
+                  (route) => false, // Remove all previous routes
+                );
+                if (kDebugMode) {
+                  print('✅ Navigated to Wholesaler subscription page');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('Error navigating to subscription page: $e');
+          }
+          // If navigation fails, the polling on subscription page will still work
+        }
+      }
+    });
+  }
+  
+  void _navigateToPaymentFailed(String? requestId) {
+    // Wait for the app to be fully built before navigating
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) return;
+      
+      // Show failure message
+      ScaffoldMessenger.of(navigator.context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('Payment failed. Please try again.'),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    });
   }
 
   @override
@@ -182,6 +380,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _linkSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

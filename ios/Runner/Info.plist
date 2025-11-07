@@ -30,8 +30,13 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.googleusercontent.apps.307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86</string>
+				<string>barrim</string>
 			</array>
 		</dict>
+	</array>
+	<key>Associated Domains</key>
+	<array>
+		<string>applinks:barrim.online</string>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

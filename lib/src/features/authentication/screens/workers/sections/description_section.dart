@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../../../../services/api_service.dart';
 
 class DescriptionSection extends StatelessWidget {
   final Map<String, dynamic> providerData;
@@ -8,6 +10,58 @@ class DescriptionSection extends StatelessWidget {
     Key? key,
     required this.providerData,
   }) : super(key: key);
+
+  String _getFullImageUrl(String path) {
+    if (path.startsWith('http')) {
+      return path;
+    }
+    // Remove leading slash if present and construct full URL
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    final baseUrl = ApiService.baseUrl;
+    return baseUrl.endsWith('/') ? baseUrl + cleanPath : baseUrl + '/' + cleanPath;
+  }
+
+  void _showImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(10),
+          child: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.contain,
+                    placeholder: (context, url) => const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.broken_image, size: 50),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black54,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _launchUrl(String url) async {
     if (!await launchUrl(Uri.parse(url))) {
@@ -254,11 +308,82 @@ class DescriptionSection extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
+              // Portfolio Images
+              if (providerData['portfolioImages'] != null && 
+                  (providerData['portfolioImages'] as List).isNotEmpty) ...[
+                const SizedBox(height: 24),
+                const Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.blue)),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Text(
+                        'Portfolio',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: Colors.blue)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildPortfolioGrid(context, providerData['portfolioImages']),
+              ],
 
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPortfolioGrid(BuildContext context, List<dynamic> portfolioImagePaths) {
+    // Convert paths to full URLs
+    final portfolioImageUrls = portfolioImagePaths
+        .map((path) => _getFullImageUrl(path.toString()))
+        .toList();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1,
+      ),
+      itemCount: portfolioImageUrls.length,
+      itemBuilder: (context, index) {
+        return GestureDetector(
+          onTap: () => _showImageDialog(context, portfolioImageUrls[index]),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: CachedNetworkImage(
+                imageUrl: portfolioImageUrls[index],
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: Colors.grey[200],
+                  child: const Icon(Icons.broken_image, color: Colors.grey),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

@@ -225,6 +225,7 @@ class _ServiceProviderProfileState extends State<ServiceProviderProfile> {
       'availableDays': _parseAvailableDays(apiData),
       // 'emergencyStatus': spInfo['status']?.toString() ?? 'Not Available',
       'yearsExperience': apiData['yearsExperience'],
+      'portfolioImages': spInfo['portfolioImages'], // Add portfolio images
     };
     
     print('ServiceProviderProfile: Final mapped data: $finalData');

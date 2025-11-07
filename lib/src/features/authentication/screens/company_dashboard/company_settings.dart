@@ -111,6 +111,128 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
     );
   }
 
+  void _showContactUsDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24.0),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF2079C2),
+                  Color(0xFF1F4889),
+                  Color(0xFF10105D),
+                ],
+                stops: [0.0, 0.5, 1.0],
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'About Barrim',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Barrim is a comprehensive platform that connects service providers, companies, and wholesalers with customers. Our mission is to create a seamless experience for discovering and accessing local businesses and services.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Divider(color: Colors.white54),
+                const SizedBox(height: 16),
+                const Text(
+                  'Contact Us',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.email, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Info@barrim.com',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.phone, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      '81675229',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(
+                        color: Color(0xFF10105D),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _performLogout() async {
     try {
       print('CompanySettingsPage: _performLogout called');
@@ -382,102 +504,159 @@ class _CompanySettingsPageState extends State<CompanySettingsPage> {
             ),
           ),
 
-          // Notifications button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 20.0),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    Color(0xFF0094FF),
-                    Color(0xFF05055A),
-                    Color(0xFF0094FF),
-                  ],
-                  stops: [0.0, 0.5, 1.0],
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: ListTile(
-                leading: const Icon(
-                  Icons.notifications_outlined,
-                  color: Colors.white,
-                  size: 22,
-                ),
-                title: Text(
-                  'Notifications',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.7,
-                  ),
-                ),
-                trailing: const Icon(
-                  Icons.chevron_right,
-                  color: Colors.white,
-                ),
-                onTap: () {
-                 Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CompanyNotificationSettingsPage(userData: userData),
+          // Scrollable content area
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Notifications button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 20.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Color(0xFF0094FF),
+                            Color(0xFF05055A),
+                            Color(0xFF0094FF),
+                          ],
+                          stops: [0.0, 0.5, 1.0],
                         ),
-                      );
-                },
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        title: Text(
+                          'Notifications',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.7,
+                          ),
+                        ),
+                        trailing: const Icon(
+                          Icons.chevron_right,
+                          color: Colors.white,
+                        ),
+                        onTap: () {
+                         Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CompanyNotificationSettingsPage(userData: userData),
+                                ),
+                              );
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // Logout button with red door icon
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Color(0xFFE53E3E), // Red color
+                            Color(0xFFC53030), // Darker red
+                            Color(0xFFE53E3E), // Red color
+                          ],
+                          stops: [0.0, 0.5, 1.0],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: ListTile(
+                        leading: _isLoggingOut
+                            ? SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.exit_to_app, // Exit door icon
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                        title: Text(
+                          _isLoggingOut ? 'Logging out...' : 'Logout',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.7,
+                          ),
+                        ),
+                        trailing: _isLoggingOut
+                            ? null
+                            : const Icon(
+                                Icons.chevron_right,
+                                color: Colors.white,
+                              ),
+                        onTap: _isLoggingOut ? null : () {
+                          _showLogoutConfirmationDialog();
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
 
-          // Logout button with red door icon
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    Color(0xFFE53E3E), // Red color
-                    Color(0xFFC53030), // Darker red
-                    Color(0xFFE53E3E), // Red color
-                  ],
-                  stops: [0.0, 0.5, 1.0],
-                ),
-                borderRadius: BorderRadius.circular(20),
+          // Footer with Contact Us
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xFF2079C2),
+                  Color(0xFF1F4889),
+                  Color(0xFF10105D),
+                ],
+                stops: [0.0, 0.5, 1.0],
               ),
-              child: ListTile(
-                leading: _isLoggingOut
-                    ? SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.exit_to_app, // Exit door icon
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+                child: InkWell(
+                  onTap: _showContactUsDialog,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(
+                        Icons.contact_support,
                         color: Colors.white,
-                        size: 22,
+                        size: 20,
                       ),
-                title: Text(
-                  _isLoggingOut ? 'Logging out...' : 'Logout',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveUtils.getSubtitleFontSize(context) * 0.7,
+                      SizedBox(width: 8),
+                      Text(
+                        'Contact Us',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                trailing: _isLoggingOut
-                    ? null
-                    : const Icon(
-                        Icons.chevron_right,
-                        color: Colors.white,
-                      ),
-                onTap: _isLoggingOut ? null : () {
-                  _showLogoutConfirmationDialog();
-                },
               ),
             ),
           ),

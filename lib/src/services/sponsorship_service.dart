@@ -197,12 +197,19 @@ class SponsorshipService {
         if (adminNote != null && adminNote.isNotEmpty) 'adminNote': adminNote,
       };
       
+      print('Creating wholesaler branch sponsorship request');
+      print('Request body: $requestBody');
+      print('Branch ID: $branchId');
+      
       final response = await _makeRequest(
         'POST',
         Uri.parse('$baseUrl/api/wholesaler/sponsorship/$branchId/request'),
         headers: headers,
         body: jsonEncode(requestBody),
       );
+      
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -287,7 +294,8 @@ class SponsorshipService {
         body: jsonEncode(requestBody),
       );
 
-      // Response logged without sensitive data
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -369,7 +377,7 @@ class SponsorshipService {
       
       final response = await _makeRequest(
         'GET',
-        Uri.parse('$baseUrl/api/sponsorship/remaining-time'),
+        Uri.parse('$baseUrl/api/service-providers/sponsorship/remaining-time'),
         headers: headers,
       );
 
@@ -378,6 +386,21 @@ class SponsorshipService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print('Successfully parsed response data: $data');
+        // Normalize response to include 'success' field for consistency
+        if (data is Map<String, dynamic>) {
+          // If response has 'status' but not 'success', normalize it
+          if (data.containsKey('status') && !data.containsKey('success')) {
+            final status = data['status'];
+            final isSuccess = status is int && status >= 200 && status < 300;
+            // Return normalized response with success field
+            return {
+              'success': isSuccess,
+              'status': status,
+              'message': data['message'],
+              'data': data['data'],
+            };
+          }
+        }
         return data;
       } else if (response.statusCode == 404) {
         // No active sponsorship subscription found

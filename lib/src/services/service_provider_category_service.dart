@@ -106,13 +106,21 @@ class ServiceProviderCategoryService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         
-        if (responseData['status'] == 200 && responseData['data'] != null) {
-          final List<dynamic> categoriesData = responseData['data'];
+        if (responseData['status'] == 200) {
+          // Handle both null and empty array cases gracefully
+          final List<dynamic>? categoriesData = responseData['data'];
+          
+          // Return empty list if data is null or empty array
+          if (categoriesData == null || categoriesData.isEmpty) {
+            print('ServiceProviderCategoryService: No categories found in response');
+            return [];
+          }
           
           return categoriesData.map((category) {
             return ServiceProviderCategory.fromJson(category);
           }).toList();
         } else {
+          // Only throw error if status is not 200
           throw Exception('Failed to retrieve service provider categories: ${responseData['message'] ?? 'Unknown error'}');
         }
       } else {

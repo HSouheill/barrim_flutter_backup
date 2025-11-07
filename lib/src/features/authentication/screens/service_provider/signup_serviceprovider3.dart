@@ -46,11 +46,19 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
 
       final categories = await ServiceProviderCategoryService.getAllServiceProviderCategories();
       
-      setState(() {
-        _serviceTypes = categories;
-        _filteredServiceTypes = List.from(categories);
-        _isLoadingCategories = false;
-      });
+      // If no categories found from API, load static fallback categories
+      if (categories.isEmpty) {
+        setState(() {
+          _isLoadingCategories = false;
+          _loadFallbackCategories();
+        });
+      } else {
+        setState(() {
+          _serviceTypes = categories;
+          _filteredServiceTypes = List.from(categories);
+          _isLoadingCategories = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _isLoadingCategories = false;
@@ -419,7 +427,9 @@ class _SignupServiceprovider3State extends State<SignupServiceprovider3> {
                       ? Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Text(
-                            'No categories found',
+                            _errorMessage == null 
+                                ? 'No service provider categories found'
+                                : 'No categories found',
                             style: GoogleFonts.nunito(
                               color: Colors.grey[600],
                               fontSize: 14,
