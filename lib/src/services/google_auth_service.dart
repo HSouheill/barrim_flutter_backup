@@ -21,7 +21,7 @@ class GoogleSignInProvider extends ChangeNotifier {
       // Configure client ID for both platforms
       clientId: Platform.isAndroid 
           ? '598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com'
-          : '598124535901-7eubbcoj5nni6sdj74f1op38r7updnov.apps.googleusercontent.com', // iOS client ID
+          : '307776183600-aoags2ect1p5i6rmebgsltb9ipsfin86.apps.googleusercontent.com', // iOS client ID from GoogleService-Info.plist
     );
     return _googleSignIn!;
   }
