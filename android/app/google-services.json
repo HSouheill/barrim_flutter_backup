@@ -1,49 +1,56 @@
 {
   "project_info": {
-    "project_number": "598124535901",
-    "project_id": "barrim-93482",
-    "storage_bucket": "barrim-93482.firebasestorage.app"
+    "project_number": "738658546834",
+    "project_id": "barrimapp-abd32",
+    "storage_bucket": "barrimapp-abd32.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:598124535901:android:a26af11cdbc623332f6db4",
+        "mobilesdk_app_id": "1:738658546834:android:5b6d0bba46ad56cf9e624b",
         "android_client_info": {
-          "package_name": "com.Barrim.AppBarrim"
+          "package_name": "com.Barrim.BarrimApp"
         }
       },
       "oauth_client": [
         {
-          "client_id": "598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com",
+          "client_id": "738658546834-8a8f671c1idolhc63v4t8hetepis6j7u.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.Barrim.AppBarrim",
-            "certificate_hash": "76:4C:1C:F4:8F:47:6F:BE:F3:2D:43:BA:F8:A5:D5:77:86:25:CB:D0"
+            "package_name": "com.Barrim.BarrimApp",
+            "certificate_hash": "14b7f7e72ff80e5b7bcd1b6f6312680e1c2636cb"
           }
         },
         {
-          "client_id": "598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com",
+          "client_id": "738658546834-q76k3g1v6p7s7ged7r57s746fib7ga9j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.Barrim.BarrimApp",
+            "certificate_hash": "764c1cf48f476fbef32d43baf8a5d5778625cbd0"
+          }
+        },
+        {
+          "client_id": "738658546834-ffhnddab3daeia0f1eh6sge3pl62kjt7.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyC_d-k4srUwr9UYcRwXQOzKCIBG2AIo-r4"
+          "current_key": "AIzaSyDjV26Dj1k5HzmLJmgft4FD4eaxjYg9144"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "598124535901-13i8apiln1vl4el5i6gn1e6p46jpenvb.apps.googleusercontent.com",
+              "client_id": "738658546834-ffhnddab3daeia0f1eh6sge3pl62kjt7.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "598124535901-7eubbcoj5nni6sdj74f1op38r7updnov.apps.googleusercontent.com",
+              "client_id": "738658546834-ddcrbgsnccnbvoctvvogdqjbpbv1oekd.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.barrim.barrim",
-                "app_store_id": "6746642468"
+                "bundle_id": "com.barrim.barrim"
               }
             }
           ]
