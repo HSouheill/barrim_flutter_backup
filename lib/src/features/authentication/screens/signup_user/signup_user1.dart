@@ -406,6 +406,65 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                       child: ListView(
                         physics: const BouncingScrollPhysics(),
                         children: [
+                          // Google Sign-Up Banner (only show if coming from Google)
+                          if (widget.googleUserData != null) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green.withOpacity(0.4), width: 1.5),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Image.asset(
+                                      'assets/icons/google.png',
+                                      width: 20,
+                                      height: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Signing up with Google',
+                                          style: GoogleFonts.nunito(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Complete your profile below',
+                                          style: GoogleFonts.nunito(
+                                            color: Colors.white.withOpacity(0.8),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green.shade300,
+                                    size: 24,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          
                           // Full Name Input
                           TextFormField(
                             focusNode: _fullNameFocus,
@@ -450,6 +509,7 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                           // Email Input
                           TextFormField(
                             controller: _emailController,
+                            readOnly: widget.googleUserData != null, // Make read-only if from Google
                             decoration: InputDecoration(
                               labelText: 'Email address',
                               labelStyle: GoogleFonts.nunito(
@@ -502,6 +562,13 @@ class _SignupUserPage1State extends State<SignupUserPage1> {
                               errorStyle: GoogleFonts.nunito(
                                 color: Colors.red.shade300,
                                 fontSize: 12,
+                              ),
+                              helperText: widget.googleUserData != null 
+                                  ? 'Email from Google account' 
+                                  : null,
+                              helperStyle: GoogleFonts.nunito(
+                                color: Colors.green.shade300,
+                                fontSize: 11,
                               ),
                             ),
                             style: GoogleFonts.nunito(

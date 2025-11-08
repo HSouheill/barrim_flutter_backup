@@ -303,10 +303,15 @@ class GoogleSignInProvider extends ChangeNotifier {
         
         String fullName = '';
         String email = '';
+        String? photoUrl;
+        String? googleId;
         
         if (_user != null) {
           fullName = _user!.displayName ?? '';
           email = _user!.email;
+          photoUrl = _user!.photoUrl;
+          googleId = _user!.id;
+          
           // If displayName is empty, try to extract from email
           if (fullName.isEmpty && email.isNotEmpty) {
             fullName = email.split('@')[0];
@@ -316,6 +321,8 @@ class GoogleSignInProvider extends ChangeNotifier {
         final googleUserInfo = {
           'fullName': fullName,
           'email': email,
+          if (photoUrl != null) 'photoUrl': photoUrl,
+          if (googleId != null) 'googleId': googleId,
         };
         
         _isLoading = false;
